@@ -1,0 +1,14 @@
+{
+  "name": "web-rack",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Real-time audio rack, single-page HTML programs over a shared core.",
+  "license": "0BSD",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}
