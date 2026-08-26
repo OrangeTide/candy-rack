@@ -57,8 +57,10 @@ Later:
 
 Long-term target is a skeuomorphic groovebox panel, but not ReBirth RB-338. The
 look is candy-colored hardware in the spirit of the E-MU Command Station series,
-bright and toy-like. We invent imaginary machines to fill out a rainbow, each
-named after a fruit flavor tied to its color:
+bright and toy-like.
+
+Each standalone machine (program) is branded by a single fruit flavor tied to a
+color. We invent imaginary machines to fill out a rainbow:
 
 - red = Strawberry
 - orange = Orange
@@ -66,10 +68,15 @@ named after a fruit flavor tied to its color:
 - green = Lime
 - purple = Grape
 
+The palette is not limited to the rainbow. A machine's flavor follows its genre,
+for example a gothic-industrial machine would be Licorice (black).
+
+The machine we are building now is the **Grape** machine: funky electro, purple.
+Its current palette already leans purple, so the skin builds on that.
+
 Short-term we build functionality first and accept a plainer look, then layer
 the skeuomorphic panel, knobs, and lamps on top once the engine and sequencer
-work. Open question for later: whether a flavor skins a whole standalone machine
-(program) or maps onto tracks within the rack.
+work.
 
 ## Features
 
