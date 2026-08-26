@@ -1,0 +1,190 @@
+// PUBLIC DOMAIN (CC0-1.0)
+// This test script has no copyright. See https://creativecommons.org/publicdomain/zero/1.0/
+//
+// Headless audio checks for web-rack. Runs the engine DSP directly and also
+// exercises the actual worklet bundle decoded from build/rack.html. Browser-only
+// glue (AudioContext, addModule, DOM) is not covered here; this verifies the DSP
+// math, the message handling, polyphonic allocation, and chord clustering.
+//
+// Run:  node test/audio-check.mjs        (or: make check)
+// Exit code is non-zero if any check fails.
+
+import { readFileSync, existsSync } from 'node:fs';
+import { DrumVoice } from '../src/core/worklet/engines/drum.js';
+import { FM2Voice } from '../src/core/worklet/engines/fm2.js';
+import { ChordVoice, chordNotes } from '../src/core/worklet/engines/chord.js';
+import { CsawVoice } from '../src/core/worklet/engines/csaw.js';
+import { SupersawVoice } from '../src/core/worklet/engines/supersaw.js';
+
+const SR = 48000;
+let fails = 0;
+
+function check(name, cond, info) {
+  console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${info ? '  ' + info : ''}`);
+  if (!cond) fails += 1;
+}
+
+// Play one sub-voice and measure peak, rms, and how long the tail sounds.
+function measure(voice, params, { note = 60, freq = 220, gate = 0.2, seconds = 2 } = {}) {
+  voice.noteOn({ freq, note, vel: 110, gateSec: gate, params });
+  const n = Math.floor(seconds * SR);
+  let peak = 0;
+  let energy = 0;
+  let lastAudible = 0;
+  for (let i = 0; i < n; i++) {
+    const s = voice.render();
+    const a = Math.abs(s);
+    if (a > peak) peak = a;
+    energy += s * s;
+    if (a > 1e-3) lastAudible = i;
+  }
+  return { peak, rms: Math.sqrt(energy / n), tailMs: Math.round((lastAudible / SR) * 1000), active: voice.active };
+}
+
+console.log('== engine DSP ==');
+const cases = [
+  ['drum', new DrumVoice(SR), [0.30, 0.50, 0.35, 0.45, 0.20]],
+  ['fm2', new FM2Voice(SR), [0.50, 0.40, 0.20, 0.50, 0.20]],
+  ['chord', new ChordVoice(SR), [0.00, 0.20, 0.30, 0.55, 0.20]],
+  ['csaw', new CsawVoice(SR), [0.40, 0.60, 0.20, 0.55, 0.20]],
+  ['supersaw', new SupersawVoice(SR), [0.35, 0.70, 0.70, 0.00, 0.15]],
+];
+for (const [id, voice, params] of cases) {
+  const r = measure(voice, params);
+  check(`${id} audible and not clipping`, r.peak > 0.1 && r.peak <= 1.001,
+    `peak ${r.peak.toFixed(3)} rms ${r.rms.toFixed(3)} tail ${r.tailMs}ms`);
+}
+
+console.log('== gate/envelope frees pitched voices ==');
+for (const [id, Ctor, params] of [
+  ['fm2', FM2Voice, [0.50, 0.40, 0.20, 0.50, 0.20]],
+  ['csaw', CsawVoice, [0.40, 0.60, 0.20, 0.55, 0.20]],
+  ['chord', ChordVoice, [0.00, 0.20, 0.30, 0.55, 0.20]],
+]) {
+  const v = new Ctor(SR);
+  const r = measure(v, params, { gate: 0.15 });
+  check(`${id} releases after gate`, !v.active, `tail ${r.tailMs}ms`);
+}
+
+console.log('== chord clustering ==');
+const cluster = chordNotes(60, [0.30, 0.20, 0.30, 0.55, 0.20]); // maj7 region
+check('chord returns multiple notes', cluster.length > 1, `notes ${cluster.map((x) => x.toFixed(2)).join(', ')}`);
+
+console.log('== supersaw stereo spread ==');
+{
+  const ss = new SupersawVoice(SR);
+  ss.noteOn({ freq: 110, vel: 110, gateSec: 0.3, params: [0.5, 0.85, 0.7, 0.0, 0.15] });
+  let width = 0;
+  for (let i = 0; i < SR / 4; i++) { ss.renderStereo(); width += Math.abs(ss.outL - ss.outR); }
+  check('renderStereo produces a stereo image', width > 1, `L/R diff energy ${width.toFixed(1)}`);
+}
+
+console.log('== worklet bundle (build/rack.html) ==');
+if (!existsSync('build/rack.html')) {
+  console.log('SKIP  build/rack.html missing, run `make` first');
+} else {
+  const html = readFileSync('build/rack.html', 'utf8');
+  const m = html.match(/<script id="worklet-src"[^>]*>([\s\S]*?)<\/script>/);
+  const src = Buffer.from(m[1].trim(), 'base64').toString('utf8');
+
+  const registered = {};
+  globalThis.registerProcessor = (name, cls) => { registered[name] = cls; };
+  globalThis.sampleRate = SR;
+  globalThis.currentFrame = 0;
+  globalThis.AudioWorkletProcessor = class {
+    constructor() { this.port = { postMessage() {}, onmessage: null }; }
+  };
+  new Function(src)();
+  check('bundle registers voice-processor', !!registered['voice-processor']);
+
+  // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
+  const paramsOpen = { cutoff: new Float32Array([1]), vca: new Float32Array([1]) };
+  const paramsMuted = { cutoff: new Float32Array([1]), vca: new Float32Array([0]) };
+
+  const Proc = registered['voice-processor'];
+  const p = new Proc({ processorOptions: { engine: 'fm2' } });
+  p.port.onmessage({ data: { type: 'params', values: [0.5, 0.6, 0.2, 0.5, 0.2] } });
+  p.port.onmessage({ data: { type: 'trigger', time: 0.0, note: 60, velocity: 110, gateSec: 0.2 } });
+  const out = [new Float32Array(128), new Float32Array(128)];
+  let peak = 0;
+  for (let blk = 0; blk < 40; blk++) {
+    globalThis.currentFrame = blk * 128;
+    p.process([], [out], paramsOpen);
+    for (let i = 0; i < 128; i++) peak = Math.max(peak, Math.abs(out[0][i]));
+  }
+  const stereo = out[1].every((v, i) => v === out[0][i]);
+  check('bundle renders audio to both channels', peak > 0.1 && stereo, `peak ${peak.toFixed(3)}`);
+
+  // VCA AudioParam at 0 must silence the output (mod destination for ducking).
+  const p2 = new Proc({ processorOptions: { engine: 'fm2' } });
+  p2.port.onmessage({ data: { type: 'params', values: [0.5, 0.6, 0.2, 0.5, 0.2] } });
+  p2.port.onmessage({ data: { type: 'trigger', time: 0.0, note: 60, velocity: 110, gateSec: 0.2 } });
+  let mutedPeak = 0;
+  for (let blk = 0; blk < 20; blk++) {
+    globalThis.currentFrame = blk * 128;
+    p2.process([], [out], paramsMuted);
+    for (let i = 0; i < 128; i++) mutedPeak = Math.max(mutedPeak, Math.abs(out[0][i]));
+  }
+  check('vca AudioParam at 0 silences output', mutedPeak < 1e-6, `peak ${mutedPeak.toExponential(1)}`);
+
+  const pc = new Proc({ processorOptions: { engine: 'chord' } });
+  pc.port.onmessage({ data: { type: 'params', values: [0.30, 0.20, 0.30, 0.55, 0.20] } });
+  pc.port.onmessage({ data: { type: 'trigger', time: 0.0, note: 60, velocity: 110, gateSec: 0.3 } });
+  globalThis.currentFrame = 0;
+  pc.process([], [out], paramsOpen);
+  const voicesUp = pc.pool.filter((v) => v.active).length;
+  check('one chord trigger allocates several voices', voicesUp > 1, `${voicesUp} voices`);
+
+  // Supersaw drives the two output channels differently (stereo path).
+  const ps = new Proc({ processorOptions: { engine: 'supersaw' } });
+  ps.port.onmessage({ data: { type: 'params', values: [0.5, 0.85, 0.7, 0.0, 0.15] } });
+  ps.port.onmessage({ data: { type: 'trigger', time: 0.0, note: 57, velocity: 110, gateSec: 0.3 } });
+  const outS = [new Float32Array(128), new Float32Array(128)];
+  let chanDiff = 0;
+  for (let blk = 0; blk < 60; blk++) {
+    globalThis.currentFrame = blk * 128;
+    ps.process([], [outS], paramsOpen);
+    for (let i = 0; i < 128; i++) chanDiff += Math.abs(outS[0][i] - outS[1][i]);
+  }
+  check('supersaw bundle output is stereo (L != R)', chanDiff > 1, `L/R diff ${chanDiff.toFixed(1)}`);
+}
+
+console.log('== mod matrix graph ==');
+{
+  const { ModMatrix } = await import('../src/programs/rack/modmatrix.js');
+  const { freshPattern } = await import('../src/programs/rack/starter.js');
+
+  const makeParam = () => ({ value: 0, calls: [],
+    cancelScheduledValues(t) { this.calls.push(['cancel', t]); },
+    setValueAtTime(v, t) { this.calls.push(['set', v, t]); },
+    linearRampToValueAtTime(v, t) { this.calls.push(['ramp', v, t]); } });
+  const ctx = {
+    createGain: () => ({ gain: makeParam(), connect() {}, disconnect() {} }),
+    createOscillator: () => ({ type: '', frequency: makeParam(), connect() {}, start() {}, stop() {}, disconnect() {} }),
+    createConstantSource: () => ({ offset: makeParam(), connect() {}, start() {}, stop() {}, disconnect() {} }),
+  };
+  const voices = Array.from({ length: 6 }, () => ({ _p: {}, param(n) { return (this._p[n] ||= makeParam()); } }));
+
+  const pattern = freshPattern();
+  const mm = new ModMatrix({ ctx });
+  mm.attach(voices);
+  mm.rebuild(pattern.routes);
+  check('builds one graph node per route', mm.nodes.length === pattern.routes.length, `${mm.nodes.length} nodes`);
+
+  const trig = mm.nodes.find((n) => n.cs);
+  const lfo = mm.nodes.find((n) => n.osc);
+  check('trigger route uses a ConstantSource', !!trig);
+  check('lfo route uses an Oscillator', !!lfo);
+  check('depth*polarity applied to gain', Math.abs(trig.gain.gain.value - (trig.route.depth * trig.route.polarity)) < 1e-9,
+    `gain ${trig.gain.gain.value}`);
+
+  // Firing the matching source lane schedules a pulse; a non-matching one does not.
+  mm.onSourceTrigger(trig.route.src.track, trig.route.src.lane, 1.0);
+  check('matching trigger schedules a pulse', trig.cs.offset.calls.length >= 3, `${trig.cs.offset.calls.length} automations`);
+  const before = trig.cs.offset.calls.length;
+  mm.onSourceTrigger((trig.route.src.track + 1) % 6, trig.route.src.lane, 2.0);
+  check('non-matching source is ignored', trig.cs.offset.calls.length === before);
+}
+
+console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);
+process.exit(fails === 0 ? 0 : 1);
