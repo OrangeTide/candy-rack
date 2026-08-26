@@ -195,7 +195,7 @@ function render() {
 
   // Transport
   const head = el('div', 'head');
-  head.append(el('div', 'title', 'web-rack'));
+  head.append(el('div', 'panel-tag', 'Transport'));
   playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
   playBtn.onclick = togglePlay;
   const tempoWrap = el('label', 'field');
