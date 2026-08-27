@@ -22,21 +22,17 @@ function rate2sec(r) {
   return Math.min(20, Math.max(0.0005, s));
 }
 
-// Reduce a DX7 4-rate / 4-level operator envelope to attack, decay, sustain,
-// release, and peak. L1 is the peak, L3 the sustain the note holds while gated,
-// and the slower of R2/R3 sets the audible decay toward that sustain.
-function reduceEnv(r, l) {
-  return {
-    atk: rate2sec(r[0]),
-    dec: rate2sec(Math.min(r[1], r[2] || r[1])),
-    sus: l[2] / 99,
-    rel: rate2sec(r[3]),
-    peak: l[0] / 99,
-  };
+// A DX7 operator envelope is kept raw: four rates and four levels (0..99). The
+// FMEnv below plays the real four-point shape, which matters because the bright
+// bass modulators drop from their peak to a low L2 fast, then hold, giving a
+// plucked attack rather than a sustained buzz.
+function eg(r, l) {
+  return { r, l };
 }
 
-// Per-operator AD(S)R envelope. Linear attack to peak, exponential approach to
-// the sustain level, exponential release toward zero once the gate ends.
+// Per-operator four-segment envelope: ramp to L1 at R1, to L2 at R2, to L3 at R3
+// (hold there while gated), then to L4 at R4 on release. Segments are linear in
+// time; the Attack and Decay macros scale the segment durations.
 class FMEnv {
   constructor(sampleRate) {
     this.sr = sampleRate;
@@ -44,28 +40,30 @@ class FMEnv {
     this.done = true;
   }
 
-  // e = reduced envelope, scaled by the macro attack/decay multipliers.
   trigger(e, gateSec, atkScale, decScale) {
-    this.peak = e.peak;
-    this.sus = e.sus * e.peak;
-    this.atkInc = 1 / (Math.max(0.0005, e.atk * atkScale) * this.sr);
-    this.decCoef = Math.exp(-1 / (e.dec * decScale * this.sr));
-    this.relCoef = Math.exp(-1 / (e.rel * decScale * this.sr));
+    this.L = [e.l[0] / 99, e.l[1] / 99, e.l[2] / 99, e.l[3] / 99];
+    this.dur = [
+      Math.max(1, rate2sec(e.r[0]) * atkScale * this.sr),
+      Math.max(1, rate2sec(e.r[1]) * decScale * this.sr),
+      Math.max(1, rate2sec(e.r[2]) * decScale * this.sr),
+    ];
+    this.relDur = Math.max(1, rate2sec(e.r[3]) * decScale * this.sr);
+    this.v = 0;
+    this.from = 0;
+    this.seg = 0;
+    this.segT = 0;
     this.gateSamples = Math.max(1, Math.floor(gateSec * this.sr));
     this.t = 0;
-    this.v = 0;
-    this.stage = 'a';
     this.released = false;
     this.done = false;
   }
 
-  // Re-arm the gate for a legato (slide) note: keep the current level and
-  // stage, just restart the hold so the note releases on the new step's gate.
+  // Re-arm the gate for a legato (slide) note: keep the current level, resume
+  // the sustain hold, and restart the hold timer.
   regate(gateSec) {
     this.gateSamples = Math.max(1, Math.floor(gateSec * this.sr));
     this.t = 0;
-    this.released = false;
-    if (this.stage === 'r') this.stage = 'd';
+    if (this.released) { this.released = false; this.seg = 3; }
     this.done = false;
   }
 
@@ -73,17 +71,25 @@ class FMEnv {
     this.t += 1;
     if (!this.released && this.t >= this.gateSamples) {
       this.released = true;
-      this.stage = 'r';
+      this.relFrom = this.v;
+      this.segT = 0;
     }
-    if (this.stage === 'a') {
-      this.v += this.atkInc;
-      if (this.v >= this.peak) { this.v = this.peak; this.stage = 'd'; }
-    } else if (this.stage === 'd') {
-      this.v = this.sus + (this.v - this.sus) * this.decCoef;
-    } else if (this.stage === 'r') {
-      this.v *= this.relCoef;
+    if (this.released) {
+      this.segT += 1;
+      const p = this.segT / this.relDur;
+      this.v = p >= 1 ? this.L[3] : this.relFrom + (this.L[3] - this.relFrom) * p;
+      if (p >= 1 && this.v < 1e-4) this.done = true;
+    } else if (this.seg < 3) {
+      const target = this.L[this.seg];
+      this.segT += 1;
+      const p = this.segT / this.dur[this.seg];
+      this.v = p >= 1 ? target : this.from + (target - this.from) * p;
+      if (p >= 1) { this.from = target; this.seg += 1; this.segT = 0; }
+    } else {
+      this.v = this.L[2]; // hold at L3
     }
-    if (this.v < 1e-4 && (this.released || this.sus < 1e-4) && this.stage !== 'a') {
+    // A percussive operator (L3 = 0) goes silent and frees even while gated.
+    if (this.v < 1e-4 && this.seg > 0 && (this.released || this.L[2] < 1e-4)) {
       this.done = true;
     }
     return this.v;
@@ -94,7 +100,11 @@ const TWO_PI = Math.PI * 2;
 // Base modulation index (radians) a full-level modulator contributes, and the
 // feedback self-modulation index. Tuned by ear against the reference patches.
 const INDEX = 5.5;
-const FB_INDEX = 4.0;
+// Bass uses a lower base index: its modulators sit at high ratios (5, 9), and at
+// the epiano index they overdrive into bright, aliasing noise instead of reading
+// as a bass. Feedback is milder too, for the same reason.
+const BASS_INDEX = 2.6;
+const FB_INDEX = 2.4;
 // Portamento time for slide (legato) notes on monophonic engines.
 const GLIDE_SEC = 0.055;
 
@@ -180,13 +190,10 @@ export class FM6Voice {
     // Rebuild the operator layout if a structural knob moved on a held note.
     const key = this.structureKey();
     if (key !== this.dirtyKey) {
+      // A structural knob (the fmbass Type morph) moved on a held note. Rebuild
+      // the operator ratios/levels; the running envelopes keep playing.
       this.dirtyKey = key;
-      const atk = this.atkScale(), dec = this.decScale();
-      const held = this.env.map((e) => e.v);
       this.rebuild();
-      // Preserve envelope stage; only the target ratios/levels changed.
-      for (let i = 1; i <= 6; i++) this.env[i].peak = this.ops[i].env.peak;
-      void held;
     }
 
     // Glide toward the target pitch. For a normal note freq already equals the
@@ -243,12 +250,12 @@ export class FM6Voice {
 // 1/3/5, feedback on op6. OP2 at ratio 14 is the tine ping.
 const EPIANO = [
   null,
-  { ratio: 1, out: 99, mods: [2], fb: 0, carrier: true, env: reduceEnv([96, 25, 25, 67], [99, 75, 0, 0]) },
-  { ratio: 14, out: 58, mods: [], fb: 0, carrier: false, env: reduceEnv([95, 50, 35, 78], [99, 75, 0, 0]) },
-  { ratio: 1, out: 99, mods: [4], fb: 0, carrier: true, env: reduceEnv([95, 20, 20, 50], [99, 95, 0, 0]) },
-  { ratio: 1, out: 89, mods: [], fb: 0, carrier: false, env: reduceEnv([95, 29, 20, 50], [99, 95, 0, 0]) },
-  { ratio: 1, out: 99, mods: [6], fb: 0, carrier: true, env: reduceEnv([95, 20, 20, 50], [99, 95, 0, 0]) },
-  { ratio: 1, out: 79, mods: [6], fb: 0.5, carrier: false, env: reduceEnv([95, 29, 20, 50], [99, 95, 0, 0]) },
+  { ratio: 1, out: 99, mods: [2], fb: 0, carrier: true, env: eg([96, 25, 25, 67], [99, 75, 0, 0]) },
+  { ratio: 14, out: 58, mods: [], fb: 0, carrier: false, env: eg([95, 50, 35, 78], [99, 75, 0, 0]) },
+  { ratio: 1, out: 99, mods: [4], fb: 0, carrier: true, env: eg([95, 20, 20, 50], [99, 95, 0, 0]) },
+  { ratio: 1, out: 89, mods: [], fb: 0, carrier: false, env: eg([95, 29, 20, 50], [99, 95, 0, 0]) },
+  { ratio: 1, out: 99, mods: [6], fb: 0, carrier: true, env: eg([95, 20, 20, 50], [99, 95, 0, 0]) },
+  { ratio: 1, out: 79, mods: [6], fb: 0.5, carrier: false, env: eg([95, 29, 20, 50], [99, 95, 0, 0]) },
 ];
 
 // FM BASS. Both patches share the single carrier (op1) and the same audio-path
@@ -257,21 +264,21 @@ const EPIANO = [
 // crossfades from op6 (BASS 1) to op2 (BASS 2).
 const BASS_A = [ // BASS 1, algorithm 16, feedback op6
   null,
-  { ratio: 0.5, out: 99, env: reduceEnv([95, 62, 17, 58], [99, 95, 32, 0]) },
-  { ratio: 0.5, out: 80, env: reduceEnv([99, 20, 0, 0], [99, 0, 0, 0]) },
-  { ratio: 0.5, out: 99, env: reduceEnv([88, 96, 32, 30], [79, 65, 0, 0]) },
-  { ratio: 5.0, out: 93, env: reduceEnv([90, 42, 7, 55], [90, 30, 0, 0]) },
-  { ratio: 0.5, out: 62, env: reduceEnv([99, 0, 0, 0], [99, 0, 0, 0]) },
-  { ratio: 9.0, out: 85, env: reduceEnv([94, 56, 24, 55], [93, 28, 0, 0]) },
+  { ratio: 0.5, out: 99, env: eg([95, 62, 17, 58], [99, 95, 32, 0]) },
+  { ratio: 0.5, out: 80, env: eg([99, 20, 0, 0], [99, 0, 0, 0]) },
+  { ratio: 0.5, out: 99, env: eg([88, 96, 32, 30], [79, 65, 0, 0]) },
+  { ratio: 5.0, out: 93, env: eg([90, 42, 7, 55], [90, 30, 0, 0]) },
+  { ratio: 0.5, out: 62, env: eg([99, 0, 0, 0], [99, 0, 0, 0]) },
+  { ratio: 9.0, out: 85, env: eg([94, 56, 24, 55], [93, 28, 0, 0]) },
 ];
 const BASS_B = [ // BASS 2, algorithm 17, feedback op2
   null,
-  { ratio: 0.5, out: 99, env: reduceEnv([75, 37, 18, 63], [99, 70, 0, 0]) },
-  { ratio: 0.5, out: 80, env: reduceEnv([28, 37, 42, 50], [99, 0, 0, 0]) },
-  { ratio: 1.0, out: 68, env: reduceEnv([73, 25, 32, 30], [97, 78, 0, 0]) },
-  { ratio: 0.5, out: 99, env: reduceEnv([80, 39, 28, 53], [93, 57, 0, 0]) },
-  { ratio: 1.0, out: 75, env: reduceEnv([99, 51, 0, 0], [99, 74, 0, 0]) },
-  { ratio: 0.5, out: 87, env: reduceEnv([25, 50, 24, 55], [96, 97, 0, 0]) },
+  { ratio: 0.5, out: 99, env: eg([75, 37, 18, 63], [99, 70, 0, 0]) },
+  { ratio: 0.5, out: 80, env: eg([28, 37, 42, 50], [99, 0, 0, 0]) },
+  { ratio: 1.0, out: 68, env: eg([73, 25, 32, 30], [97, 78, 0, 0]) },
+  { ratio: 0.5, out: 99, env: eg([80, 39, 28, 53], [93, 57, 0, 0]) },
+  { ratio: 1.0, out: 75, env: eg([99, 51, 0, 0], [99, 74, 0, 0]) },
+  { ratio: 0.5, out: 87, env: eg([25, 50, 24, 55], [96, 97, 0, 0]) },
 ];
 // Shared audio-path modulation and the two feedback taps.
 const BASS_MODS = [null, [2, 3, 5], [], [4], [], [6], []];
@@ -288,11 +295,9 @@ function quantRatio(x) {
 }
 const lerp = (a, b, t) => a + (b - a) * t;
 function lerpEnv(a, b, t) {
-  return {
-    atk: lerp(a.atk, b.atk, t), dec: lerp(a.dec, b.dec, t),
-    sus: lerp(a.sus, b.sus, t), rel: lerp(a.rel, b.rel, t),
-    peak: lerp(a.peak, b.peak, t),
-  };
+  const r = [0, 0, 0, 0], l = [0, 0, 0, 0];
+  for (let i = 0; i < 4; i++) { r[i] = lerp(a.r[i], b.r[i], t); l[i] = lerp(a.l[i], b.l[i], t); }
+  return { r, l };
 }
 
 // --- E.PIANO engine ---------------------------------------------------------
@@ -331,7 +336,7 @@ export class FmbassVoice extends FM6Voice {
   buildOps() {
     const t = this.p[0];
     const punch = 0.4 + this.p[1] * 1.4;
-    const tone = 0.5 + this.p[2] * 1.3;
+    const tone = 0.5 + this.p[2] * 0.9;
     const ops = [null];
     for (let i = 1; i <= 6; i++) {
       const a = BASS_A[i], b = BASS_B[i];
@@ -344,6 +349,6 @@ export class FmbassVoice extends FM6Voice {
         carrier: i === 1, env: lerpEnv(a.env, b.env, t),
       });
     }
-    return { ops, drive: this.p[4], index: INDEX * tone };
+    return { ops, drive: this.p[4], index: BASS_INDEX * tone };
   }
 }
