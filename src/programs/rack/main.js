@@ -562,7 +562,7 @@ function renderEditor() {
   ed.append(pageRow);
 
   // Grid + step editor placeholders
-  ed.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step, or several, to select them for editing. The Note / Velocity / Gate below set the same value on every selected step.'));
+  ed.append(el('div', 'hint', 'Tap places or clears steps. Long-press a step to edit it; then tap to move the selection, long-press to select several. The Note / Velocity / Gate below set the same value on every selected step.'));
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
   const stepEd = el('div', 'stepedit'); stepEd.id = 'stepedit'; ed.append(stepEd);
 
@@ -631,7 +631,11 @@ function attachCellGestures(cell, laneName, pos) {
     timer = setTimeout(() => {
       timer = null;
       longFired = true;
-      toggleSelect(cell, laneName, pos);
+      // Trigger mode (nothing selected): long-press enters edit mode by
+      // selecting this step. Edit mode: long-press toggles its membership so
+      // several steps can be selected together.
+      if (selSteps.size === 0) selectOnly(laneName, pos);
+      else toggleSelect(cell, laneName, pos);
     }, LONGPRESS_MS);
   });
   cell.addEventListener('pointermove', (e) => {
@@ -646,7 +650,11 @@ function attachCellGestures(cell, laneName, pos) {
     if (!active) return;
     active = false;
     clearTimer();
-    if (!longFired) toggleStep(cell, laneName, pos);
+    if (longFired) return;
+    // Trigger mode (nothing selected): tap places or clears the step. Edit mode
+    // (a selection exists): tap moves the selection to just this step.
+    if (selSteps.size === 0) toggleStep(cell, laneName, pos);
+    else selectOnly(laneName, pos);
   });
   cell.addEventListener('pointercancel', () => { active = false; clearTimer(); });
 }
@@ -667,6 +675,21 @@ function toggleStep(cell, laneName, pos) {
     }
   }
   save();
+}
+
+// Edit-mode tap, or entering edit mode: make this the only selected step. Only
+// the .selected classes are touched (not a grid rebuild), so in-progress touches
+// on other cells are not disturbed.
+function selectOnly(laneName, pos) {
+  const track = pattern.tracks[selected];
+  if (pos >= track.length) return;
+  selSteps.clear();
+  selSteps.add(stepKey(laneName, pos));
+  selAnchor = { lane: laneName, pos };
+  document.querySelectorAll('#grid .cell.selected').forEach((c) => c.classList.remove('selected'));
+  const cell = document.querySelector(`#grid .lane[data-lane="${laneName}"] .cell[data-pos="${pos}"]`);
+  if (cell) cell.classList.add('selected');
+  renderStepEditor();
 }
 
 // Long-press: add or remove the step from the edit selection.
@@ -691,7 +714,7 @@ function renderStepEditor() {
   box.innerHTML = '';
 
   if (selSteps.size === 0 || !selAnchor) {
-    box.append(el('div', 'hint', 'Long-press a step to select it for editing. Select several to edit them together.'));
+    box.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step to edit it: then tap to move the selection, long-press to add or drop steps. Deselect all to place steps again.'));
     return;
   }
 
@@ -704,8 +727,16 @@ function renderStepEditor() {
     ? `${selAnchor.lane.toUpperCase()} lane · step ${selAnchor.pos + 1}`
     : `${selSteps.size} steps selected`;
   title.append(el('span', null, label));
-  title.append(el('span', 'state ' + (anchor.on ? 'placed' : 'empty'), anchor.on ? 'placed' : 'empty'));
   box.append(title);
+
+  // Step on/off, so a step can be placed or cleared without leaving edit mode.
+  // (Replaces the old passive PLACED/EMPTY indicator.)
+  const stepRow = el('div', 'ed-field');
+  stepRow.append(el('span', 'lbl', 'Step'));
+  const onBtn = el('button', 'mute' + (anchor.on ? ' on' : ''), anchor.on ? 'PLACED' : 'EMPTY');
+  onBtn.onclick = () => { const nv = !anchor.on; applyAll((s) => { s.on = nv; }); renderGrid(); };
+  stepRow.append(onBtn);
+  box.append(stepRow);
 
   // Note row: big readout with semitone steppers plus a slider.
   const noteRow = el('div', 'ed-field');
