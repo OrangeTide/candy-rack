@@ -78,6 +78,41 @@ Short-term we build functionality first and accept a plainer look, then layer
 the skeuomorphic panel, knobs, and lamps on top once the engine and sequencer
 work.
 
+### Future genre programs
+
+Ideas for later machines, each a fruit brand tied to a genre and color, grouped
+by build cost. Current backlog: Bubblegum rave (cheap, planned next), acid
+squelch (needs a 303-style mono engine), sunshine breaks (gated on the sampler),
+dub techno (gated on the FX-send section), gothic-industrial / Licorice (needs
+distortion, ring-mod, and a Rings-style engine).
+
+Cheapest, content plus existing engines:
+
+- **Blueberry**, space jazz / electronic blues, midnight blue. EPIANO Rhodes,
+  FM BASS walking lines, CHORD 7th and 9th voicings. Wants richer chord Type
+  sets (min7, dom7, dim). The closest one to free.
+- **Blackberry**, dungeon synth / electronic-folk, deep desaturated indigo.
+  Detuned CHORD pads, VOWEL as a choir or monk drone, EPIANO retuned to a bell
+  or harpsichord. Wants the tempo-synced tape-wobble LFO.
+
+One small engine:
+
+- **Green Apple**, chiptune / bitpop, acid lime. Bit-crushed pulses (SUPERSAW
+  Decimate already reduces sample rate); needs a pulse or duty-cycle engine and
+  an arpeggiator.
+
+Gated on the sampler:
+
+- **Peach**, vaporwave / mallsoft, pastel pink-orange with chrome. Pitched-down
+  EPIANO, heavy swing, slow tempo.
+- **Plum**, trip-hop / downtempo, bruised purple-red. FM BASS, dusty EPIANO,
+  swing, sidechain; wants chopped breaks.
+
+Gated on the FX-send section (reverb and delay):
+
+- **Coconut**, ambient, pale bone-white. SUPERSAW and CHORD drones, long ties,
+  slow filter LFOs.
+
 ## Features
 
 ### Modulation matrix (routable triggers and mod)
