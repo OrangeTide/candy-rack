@@ -112,6 +112,8 @@ async function play() {
   playing = true;
   clock.start(pump);
   playBtn.textContent = 'Stop';
+  const pl = document.getElementById('power');
+  if (pl) pl.classList.add('on');
   requestAnimationFrame(playhead);
 }
 
@@ -119,6 +121,8 @@ function stop() {
   playing = false;
   if (clock) clock.stop();
   playBtn.textContent = 'Play';
+  const pl = document.getElementById('power');
+  if (pl) pl.classList.remove('on');
   clearPlayhead();
 }
 
@@ -196,19 +200,46 @@ function render() {
   // Transport
   const head = el('div', 'head');
   head.append(el('div', 'panel-tag', 'Transport'));
-  playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
-  playBtn.onclick = togglePlay;
-  const tempoWrap = el('label', 'field');
-  tempoWrap.append(el('span', 'lbl', 'BPM'));
-  tempoInput = el('input', 'num');
+
+  // Power lamp: standby amber, lights green while audio is running.
+  const power = el('div', 'power' + (playing ? ' on' : ''));
+  power.id = 'power';
+  power.append(el('span', 'lamp'), el('span', 'power-lbl', 'Power'));
+  head.append(power);
+
+  const right = el('div', 'head-right');
+
+  // LCD tempo panel.
+  const lcd = el('div', 'lcd');
+  const screen = el('div', 'lcd-screen');
+  screen.append(el('span', 'lcd-cap', 'Tempo'));
+  tempoInput = el('input', 'lcd-val');
   tempoInput.type = 'number'; tempoInput.min = 20; tempoInput.max = 300; tempoInput.value = pattern.bpm;
   tempoInput.oninput = () => {
     pattern.bpm = clampNum(tempoInput.value, 20, 300, 120);
     transport.bpm = pattern.bpm;
     save();
   };
-  tempoWrap.append(tempoInput);
-  head.append(playBtn, tempoWrap);
+  screen.append(tempoInput, el('span', 'lcd-unit', 'BPM'));
+  const steppers = el('div', 'lcd-steppers');
+  const up = el('button', 'lcd-btn', '▲');
+  const down = el('button', 'lcd-btn', '▼');
+  const nudge = (d) => {
+    pattern.bpm = clampNum(pattern.bpm + d, 20, 300, 120);
+    transport.bpm = pattern.bpm;
+    tempoInput.value = pattern.bpm;
+    save();
+  };
+  up.onclick = () => nudge(1);
+  down.onclick = () => nudge(-1);
+  steppers.append(up, down);
+  lcd.append(screen, steppers);
+
+  playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
+  playBtn.onclick = togglePlay;
+
+  right.append(lcd, playBtn);
+  head.append(right);
   app.append(head);
 
   // Track rail

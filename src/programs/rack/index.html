@@ -151,8 +151,8 @@
   .panel-tag {
     font-size: 11px; text-transform: uppercase; letter-spacing: 3px; color: var(--ink-dim); font-weight: 600;
   }
+  .head-right { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .play {
-    margin-left: auto;
     font-family: var(--disp); font-weight: 800; font-size: 17px; letter-spacing: 1px;
     color: #16330a;
     background: radial-gradient(120% 120% at 30% 20%, #e6ff8f, var(--lime) 55%, #83c015 100%);
@@ -161,6 +161,52 @@
     transition: transform .05s, box-shadow .05s;
   }
   .play:active { transform: translateY(4px); box-shadow: 0 2px 0 #5f8a0e, 0 5px 10px rgba(0,0,0,.4); }
+
+  /* Power lamp: standby amber, lit green while running */
+  .power { display: flex; align-items: center; gap: 8px; }
+  .lamp {
+    width: 15px; height: 15px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #ffcf9c, #c25a24 68%, #7a3410 100%);
+    box-shadow: 0 0 2px rgba(255,140,70,.4), 0 1px 2px rgba(0,0,0,.5) inset, 0 0 0 2px rgba(0,0,0,.28);
+    transition: background .15s, box-shadow .15s;
+  }
+  .power.on .lamp {
+    background: radial-gradient(circle at 36% 30%, #e2ffe9, #35e07a 58%, #12873f 100%);
+    box-shadow: 0 0 12px rgba(53,224,122,.85), 0 0 4px rgba(53,224,122,1), 0 0 0 2px rgba(0,0,0,.25);
+    animation: breathe 2.2s ease-in-out infinite;
+  }
+  .power-lbl { font-family: var(--tech); font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-mute); font-weight: 600; }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+
+  /* LCD tempo panel */
+  .lcd { display: flex; align-items: stretch; gap: 6px; }
+  .lcd-screen {
+    display: flex; align-items: baseline; gap: 8px; padding: 6px 12px 7px;
+    background: linear-gradient(180deg, #052421, #0a352d);
+    border: 1px solid #000; border-radius: 9px; position: relative; overflow: hidden;
+    box-shadow: 0 2px 7px rgba(0,0,0,.6) inset, 0 0 0 3px #1a0f34, 0 1px 0 rgba(255,255,255,.06);
+  }
+  .lcd-screen::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+  }
+  .lcd-cap { font-family: var(--tech); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #45c7a6; text-shadow: 0 0 6px rgba(69,199,166,.5); }
+  .lcd-val {
+    font-family: var(--tech); font-weight: 700; font-size: 30px; line-height: 1; width: 66px; text-align: right;
+    background: transparent; border: none; color: #82ffcf;
+    text-shadow: 0 0 10px rgba(130,255,207,.7), 0 0 2px rgba(130,255,207,.9);
+    -moz-appearance: textfield;
+  }
+  .lcd-val:focus { outline: none; }
+  .lcd-val::-webkit-inner-spin-button, .lcd-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .lcd-unit { font-family: var(--tech); font-size: 11px; letter-spacing: 1px; color: #45c7a6; text-shadow: 0 0 6px rgba(69,199,166,.5); }
+  .lcd-steppers { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+  .lcd-btn {
+    font-family: var(--disp); font-weight: 700; font-size: 9px; line-height: 1; color: #23103f;
+    background: linear-gradient(180deg, #c79bff, #9a63e6); border: none; border-radius: 6px; padding: 3px 9px; cursor: pointer;
+    box-shadow: 0 2px 0 #5b2fb0;
+  }
+  .lcd-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #5b2fb0; }
 
   .field { display: flex; flex-direction: column; gap: 4px; }
   .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-mute); font-weight: 600; }
