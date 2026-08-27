@@ -37,28 +37,36 @@ export function freshPattern() {
   const t2 = makeTrack('epiano', [0.55, 0.45, 0.10, 0.35, 0.20]); // funk keys
   const t3 = makeTrack('vowel', [0.30, 0.50, 0.65, 0.45, 0.30]);  // talkbox hook
   const t4 = makeTrack('chord', defaultParams(engineById('chord'))); // synth stabs
-  const t5 = makeTrack('supersaw', defaultParams(engineById('supersaw'))); // pad
+  const t5 = makeTrack('supersaw', [0.30, 0.45, 0.45, 0.00, 0.08]); // pad (mellow)
 
-  // Kit: kick, backbeat snare + clap, straight-8th hats.
-  paintKit(t0, 0, [0, 4, 8, 12]);            // kick
-  paintKit(t0, 1, [4, 12]);                  // snare
-  paintKit(t0, 2, [0, 2, 4, 6, 8, 10, 12, 14]); // hat
-  paintKit(t0, 3, [4, 12], 90);              // clap layered on the backbeat
+  // Kit: a sparse 2-bar (32-step) electro beat that evolves across the loop.
+  // Part 2 is retuned to a rimshot. Bar 1 is kick + clap; bar 2 picks up by
+  // dropping the clap for a busy rimshot pattern plus extra kicks. A light hat
+  // runs throughout. Two to three parts sound at any moment.
+  t0.length = 32;
+  t0.parts[1].params = [0.66, 0.08, 0.45, 0.75, 0.30]; // rimshot (tight, snappy)
+  paintKit(t0, 0, [0, 6, 8, 16, 22, 24, 28, 30]);        // kick (bar 2 adds hits)
+  paintKit(t0, 1, [17, 19, 21, 23, 25, 27, 29, 31], 84); // rimshot, bar 2 only
+  paintKit(t0, 2, [2, 6, 10, 14, 18, 22, 26, 30], 55);   // light offbeat hats
+  paintKit(t0, 3, [4, 12], 95);                          // 808 clap, bar 1 only
 
-  // Synth bass: syncopated line (sounds an octave down, the fmbass carrier is a
-  // sub), accented on the downbeats via the accent lane, one slide.
-  paint(t1, 'main', [0, 3, 6, 8, 11, 14], { note: 52, gate: 0.5, vel: 110 });
-  paint(t1, 'alt', [0, 8], { note: 52 }); // accent the downbeats
-  t1.main[3].slide = true;                // glide into the off-beat note
-  t1.main[11].note = 55;                  // a little movement
+  // Synth bass: legato line with varied attacks. Slides glide between notes so
+  // it is not stiff, and the per-step velocities give the accents shape.
+  paint(t1, 'main', [0, 3, 6, 8, 11, 14], { note: 52, gate: 0.55, vel: 100 });
+  paint(t1, 'alt', [0, 8], { note: 52 });   // accent the downbeats
+  t1.main[6].note = 52; t1.main[11].note = 55; t1.main[14].note = 50; // movement
+  [3, 6, 8, 11, 14].forEach((i) => { t1.main[i].slide = true; });      // legato glides
+  [[0, 112], [3, 80], [6, 96], [8, 110], [11, 82], [14, 92]]
+    .forEach(([i, v]) => { t1.main[i].velocity = v; });                 // varied attacks
 
-  // Funk keys: staccato two-note Rhodes stabs on the offbeats (main + alt lane
-  // give the second note, since epiano is polyphonic).
-  paint(t2, 'main', [2, 6, 10, 14], { note: 55, gate: 0.18, vel: 96 });
-  paint(t2, 'alt', [2, 6, 10, 14], { note: 62, gate: 0.18, vel: 96 });
+  // Funk keys: staccato two-note Rhodes stabs on the offbeats.
+  paint(t2, 'main', [2, 6, 10, 14], { note: 55, gate: 0.16, vel: 96 });
+  paint(t2, 'alt', [2, 6, 10, 14], { note: 62, gate: 0.16, vel: 96 });
 
-  // Talkbox hook: four held "whole notes", each tied across four steps, so the
-  // auto-vowel LFO sweeps a-e-i-o-u across the sustain instead of re-articulating.
+  // Talkbox hook (starts MUTED): four held notes, each tied across four steps,
+  // so the auto-vowel LFO sweeps a-e-i-o-u across the sustain. Unmute to bring
+  // in the vocal hook.
+  t3.mute = true;
   for (const [start, note] of [[0, 55], [4, 57], [8, 60], [12, 58]]) {
     for (let i = 0; i < 4; i++) {
       const s = t3.main[start + i];
@@ -67,14 +75,16 @@ export function freshPattern() {
     }
   }
 
-  // Synth stabs (chord): short off-beat chord hits.
-  paint(t4, 'main', [6, 14], { note: 48, gate: 0.25, vel: 92 });
+  // Synth stabs (chord): syncopated off-beat chord hits.
+  paint(t4, 'main', [6, 11, 14], { note: 48, gate: 0.2, vel: 88 });
 
-  // Pad (supersaw, stereo): two held chords, each tied across half a bar.
-  for (const [start, note] of [[0, 40], [8, 43]]) {
+  // Pad (supersaw, stereo): a 2-bar (32-step) tied chord progression for
+  // movement under the loop.
+  t5.length = 32;
+  for (const [start, note] of [[0, 40], [8, 45], [16, 43], [24, 47]]) {
     for (let i = 0; i < 8; i++) {
       const s = t5.main[start + i];
-      s.on = true; s.note = note; s.gateLen = 0.9; s.velocity = 80;
+      s.on = true; s.note = note; s.gateLen = 0.9; s.velocity = 76;
       if (i > 0) s.tie = true;
     }
   }
@@ -82,7 +92,8 @@ export function freshPattern() {
   // Base output stage: leave room for the demo mod routes to move things.
   t1.output.cutoff = 0.82; // bass, slightly filtered
   t2.output.cutoff = 0.62; // keys, so the auto-wah LFO has room to open
-  t5.output.cutoff = 0.55; // pad, so the LFO can open it
+  t5.output.cutoff = 0.42; // pad, darker so it sits back
+  t5.output.vca = 0.5;     // pad, quieter in the mix
   // Spread the voices for a wider mix (kit and bass stay center).
   t2.output.pan = -0.3; // keys slightly left
   t3.output.pan = 0.2;  // vowel hook slightly right
@@ -103,5 +114,6 @@ export function freshPattern() {
 
   const p = makePattern([t0, t1, t2, t3, t4, t5], routes);
   p.bpm = 120;
+  p.swing = 0.32; // slight shuffle
   return p;
 }
