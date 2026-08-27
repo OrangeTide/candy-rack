@@ -31,6 +31,7 @@ export class Voice {
   // these and sum, so setting the base here still lets the matrix modulate.
   setOutput(output) {
     if (typeof output.cutoff === 'number') this.node.parameters.get('cutoff').value = output.cutoff;
+    if (typeof output.hp === 'number') this.node.parameters.get('hp').value = output.hp;
     if (typeof output.vca === 'number') this.node.parameters.get('vca').value = output.vca;
   }
 

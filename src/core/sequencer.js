@@ -28,13 +28,15 @@ export function makeTrack(engineId, params) {
     length: 16,
     ratio: 1,
     mute: false,
+    solo: false,
     main: makeLane(),
     alt: makeLane(),
     // Per-voice output stage plus mixer channel strip, standard on every
-    // engine. cutoff/vca are real mod destinations (1 = fully open / unity);
-    // vca doubles as the mixer channel Level. pan is -1..1 (0 center), send is
-    // 0..1 into the (reserved) aux bus.
-    output: { cutoff: 1, vca: 1, pan: 0, send: 0 },
+    // engine. cutoff (lowpass) and hp (highpass) form the channel band filter;
+    // both are real mod destinations. cutoff/vca: 1 = fully open / unity; hp: 0
+    // = open (no low cut). vca doubles as the mixer channel Level. pan is -1..1
+    // (0 center), send is 0..1 into the (reserved) aux bus.
+    output: { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0 },
   };
 }
 
@@ -77,9 +79,11 @@ export function deserialize(text) {
   // Backfill mixer fields added in version 3 so older saved patterns load.
   if (!p.master) p.master = makeMaster();
   for (const t of p.tracks) {
-    if (!t.output) t.output = { cutoff: 1, vca: 1, pan: 0, send: 0 };
+    if (!t.output) t.output = { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0 };
+    if (typeof t.output.hp !== 'number') t.output.hp = 0;
     if (typeof t.output.pan !== 'number') t.output.pan = 0;
     if (typeof t.output.send !== 'number') t.output.send = 0;
+    if (typeof t.solo !== 'boolean') t.solo = false;
   }
   return p;
 }

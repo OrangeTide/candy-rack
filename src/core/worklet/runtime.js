@@ -23,6 +23,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       { name: 'cutoff', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
+      { name: 'hp', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       { name: 'vca', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
     ];
   }
@@ -41,6 +42,8 @@ class VoiceProcessor extends AudioWorkletProcessor {
     this.events = [];
     this.lpL = 0;
     this.lpR = 0;
+    this.hpL = 0;
+    this.hpR = 0;
 
     this.port.onmessage = (e) => {
       const m = e.data;
@@ -91,8 +94,10 @@ class VoiceProcessor extends AudioWorkletProcessor {
     const blockStart = currentFrame / sampleRate;
 
     const cutoffArr = parameters.cutoff;
+    const hpArr = parameters.hp;
     const vcaArr = parameters.vca;
     const cutConst = cutoffArr.length === 1;
+    const hpConst = hpArr.length === 1;
     const vcaConst = vcaArr.length === 1;
     const stereo = this.stereo;
 
@@ -129,10 +134,20 @@ class VoiceProcessor extends AudioWorkletProcessor {
       this.lpL += (sL - this.lpL) * a;
       this.lpR += (sR - this.lpR) * a;
 
+      // One-pole high-pass on the channel: hp 0 = open, higher cuts more low
+      // end. Together with the lowpass above this makes a band filter.
+      let hp = hpConst ? hpArr[0] : hpArr[i];
+      hp = hp < 0 ? 0 : hp > 1 ? 1 : hp;
+      const ah = hp * hp * 0.45;
+      this.hpL += (this.lpL - this.hpL) * ah;
+      this.hpR += (this.lpR - this.hpR) * ah;
+      const bpL = this.lpL - this.hpL;
+      const bpR = this.lpR - this.hpR;
+
       let vca = vcaConst ? vcaArr[0] : vcaArr[i];
       vca = vca < 0 ? 0 : vca > 4 ? 4 : vca;
-      const l = Math.tanh(this.lpL * 1.2) * vca;
-      const r = Math.tanh(this.lpR * 1.2) * vca;
+      const l = Math.tanh(bpL * 1.2) * vca;
+      const r = Math.tanh(bpR * 1.2) * vca;
       ch0[i] = l;
       if (chR) chR[i] = r;
     }

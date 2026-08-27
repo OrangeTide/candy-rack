@@ -86,9 +86,16 @@ async function ensureAudio() {
   clock = new Clock(host.ctx);
 }
 
+// A track is audible if not muted and, when any track is soloed, it is soloed.
+function trackAudible(t) {
+  const track = pattern.tracks[t];
+  if (track.mute) return false;
+  return !pattern.tracks.some((x) => x.solo) || track.solo;
+}
+
 function scheduleTrackStep(t, absStep, time) {
   const track = pattern.tracks[t];
-  if (track.mute) return;
+  if (!trackAudible(t)) return;
   const stepDur = transport.stepDuration(track.ratio);
   const pos = absStep % track.length;
   const m = track.main[pos];
@@ -413,13 +420,31 @@ function renderMixer() {
   box.append(el('div', 'panel-tag', 'Mixer'));
   const strips = el('div', 'mix-strips');
 
+  const anySolo = pattern.tracks.some((x) => x.solo);
   pattern.tracks.forEach((track, t) => {
-    const strip = el('div', 'mix-strip');
-    strip.append(el('div', 'mix-t', 'T' + (t + 1)));
-    // Level reuses the output-stage vca; pan and send are the channel strip.
+    const strip = el('div', 'mix-strip' + (anySolo && !track.solo ? ' dimmed' : ''));
+    const head = el('div', 'mix-head');
+    head.append(el('div', 'mix-t', 'T' + (t + 1)));
+    const solo = el('button', 'solo' + (track.solo ? ' on' : ''), 'S');
+    solo.title = 'Solo';
+    solo.onclick = () => { track.solo = !track.solo; save(); renderMixer(); };
+    head.append(solo);
+    strip.append(head);
+    // Level reuses the output-stage vca; Filter/Hi-Pass are the channel band
+    // filter; pan and send are the strip nodes.
     strip.append(makeKnob('Level', track.output.vca, (v) => {
       track.output.vca = v;
       if (voices[t]) voices[t].setOutput({ vca: v });
+      save();
+    }));
+    strip.append(makeKnob('Filter', track.output.cutoff, (v) => {
+      track.output.cutoff = v;
+      if (voices[t]) voices[t].setOutput({ cutoff: v });
+      save();
+    }));
+    strip.append(makeKnob('Hi-Pass', track.output.hp, (v) => {
+      track.output.hp = v;
+      if (voices[t]) voices[t].setOutput({ hp: v });
       save();
     }));
     strip.append(makeKnob('Pan', (track.output.pan + 1) / 2, (v) => {
@@ -507,16 +532,7 @@ function renderEditor() {
   };
   top.append(labeled('Length', lenInput));
 
-  // Output stage base controls (mod destinations move around these).
-  const filt = el('input', 'mini');
-  filt.type = 'range'; filt.min = 0; filt.max = 100; filt.value = Math.round(track.output.cutoff * 100);
-  filt.oninput = () => {
-    track.output.cutoff = Number(filt.value) / 100;
-    if (voices[selected]) voices[selected].setOutput({ cutoff: track.output.cutoff });
-    save();
-  };
-  top.append(labeled('Filter', filt));
-  // Level (output vca) lives in the mixer now, not here.
+  // The output-stage channel controls (Filter, HP, Level) live in the mixer.
   ed.append(top);
 
   // Knobs

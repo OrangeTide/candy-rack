@@ -77,12 +77,17 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     return {
       track, desc,
       params: track.params.slice(),
-      pool, rr: 0, lpL: 0, lpR: 0,
+      pool, rr: 0, lpL: 0, lpR: 0, hpL: 0, hpR: 0,
       stereo: typeof pool[0].renderStereo === 'function',
       stepDur: q / track.ratio,
       cursor: { step: 0, nextTime: 0 },
     };
   });
+
+  // A track is audible if it is not muted and, when any track is soloed, it is
+  // one of the soloed tracks.
+  const anySolo = pattern.tracks.some((t) => t.solo);
+  const audible = (track) => !track.mute && (!anySolo || track.solo);
 
   const routes = (pattern.routes || []).map((r) => ({
     ...r, _phase: 0, _env: 0,
@@ -139,7 +144,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     if (i < loopSamples) {
       for (let n = 0; n < nodes.length; n++) {
         const node = nodes[n];
-        if (node.track.mute) continue;
+        if (!audible(node.track)) continue;
         while (t >= node.cursor.nextTime) {
           fireStep(node, n, node.cursor.step % node.track.length);
           node.cursor.step += 1;
@@ -168,7 +173,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     let anyActive = false;
     for (let n = 0; n < nodes.length; n++) {
       const node = nodes[n];
-      if (node.track.mute) continue;
+      if (!audible(node.track)) continue;
       let sL = 0;
       let sR = 0;
       for (const v of node.pool) {
@@ -184,6 +189,13 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       const a = Math.max(0.0006, cut * cut);
       node.lpL += (sL - node.lpL) * a;
       node.lpR += (sR - node.lpR) * a;
+      // One-pole high-pass, matching the worklet output stage (hp 0 = open).
+      const hp = node.track.output.hp || 0;
+      const ah = hp * hp * 0.45;
+      node.hpL += (node.lpL - node.hpL) * ah;
+      node.hpR += (node.lpR - node.hpR) * ah;
+      const bpL = node.lpL - node.hpL;
+      const bpR = node.lpR - node.hpR;
       let vca = node.track.output.vca + modVca[n];
       vca = vca < 0 ? 0 : vca > 4 ? 4 : vca;
       // Channel pan as a linear balance (center unity), an approximation of the
@@ -191,8 +203,8 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       const pan = node.track.output.pan || 0;
       const gL = pan > 0 ? 1 - pan : 1;
       const gR = pan < 0 ? 1 + pan : 1;
-      mixL += Math.tanh(node.lpL * 1.2) * vca * gL;
-      mixR += Math.tanh(node.lpR * 1.2) * vca * gR;
+      mixL += Math.tanh(bpL * 1.2) * vca * gL;
+      mixR += Math.tanh(bpR * 1.2) * vca * gR;
     }
     rawL[i] = mixL;
     rawR[i] = mixR;

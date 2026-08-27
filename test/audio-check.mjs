@@ -98,8 +98,8 @@ if (!existsSync('build/rack.html')) {
   check('bundle registers voice-processor', !!registered['voice-processor']);
 
   // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
-  const paramsOpen = { cutoff: new Float32Array([1]), vca: new Float32Array([1]) };
-  const paramsMuted = { cutoff: new Float32Array([1]), vca: new Float32Array([0]) };
+  const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]) };
+  const paramsMuted = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([0]) };
 
   const Proc = registered['voice-processor'];
   const p = new Proc({ processorOptions: { engine: 'fm2' } });
