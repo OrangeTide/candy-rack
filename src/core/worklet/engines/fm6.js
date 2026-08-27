@@ -97,14 +97,37 @@ class FMEnv {
 }
 
 const TWO_PI = Math.PI * 2;
-// Base modulation index (radians) a full-level modulator contributes, and the
-// feedback self-modulation index. Tuned by ear against the reference patches.
-const INDEX = 5.5;
-// Bass uses a lower base index: its modulators sit at high ratios (5, 9), and at
-// the epiano index they overdrive into bright, aliasing noise instead of reading
-// as a bass. Feedback is milder too, for the same reason.
-const BASS_INDEX = 2.6;
-const FB_INDEX = 2.4;
+
+// DX7 output level (0..127) to modulation index. This nonlinear curve is what the
+// ROM patch levels are calibrated against: a full-level (99) modulator gives an
+// index of ~2.09, not the 5+ a linear map produces. Using it is what keeps the
+// modulators from overdriving into buzz and aliasing. From the
+// music-synthesizer-for-android / dx7-synth-js OL_TO_MOD reference table.
+const OL_TO_MOD = [
+  0.000000, 0.000039, 0.000078, 0.000117, 0.000157, 0.000196, 0.000254, 0.000303, 0.000360, 0.000428,
+  0.000509, 0.000606, 0.000721, 0.000857, 0.001019, 0.001212, 0.001322, 0.001442, 0.001715, 0.001870,
+  0.002224, 0.002425, 0.002645, 0.002884, 0.003145, 0.003430, 0.003740, 0.004079, 0.004448, 0.004851,
+  0.005290, 0.005768, 0.006290, 0.006860, 0.007481, 0.008158, 0.008896, 0.009702, 0.010580, 0.011537,
+  0.012582, 0.013720, 0.014962, 0.016316, 0.017793, 0.019404, 0.021160, 0.023075, 0.025163, 0.027441,
+  0.029925, 0.032633, 0.035587, 0.038808, 0.042320, 0.046150, 0.050327, 0.054882, 0.059850, 0.065267,
+  0.071174, 0.077616, 0.084641, 0.092301, 0.100656, 0.109766, 0.119700, 0.130534, 0.142349, 0.155232,
+  0.169282, 0.184603, 0.201311, 0.219532, 0.239401, 0.261068, 0.284697, 0.310464, 0.338564, 0.369207,
+  0.402623, 0.439063, 0.478802, 0.522137, 0.569394, 0.620929, 0.677128, 0.738413, 0.805245, 0.878126,
+  0.957603, 1.044270, 1.138790, 1.241860, 1.354260, 1.476830, 1.610490, 1.756250, 1.915210, 2.088550,
+  2.277580, 2.483720, 2.708510, 2.953650, 3.220980, 3.512500, 3.830410, 4.177100, 4.555150, 4.967430,
+  5.417020, 5.907300, 6.441960, 7.025010, 7.660830, 8.354190, 9.110310, 9.934860, 10.83400, 11.81460,
+  12.88390, 14.05000, 15.32170, 16.70840, 18.22060, 19.86970, 21.66810, 23.62920,
+];
+// Interpolated table lookup; the level is clamped so no macro can push a
+// modulator into the runaway top of the curve.
+const OL_MAX = 99;
+function ol2mod(ol) {
+  if (ol <= 0) return 0;
+  if (ol >= OL_MAX) return OL_TO_MOD[OL_MAX];
+  const i = ol | 0;
+  return OL_TO_MOD[i] + (OL_TO_MOD[i + 1] - OL_TO_MOD[i]) * (ol - i);
+}
+
 // Portamento time for slide (legato) notes on monophonic engines.
 const GLIDE_SEC = 0.055;
 
@@ -136,7 +159,7 @@ export class FM6Voice {
 
   // Overridden by each engine. Returns { ops, drive, index }. ops is a 1-based
   // array (index 0 unused); each op is { ratio, level, mods, fb, carrier, env }.
-  buildOps() { return { ops: [], drive: 0, index: INDEX }; }
+  buildOps() { return { ops: [], drive: 0, indexScale: 1 }; }
 
   // A short signature of the params buildOps depends on, so held notes rebuild
   // their operator layout only when a structural knob (ratio/morph) actually
@@ -201,7 +224,9 @@ export class FM6Voice {
     this.freq += (this.freqTarget - this.freq) * this.glideCoef;
 
     const ops = this.ops;
-    const index = this.cfg.index * this.accentIndex;
+    // Tone / accent scale the modulation on top of the per-operator index that
+    // buildOps already took from the DX curve.
+    const idxScale = this.cfg.indexScale * this.accentIndex;
     let outSum = 0;
     let carriers = 0;
     let alive = false;
@@ -218,10 +243,11 @@ export class FM6Voice {
       const m = op.mods;
       for (let k = 0; k < m.length; k++) {
         const j = m[k];
-        mod += this.out[j] * (ops[j].level / 99) * this.env[j].v * index;
+        mod += this.out[j] * this.env[j].v * ops[j].modIndex * idxScale;
       }
       if (op.fb > 0) {
-        mod += op.fb * FB_INDEX * (this.prev[i] + this.prev2[i]) * 0.5;
+        // Feedback amount is the DX 2^(fb-7) ratio; two-sample average tames it.
+        mod += op.fb * (this.prev[i] + this.prev2[i]) * 0.5;
       }
 
       const s = Math.sin(this.phase[i] + mod);
@@ -310,17 +336,17 @@ export class EpianoVoice extends FM6Voice {
   structureKey() { return ''; } // fixed topology and ratios
 
   buildOps() {
-    const tine = 0.5 + this.p[0] * 1.3 * (0.35 + 0.65 * this.vel);
-    const body = 0.5 + this.p[1] * 1.1;
+    const tine = 0.9 + this.p[0] * 1.0 * (0.3 + 0.7 * this.vel);
+    const body = 0.45 + this.p[1] * 0.7;
     const ops = [null];
     for (let i = 1; i <= 6; i++) {
       const src = EPIANO[i];
       let level = src.out;
       if (i === 2) level *= tine;         // tine modulator
       if (i === 4 || i === 6) level *= body; // tower B/C modulators
-      ops.push({ ratio: src.ratio, level, mods: src.mods, fb: src.fb, carrier: src.carrier, env: src.env });
+      ops.push({ ratio: src.ratio, level, modIndex: ol2mod(level), mods: src.mods, fb: src.fb, carrier: src.carrier, env: src.env });
     }
-    return { ops, drive: this.p[4], index: INDEX, trim: 0.62 };
+    return { ops, drive: this.p[4], indexScale: 1, trim: 0.62 };
   }
 }
 
@@ -335,8 +361,8 @@ export class FmbassVoice extends FM6Voice {
 
   buildOps() {
     const t = this.p[0];
-    const punch = 0.4 + this.p[1] * 1.4;
-    const tone = 0.5 + this.p[2] * 0.9;
+    const punch = 0.6 + this.p[1] * 0.7;
+    const tone = 0.6 + this.p[2] * 1.1;
     const ops = [null];
     for (let i = 1; i <= 6; i++) {
       const a = BASS_A[i], b = BASS_B[i];
@@ -345,10 +371,10 @@ export class FmbassVoice extends FM6Voice {
       if (i === 4 || i === 6) level *= punch;
       const fb = lerp(BASS_FB_A[i], BASS_FB_B[i], t);
       ops.push({
-        ratio, level, mods: BASS_MODS[i], fb,
+        ratio, level, modIndex: ol2mod(level), mods: BASS_MODS[i], fb,
         carrier: i === 1, env: lerpEnv(a.env, b.env, t),
       });
     }
-    return { ops, drive: this.p[4], index: BASS_INDEX * tone };
+    return { ops, drive: this.p[4], indexScale: tone };
   }
 }
