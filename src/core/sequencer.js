@@ -30,10 +30,19 @@ export function makeTrack(engineId, params) {
     mute: false,
     main: makeLane(),
     alt: makeLane(),
-    // Per-voice output stage, standard on every engine. These are real mod
-    // destinations for the future matrix; 1 = fully open / unity.
-    output: { cutoff: 1, vca: 1 },
+    // Per-voice output stage plus mixer channel strip, standard on every
+    // engine. cutoff/vca are real mod destinations (1 = fully open / unity);
+    // vca doubles as the mixer channel Level. pan is -1..1 (0 center), send is
+    // 0..1 into the (reserved) aux bus.
+    output: { cutoff: 1, vca: 1, pan: 0, send: 0 },
   };
+}
+
+// Master mixer section, one per pattern. volume 0..1 scales the master gain,
+// filter is a bipolar DJ sweep (0.5 = flat, <0.5 lowpass down, >0.5 highpass
+// up), resonance toggles the sweep filter Q between 1.0 and 2.2.
+export function makeMaster() {
+  return { volume: 0.8, filter: 0.5, resonance: false };
 }
 
 // A modulation route (pattern-level). src is either a trigger-bus tap on a
@@ -52,7 +61,7 @@ export function makeRoute() {
 }
 
 export function makePattern(tracks, routes = []) {
-  return { version: 2, bpm: 120, tracks, routes };
+  return { version: 3, bpm: 120, tracks, routes, master: makeMaster() };
 }
 
 export function serialize(pattern) {
@@ -65,5 +74,12 @@ export function deserialize(text) {
     throw new Error('not a web-rack pattern');
   }
   if (!Array.isArray(p.routes)) p.routes = [];
+  // Backfill mixer fields added in version 3 so older saved patterns load.
+  if (!p.master) p.master = makeMaster();
+  for (const t of p.tracks) {
+    if (!t.output) t.output = { cutoff: 1, vca: 1, pan: 0, send: 0 };
+    if (typeof t.output.pan !== 'number') t.output.pan = 0;
+    if (typeof t.output.send !== 'number') t.output.send = 0;
+  }
   return p;
 }

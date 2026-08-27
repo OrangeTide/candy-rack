@@ -272,12 +272,24 @@
   }
 
   /* ---- editor panel ---- */
-  .editor, .matrix {
+  .editor, .matrix, .mixer {
     margin-top: 16px; padding: 16px;
     background: linear-gradient(180deg, #46278c, #341a6e);
     border: 1px solid var(--plastic-edge);
     box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 8px 18px rgba(0,0,0,.35);
   }
+  /* Mixer: a row of channel strips (Level/Pan/Send) plus the master strip. */
+  .mix-strips { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; margin-top: 8px; }
+  .mix-strip {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 4px; border-radius: 12px; background: rgba(0,0,0,.18);
+    box-shadow: 0 1px 0 rgba(255,255,255,.05) inset;
+  }
+  .mix-strip.master { background: rgba(195,255,62,.07); box-shadow: 0 0 0 1px rgba(195,255,62,.22) inset; }
+  .mix-t { font-family: var(--tech); font-size: 10px; letter-spacing: 1px; color: var(--amber); text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+  .mix-strip.master .mix-t { color: var(--lime); }
+  .mix-strip .knob { width: 66px; }
+  .mix-reso { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; }
   .ed-top { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
   .engine-sel {
     font-family: var(--disp); font-weight: 700; font-size: 15px; letter-spacing: 1px; color: var(--cyan);
@@ -291,6 +303,7 @@
   .knob { display: flex; flex-direction: column; align-items: center; width: 76px; }
   .dial {
     width: 60px; height: 60px; border-radius: 50%; position: relative; cursor: ns-resize; touch-action: none;
+    -webkit-user-select: none; user-select: none;
     background: radial-gradient(circle at 36% 30%, #a074e0 0%, #5a2fb0 46%, #341a70 100%);
     box-shadow:
       0 0 0 4px #241046,

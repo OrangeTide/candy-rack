@@ -73,12 +73,14 @@ let curPos = []; // current lit position per track
 async function ensureAudio() {
   if (voices.length) return;
   await host.init();
-  voices = pattern.tracks.map((t) => {
-    const v = host.createVoice(t.engine);
+  voices = pattern.tracks.map((t, i) => {
+    const v = host.createVoice(t.engine, i);
     v.setParams(t.params);
     v.setOutput(t.output);
+    host.setChannel(i, { pan: t.output.pan, send: t.output.send });
     return v;
   });
+  host.setMaster(pattern.master);
   modMatrix.attach(voices);
   modMatrix.rebuild(pattern.routes);
   clock = new Clock(host.ctx);
@@ -337,6 +339,12 @@ function render() {
   app.append(ed);
   renderEditor();
 
+  // Mixer (per-track level/pan/send + master)
+  const mixer = el('div', 'mixer');
+  mixer.id = 'mixer';
+  app.append(mixer);
+  renderMixer();
+
   // Mod matrix (pattern-level)
   const matrix = el('div', 'matrix');
   matrix.id = 'matrix';
@@ -396,6 +404,63 @@ function renderRail() {
   });
 }
 
+// ---- mixer -----------------------------------------------------------------
+
+function renderMixer() {
+  const box = document.getElementById('mixer');
+  if (!box) return;
+  box.innerHTML = '';
+  box.append(el('div', 'panel-tag', 'Mixer'));
+  const strips = el('div', 'mix-strips');
+
+  pattern.tracks.forEach((track, t) => {
+    const strip = el('div', 'mix-strip');
+    strip.append(el('div', 'mix-t', 'T' + (t + 1)));
+    // Level reuses the output-stage vca; pan and send are the channel strip.
+    strip.append(makeKnob('Level', track.output.vca, (v) => {
+      track.output.vca = v;
+      if (voices[t]) voices[t].setOutput({ vca: v });
+      save();
+    }));
+    strip.append(makeKnob('Pan', (track.output.pan + 1) / 2, (v) => {
+      track.output.pan = v * 2 - 1;
+      if (host.ctx) host.setChannel(t, { pan: track.output.pan });
+      save();
+    }));
+    strip.append(makeKnob('Send', track.output.send, (v) => {
+      track.output.send = v;
+      if (host.ctx) host.setChannel(t, { send: v });
+      save();
+    }));
+    strips.append(strip);
+  });
+
+  const m = pattern.master;
+  const master = el('div', 'mix-strip master');
+  master.append(el('div', 'mix-t', 'MASTER'));
+  master.append(makeKnob('Volume', m.volume, (v) => {
+    m.volume = v; if (host.ctx) host.setMaster({ volume: v }); save();
+  }));
+  master.append(makeKnob('Filter', m.filter, (v) => {
+    m.filter = v; if (host.ctx) host.setMaster({ filter: v }); save();
+  }));
+  // Resonance toggle: sweep filter Q 1.0 <-> 2.2.
+  const resWrap = el('div', 'mix-reso');
+  const res = el('button', 'mute' + (m.resonance ? ' on' : ''), m.resonance ? 'RES' : 'res');
+  res.onclick = () => {
+    m.resonance = !m.resonance;
+    res.classList.toggle('on', m.resonance);
+    res.textContent = m.resonance ? 'RES' : 'res';
+    if (host.ctx) host.setMaster({ resonance: m.resonance });
+    save();
+  };
+  resWrap.append(res, el('div', 'knob-label', 'Reso'));
+  master.append(resWrap);
+  strips.append(master);
+
+  box.append(strips);
+}
+
 function selectTrack(t) {
   selected = t;
   selSteps.clear();
@@ -451,15 +516,7 @@ function renderEditor() {
     save();
   };
   top.append(labeled('Filter', filt));
-
-  const lvl = el('input', 'mini');
-  lvl.type = 'range'; lvl.min = 0; lvl.max = 100; lvl.value = Math.round(track.output.vca * 100);
-  lvl.oninput = () => {
-    track.output.vca = Number(lvl.value) / 100;
-    if (voices[selected]) voices[selected].setOutput({ vca: track.output.vca });
-    save();
-  };
-  top.append(labeled('Level', lvl));
+  // Level (output vca) lives in the mixer now, not here.
   ed.append(top);
 
   // Knobs
@@ -794,7 +851,7 @@ function flipEngine(t, id) {
   track.params = defaultParams(engineById(id));
   if (voices[t]) {
     voices[t].dispose();
-    voices[t] = host.createVoice(id);
+    voices[t] = host.createVoice(id, t);
     voices[t].setParams(track.params);
     voices[t].setOutput(track.output);
     // The voice node is new, so its AudioParams changed identity; reconnect.

@@ -24,6 +24,35 @@ function lfoShape(shape, ph) {
   }
 }
 
+// Master DJ sweep filter, run in place over the raw stereo buffers. Maps the
+// bipolar filter control the same way audio.js does: 0.5 is flat, below that a
+// lowpass sweeps down, above a highpass sweeps up; resonance sets the Q. A
+// second-order RBJ biquad, one state per channel.
+function applyMasterFilter(L, R, len, master, sr) {
+  const f = master.filter;
+  if (f > 0.49 && f < 0.51) return; // flat, nothing to do
+  const Q = master.resonance ? 2.2 : 1.0;
+  let type, freq;
+  if (f >= 0.5) { type = 'hp'; freq = 20 * Math.pow(8000 / 20, (f - 0.5) * 2); }
+  else { type = 'lp'; freq = 120 * Math.pow(20000 / 120, f * 2); }
+  const w0 = (2 * Math.PI * freq) / sr, cs = Math.cos(w0), sn = Math.sin(w0), al = sn / (2 * Q);
+  let b0, b1, b2;
+  const a0 = 1 + al, a1 = -2 * cs, a2 = 1 - al;
+  if (type === 'lp') { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = (1 - cs) / 2; }
+  else { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = (1 + cs) / 2; }
+  b0 /= a0; b1 /= a0; b2 /= a0;
+  const na1 = a1 / a0, na2 = a2 / a0;
+  for (const buf of [L, R]) {
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < len; i++) {
+      const x = buf[i];
+      const y = b0 * x + b1 * x1 + b2 * x2 - na1 * y1 - na2 * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      buf[i] = y;
+    }
+  }
+}
+
 // The loop length in seconds: the longest track's loop time. A track loops in
 // length * (one step) seconds, where a step is a 16th note scaled by its ratio.
 export function loopSeconds(pattern) {
@@ -157,14 +186,26 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       node.lpR += (sR - node.lpR) * a;
       let vca = node.track.output.vca + modVca[n];
       vca = vca < 0 ? 0 : vca > 4 ? 4 : vca;
-      mixL += Math.tanh(node.lpL * 1.2) * vca;
-      mixR += Math.tanh(node.lpR * 1.2) * vca;
+      // Channel pan as a linear balance (center unity), an approximation of the
+      // realtime equal-power StereoPanner that preserves stereo content.
+      const pan = node.track.output.pan || 0;
+      const gL = pan > 0 ? 1 - pan : 1;
+      const gR = pan < 0 ? 1 + pan : 1;
+      mixL += Math.tanh(node.lpL * 1.2) * vca * gL;
+      mixR += Math.tanh(node.lpR * 1.2) * vca * gR;
     }
-    rawL[i] = mixL * 0.5;
-    rawR[i] = mixR * 0.5;
+    rawL[i] = mixL;
+    rawR[i] = mixR;
 
     if (i >= loopSamples && !anyActive) { rawLen = i + 1; break; }
   }
+
+  // Master section: DJ sweep filter then volume, matching the realtime chain
+  // (channels -> filter -> volume -> limiter). Applied to the raw stream before
+  // the loop fold so tails filter consistently.
+  const master = pattern.master || { volume: 0.8, filter: 0.5, resonance: false };
+  applyMasterFilter(rawL, rawR, rawLen, master, SR);
+  for (let i = 0; i < rawLen; i++) { rawL[i] *= master.volume; rawR[i] *= master.volume; }
 
   let outLen;
   let fold = false;
