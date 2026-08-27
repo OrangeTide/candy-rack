@@ -152,12 +152,15 @@ function tiedGate(track, lane, pos, stepDur) {
 }
 
 function pump(horizon) {
+  const swing = pattern.swing || 0;
   for (let t = 0; t < TRACKS; t++) {
     const track = pattern.tracks[t];
     const stepDur = transport.stepDuration(track.ratio);
     const c = cursors[t];
     while (c.nextTime < horizon) {
-      scheduleTrackStep(t, c.step, c.nextTime);
+      // Swing delays the off-beat 16ths (odd steps) toward a triplet feel.
+      const offset = (c.step % 2 === 1) ? swing * stepDur * 0.4 : 0;
+      scheduleTrackStep(t, c.step, c.nextTime + offset);
       c.nextTime += stepDur;
       c.step += 1;
     }
@@ -327,10 +330,18 @@ function render() {
   steppers.append(up, down);
   lcd.append(screen, steppers);
 
+  // Swing control: delays the off-beat 16ths toward a shuffle.
+  const swingCtl = el('div', 'swing-ctl');
+  swingCtl.append(el('span', 'swing-lbl', 'Swing'));
+  const swingIn = el('input', 'swing-slider');
+  swingIn.type = 'range'; swingIn.min = 0; swingIn.max = 100; swingIn.value = Math.round((pattern.swing || 0) * 100);
+  swingIn.oninput = () => { pattern.swing = Number(swingIn.value) / 100; save(); };
+  swingCtl.append(swingIn);
+
   playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
   playBtn.onclick = togglePlay;
 
-  right.append(lcd, playBtn);
+  right.append(lcd, swingCtl, playBtn);
   head.append(right);
   app.append(head);
 

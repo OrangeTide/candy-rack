@@ -99,7 +99,8 @@ export function makeRoute() {
 }
 
 export function makePattern(tracks, routes = []) {
-  return { version: 3, bpm: 120, tracks, routes, master: makeMaster() };
+  // swing 0..1 delays the off-beat 16ths toward a triplet shuffle (0 = straight).
+  return { version: 3, bpm: 120, swing: 0, tracks, routes, master: makeMaster() };
 }
 
 export function serialize(pattern) {
@@ -114,6 +115,7 @@ export function deserialize(text) {
   if (!Array.isArray(p.routes)) p.routes = [];
   // Backfill mixer fields added in version 3 so older saved patterns load.
   if (!p.master) p.master = makeMaster();
+  if (typeof p.swing !== 'number') p.swing = 0;
   for (const t of p.tracks) {
     if (!t.output) t.output = { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0 };
     if (typeof t.output.hp !== 'number') t.output.hp = 0;
