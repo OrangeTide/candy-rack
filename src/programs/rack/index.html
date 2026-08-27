@@ -231,10 +231,13 @@
   .sel { color: var(--ink); text-shadow: none; }
 
   /* ---- track rail ---- */
-  .rail { margin-top: 16px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  /* minmax(0, 1fr), not the default 1fr (= minmax(auto, 1fr)): auto lets a
+     column grow to its widest content, so a long engine label (SUPERSAW) or
+     the "MUTE" text would make that track wider than the rest. */
+  .rail { margin-top: 16px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
   .chip {
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 10px 6px 8px; cursor: pointer; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0;
+    padding: 10px 4px 8px; cursor: pointer; text-align: center;
     background: linear-gradient(180deg, #4a2a92, #34196e);
     border: 1px solid var(--plastic-edge); border-radius: 14px;
     box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 5px 10px rgba(0,0,0,.35);
@@ -253,10 +256,12 @@
   .chip.fire { transform: translateY(-3px); }
   .chip.fire::before { background: var(--magenta); box-shadow: 0 0 10px var(--magenta); }
   .chip-n { font-family: var(--disp); font-weight: 800; font-size: 15px; color: var(--amber); }
-  .chip-eng { font-family: var(--tech); font-size: 9px; letter-spacing: .5px; color: var(--ink-dim); min-height: 12px; text-transform: uppercase; }
+  .chip-eng { font-family: var(--tech); font-size: 9px; letter-spacing: 0; color: var(--ink-dim); min-height: 12px; text-transform: uppercase; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mute {
-    font-family: var(--tech); font-size: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
-    background: #1c1140; color: var(--ink-mute); border: 1px solid #000; border-radius: 6px; padding: 3px 9px; cursor: pointer;
+    font-family: var(--tech); font-size: 8px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+    /* Reserve the width of "MUTE" so toggling to/from "on" does not resize the button. */
+    min-width: 40px; text-align: center; box-sizing: border-box;
+    background: #1c1140; color: var(--ink-mute); border: 1px solid #000; border-radius: 6px; padding: 3px 6px; cursor: pointer;
     touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .mute.on { background: linear-gradient(180deg, #ff6f8c, var(--lamp)); color: #2a0713; border-color: var(--lamp); box-shadow: 0 0 10px rgba(255,90,125,.5); }
