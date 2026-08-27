@@ -194,7 +194,35 @@ function flashChip(t) {
 const app = document.getElementById('app');
 let selected = 0;
 let pageByTrack = new Array(TRACKS).fill(0);
-let selStep = { lane: 'main', pos: 0 };
+// Steps selected for editing, keyed `lane:pos` within the current track. A tap
+// toggles a step on or off; a long-press adds or removes it from this set, and
+// the Note / Velocity / Gate controls set the same value on every member.
+// selAnchor is the most recently selected step, used to seed the control values.
+let selSteps = new Set();
+let selAnchor = null;
+
+function stepKey(lane, pos) { return lane + ':' + pos; }
+
+// After removing steps, keep selAnchor pointing at a still-selected step.
+function fixAnchor() {
+  if (selAnchor && selSteps.has(stepKey(selAnchor.lane, selAnchor.pos))) return;
+  const first = selSteps.values().next().value;
+  if (!first) { selAnchor = null; return; }
+  const [lane, pos] = first.split(':');
+  selAnchor = { lane, pos: Number(pos) };
+}
+
+// The step objects currently selected, skipping any past the track length.
+function selectedStepObjs() {
+  const track = pattern.tracks[selected];
+  const out = [];
+  for (const k of selSteps) {
+    const pos = Number(k.slice(k.indexOf(':') + 1));
+    const lane = k.slice(0, k.indexOf(':'));
+    if (pos < track.length) out.push(track[lane][pos]);
+  }
+  return out;
+}
 let playBtn, tempoInput;
 
 function pageOf(t) { return pageByTrack[t]; }
@@ -270,7 +298,20 @@ function render() {
     chip.append(el('div', 'chip-n', 'T' + (t + 1)));
     chip.append(el('div', 'chip-eng', engineById(track.engine).label));
     const mute = el('button', 'mute' + (track.mute ? ' on' : ''), track.mute ? 'MUTE' : 'on');
-    mute.onclick = (e) => { e.stopPropagation(); track.mute = !track.mute; save(); renderRail(); };
+    // Toggle on pointerdown so several fingers can mute different tracks at
+    // once. Update this one button in place: a full re-render would tear down
+    // the buttons other fingers are still pressing. Swallow the trailing click
+    // so it neither re-toggles nor selects the track.
+    const toggleMute = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      track.mute = !track.mute;
+      mute.classList.toggle('on', track.mute);
+      mute.textContent = track.mute ? 'MUTE' : 'on';
+      save();
+    };
+    mute.addEventListener('pointerdown', toggleMute);
+    mute.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); });
     chip.append(mute);
     rail.append(chip);
   });
@@ -344,7 +385,8 @@ function renderRail() {
 
 function selectTrack(t) {
   selected = t;
-  selStep = { lane: 'main', pos: pageOf(t) * PAGE };
+  selSteps.clear();
+  selAnchor = null;
   renderRail();
   renderEditor();
   if (playing) paintPlayhead(curPos[t]);
@@ -428,7 +470,7 @@ function renderEditor() {
   ed.append(pageRow);
 
   // Grid + step editor placeholders
-  ed.append(el('div', 'hint', 'Click a step to place it and select it. Click the selected step again to clear it. The Note / Velocity / Gate below edit the highlighted step.'));
+  ed.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step, or several, to select them for editing. The Note / Velocity / Gate below set the same value on every selected step.'));
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
   const stepEd = el('div', 'stepedit'); stepEd.id = 'stepedit'; ed.append(stepEd);
 
@@ -458,8 +500,8 @@ function renderGrid() {
       if (pos >= track.length) cell.classList.add('disabled');
       const step = track[laneName][pos];
       if (step && step.on) cell.classList.add('on');
-      if (laneName === selStep.lane && pos === selStep.pos) cell.classList.add('selected');
-      cell.onclick = () => onCellClick(laneName, pos);
+      if (selSteps.has(stepKey(laneName, pos))) cell.classList.add('selected');
+      attachCellGestures(cell, laneName, pos);
       cells.append(cell);
     }
     lane.append(cells);
@@ -468,62 +510,137 @@ function renderGrid() {
   renderStepEditor();
 }
 
-function onCellClick(laneName, pos) {
+const LONGPRESS_MS = 420;
+const MOVE_CANCEL_PX = 12;
+
+// A tap toggles the step; a long-press selects it. Each cell tracks its own
+// pointer so two fingers on two cells act independently, and both handlers
+// update just their own cell rather than re-rendering the grid, which would
+// tear cells out from under other in-progress touches.
+function attachCellGestures(cell, laneName, pos) {
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let longFired = false;
+  let active = false;
+  const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
+  cell.addEventListener('pointerdown', (e) => {
+    if (cell.classList.contains('disabled')) return;
+    active = true;
+    longFired = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    clearTimer();
+    timer = setTimeout(() => {
+      timer = null;
+      longFired = true;
+      toggleSelect(cell, laneName, pos);
+    }, LONGPRESS_MS);
+  });
+  cell.addEventListener('pointermove', (e) => {
+    if (!active) return;
+    if (Math.abs(e.clientX - startX) > MOVE_CANCEL_PX ||
+        Math.abs(e.clientY - startY) > MOVE_CANCEL_PX) {
+      active = false;
+      clearTimer();
+    }
+  });
+  cell.addEventListener('pointerup', () => {
+    if (!active) return;
+    active = false;
+    clearTimer();
+    if (!longFired) toggleStep(cell, laneName, pos);
+  });
+  cell.addEventListener('pointercancel', () => { active = false; clearTimer(); });
+}
+
+// Tap: place or clear the step. Clearing also drops it from the selection.
+function toggleStep(cell, laneName, pos) {
   const track = pattern.tracks[selected];
   if (pos >= track.length) return;
   const step = track[laneName][pos];
-  const wasSelected = selStep.lane === laneName && selStep.pos === pos;
+  step.on = !step.on;
+  cell.classList.toggle('on', step.on);
   if (!step.on) {
-    step.on = true;            // place a new trigger and select it for editing
-  } else if (wasSelected) {
-    step.on = false;           // clicking the already-selected trigger clears it
-  }                            // clicking a placed but unselected trigger just selects it
-  selStep = { lane: laneName, pos };
+    const k = stepKey(laneName, pos);
+    if (selSteps.delete(k)) {
+      cell.classList.remove('selected');
+      fixAnchor();
+      renderStepEditor();
+    }
+  }
   save();
-  renderGrid();
+}
+
+// Long-press: add or remove the step from the edit selection.
+function toggleSelect(cell, laneName, pos) {
+  const track = pattern.tracks[selected];
+  if (pos >= track.length) return;
+  const k = stepKey(laneName, pos);
+  if (selSteps.delete(k)) {
+    cell.classList.remove('selected');
+    fixAnchor();
+  } else {
+    selSteps.add(k);
+    cell.classList.add('selected');
+    selAnchor = { lane: laneName, pos };
+  }
+  renderStepEditor();
 }
 
 function renderStepEditor() {
   const box = document.getElementById('stepedit');
   if (!box) return;
   box.innerHTML = '';
-  const step = pattern.tracks[selected][selStep.lane][selStep.pos];
+
+  if (selSteps.size === 0 || !selAnchor) {
+    box.append(el('div', 'hint', 'Long-press a step to select it for editing. Select several to edit them together.'));
+    return;
+  }
+
+  // The anchor seeds the control positions; edits write to every selected step.
+  const anchor = pattern.tracks[selected][selAnchor.lane][selAnchor.pos];
+  const applyAll = (fn) => { for (const s of selectedStepObjs()) fn(s); save(); };
 
   const title = el('div', 'ed-title');
-  title.append(el('span', null, `${selStep.lane.toUpperCase()} lane · step ${selStep.pos + 1}`));
-  title.append(el('span', 'state ' + (step.on ? 'placed' : 'empty'), step.on ? 'placed' : 'empty'));
+  const label = selSteps.size === 1
+    ? `${selAnchor.lane.toUpperCase()} lane · step ${selAnchor.pos + 1}`
+    : `${selSteps.size} steps selected`;
+  title.append(el('span', null, label));
+  title.append(el('span', 'state ' + (anchor.on ? 'placed' : 'empty'), anchor.on ? 'placed' : 'empty'));
   box.append(title);
 
   // Note row: big readout with semitone steppers plus a slider.
   const noteRow = el('div', 'ed-field');
   noteRow.append(el('span', 'lbl', 'Note'));
   const nDown = el('button', 'note-btn', '‹');
-  const nName = el('span', 'note-name', noteName(step.note));
+  const nName = el('span', 'note-name', noteName(anchor.note));
   const nUp = el('button', 'note-btn', '›');
   const note = el('input', 'range');
-  note.type = 'range'; note.min = 24; note.max = 96; note.value = step.note;
+  note.type = 'range'; note.min = 24; note.max = 96; note.value = anchor.note;
   const setNote = (v) => {
-    step.note = Math.min(96, Math.max(24, v));
-    note.value = step.note;
-    nName.textContent = noteName(step.note);
-    save();
+    const nv = Math.min(96, Math.max(24, v));
+    applyAll((s) => { s.note = nv; });
+    note.value = nv;
+    nName.textContent = noteName(nv);
   };
   note.oninput = () => setNote(Number(note.value));
-  nDown.onclick = () => setNote(step.note - 1);
-  nUp.onclick = () => setNote(step.note + 1);
+  nDown.onclick = () => setNote(anchor.note - 1);
+  nUp.onclick = () => setNote(anchor.note + 1);
   noteRow.append(nDown, nName, nUp, note);
   box.append(noteRow);
 
   const vel = el('input', 'range');
-  vel.type = 'range'; vel.min = 1; vel.max = 127; vel.value = step.velocity;
-  const vv = el('span', 'val', String(step.velocity));
-  vel.oninput = () => { step.velocity = Number(vel.value); vv.textContent = String(step.velocity); save(); };
+  vel.type = 'range'; vel.min = 1; vel.max = 127; vel.value = anchor.velocity;
+  const vv = el('span', 'val', String(anchor.velocity));
+  vel.oninput = () => { const v = Number(vel.value); applyAll((s) => { s.velocity = v; }); vv.textContent = String(v); };
   box.append(field('Velocity', vel, vv));
 
   const gate = el('input', 'range');
-  gate.type = 'range'; gate.min = 0; gate.max = 100; gate.value = Math.round(step.gateLen * 100);
-  const gv = el('span', 'val', Math.round(step.gateLen * 100) + '%');
-  gate.oninput = () => { step.gateLen = Number(gate.value) / 100; gv.textContent = gate.value + '%'; save(); };
+  gate.type = 'range'; gate.min = 0; gate.max = 100; gate.value = Math.round(anchor.gateLen * 100);
+  const gv = el('span', 'val', Math.round(anchor.gateLen * 100) + '%');
+  gate.oninput = () => { const g = Number(gate.value); applyAll((s) => { s.gateLen = g / 100; }); gv.textContent = g + '%'; };
   box.append(field('Gate', gate, gv));
 
   box.append(el('div', 'hint poly',

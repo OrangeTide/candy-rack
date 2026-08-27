@@ -257,6 +257,7 @@
   .mute {
     font-family: var(--tech); font-size: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
     background: #1c1140; color: var(--ink-mute); border: 1px solid #000; border-radius: 6px; padding: 3px 9px; cursor: pointer;
+    touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .mute.on { background: linear-gradient(180deg, #ff6f8c, var(--lamp)); color: #2a0713; border-color: var(--lamp); box-shadow: 0 0 10px rgba(255,90,125,.5); }
 
@@ -326,6 +327,10 @@
     background: radial-gradient(circle at 40% 30%, #3a2560, #1c1038 70%);
     box-shadow: 0 2px 4px rgba(0,0,0,.6) inset, 0 1px 0 rgba(255,255,255,.05);
     position: relative; transition: transform .05s;
+    /* Own the touch so a long-press selects instead of scrolling, and suppress
+       the iOS text-selection callout that a held press would otherwise raise. */
+    touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .cell::after {
     content: ''; position: absolute; inset: 0; border-radius: 9px;
