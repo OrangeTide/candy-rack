@@ -104,3 +104,35 @@ Data model impact: routes are a separate pattern-level list, plus each engine
 declares its mod outputs in its registry metadata. Keep the matrix out of the
 vertical slice, but leave room in the pattern schema and the engine contract so
 adding it later is not a migration.
+
+The matrix, trigger bus, and LFO sources are built. The engine mod outputs and
+engine-control destinations are still open.
+
+### MIDI support (low priority)
+
+Play the current instrument with MIDI note events from external gear. A MIDI DIN
+icon opens the MIDI setup. It is disabled by default because browser Web MIDI
+support is not always available, so it must fail gracefully when absent. First
+version is just live play of the selected track's engine from incoming note on
+and off. More sophisticated editing (recording to the sequencer, mapping
+controls) can come later.
+
+### WAV recorder
+
+Record the current song as a single pass through the pattern into a downloadable
+WAV. Three modes control how the end is handled:
+
+- One-shot: the naive version. Record from the pattern start to its end, so the
+  file is exactly N seconds, the length of the pattern at the current BPM and
+  step count. Tails that ring past the last step are cut off.
+- Tails: keep recording past the pattern length until the voices decay, so
+  envelopes and long releases are not cut off abruptly. The file is longer than
+  one N-second pass.
+- Loop: same predictable N-second length as one-shot, but the tail that would
+  ring past the end is wrapped around and mixed into the start of the pattern, as
+  if the pattern had already been looping. This makes a WAV that repeats
+  seamlessly with no gap or cut tail at the loop point.
+
+Implementation note: render offline (an OfflineAudioContext, or the same headless
+render path used by test/render-mix.mjs) so timing is exact and independent of
+real-time playback.
