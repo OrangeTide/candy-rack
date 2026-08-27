@@ -23,29 +23,53 @@ export function freshPattern() {
   const t0 = makeTrack('drum', [0.12, 0.55, 0.10, 0.55, 0.35]); // kick
   const t1 = makeTrack('drum', [0.55, 0.32, 0.70, 0.50, 0.20]); // snare
   const t2 = makeTrack('drum', [0.88, 0.12, 0.95, 0.30, 0.10]); // hat
-  const t3 = makeTrack('fm2', defaultParams(engineById('fm2'))); // bass
-  const t4 = makeTrack('csaw', defaultParams(engineById('csaw'))); // lead
-  const t5 = makeTrack('supersaw', defaultParams(engineById('supersaw'))); // pad
+  // Funky electro voicing: DX synth bass, a talkbox-style vowel hook, and
+  // Rhodes-style keys.
+  const t3 = makeTrack('fmbass', [0.10, 0.65, 0.50, 0.35, 0.25]); // synth bass
+  const t4 = makeTrack('vowel', [0.30, 0.50, 0.65, 0.45, 0.30]); // talkbox hook
+  const t5 = makeTrack('epiano', [0.55, 0.45, 0.10, 0.35, 0.20]); // funk keys
 
   paint(t0, 'main', [0, 4, 8, 12], { note: 36, gate: 0.4 });
   paint(t1, 'main', [4, 12], { note: 60, gate: 0.4 });
   paint(t2, 'main', [2, 6, 10, 14], { note: 72, gate: 0.2 });
   paint(t2, 'alt', [0, 4, 8, 12], { note: 72, gate: 0.2 });
-  paint(t3, 'main', [0, 3, 6, 8, 11, 14], { note: 40, gate: 0.5, vel: 110 });
-  paint(t4, 'main', [8, 10, 13], { note: 64, gate: 0.4 });
-  paint(t5, 'main', [0, 8], { note: 48, gate: 0.95, vel: 90 });
+
+  // Synth bass: syncopated line (sounds an octave down, the fmbass carrier is a
+  // sub), accented on the downbeats via the accent lane, one slide.
+  paint(t3, 'main', [0, 3, 6, 8, 11, 14], { note: 52, gate: 0.5, vel: 110 });
+  paint(t3, 'alt', [0, 8], { note: 52 }); // accent the downbeats
+  t3.main[3].slide = true;                // glide into the off-beat note
+  t3.main[11].note = 55;                  // a little movement
+
+  // Talkbox hook: sustained-ish notes so the auto-vowel LFO sweeps the vowel
+  // across each note, making it "talk".
+  paint(t4, 'main', [0, 6, 8, 14], { note: 55, gate: 0.7, vel: 100 });
+  t4.main[8].note = 58;
+  t4.main[14].note = 60;
+
+  // Funk keys: staccato two-note Rhodes stabs on the offbeats (main + alt lane
+  // give the second note, since epiano is polyphonic).
+  paint(t5, 'main', [2, 6, 10, 14], { note: 55, gate: 0.18, vel: 96 });
+  paint(t5, 'alt', [2, 6, 10, 14], { note: 62, gate: 0.18, vel: 96 });
 
   // Base output stage: leave room for the demo mod routes to move things.
-  t3.output.cutoff = 0.78; // bass, slightly filtered
-  t5.output.cutoff = 0.55; // pad, so the LFO can open it
+  t3.output.cutoff = 0.82; // bass, slightly filtered
+  t5.output.cutoff = 0.62; // keys, so the auto-wah LFO has room to open
+  // Spread the hook and keys for a wider funk mix (bass and drums stay center).
+  t4.output.pan = 0.2;  // vowel hook slightly right
+  t5.output.pan = -0.3; // keys slightly left
 
   const routes = [
     // Kick (T1 main) ducks the bass (T4) VCA: the sidechain.
     { src: { type: 'trig', track: 0, lane: 'main', rateHz: 2, shape: 'sine' },
       dest: { track: 3, param: 'vca' }, depth: 0.7, polarity: -1, decay: 0.18 },
-    // Slow LFO opens the pad (T6) filter for movement.
+    // Auto-vowel: an LFO sweeps the vowel hook (T5) through a-e-i-o-u so it
+    // talks. This is an engine-param mod destination (m0 = the Vowel control).
+    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 3, shape: 'sine' },
+      dest: { track: 4, param: 'm0' }, depth: 0.9, polarity: 1, decay: 0.16 },
+    // Slow LFO auto-wah on the keys (T6) filter for movement.
     { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.5, shape: 'sine' },
-      dest: { track: 5, param: 'cutoff' }, depth: 0.4, polarity: 1, decay: 0.16 },
+      dest: { track: 5, param: 'cutoff' }, depth: 0.3, polarity: 1, decay: 0.16 },
   ];
 
   const p = makePattern([t0, t1, t2, t3, t4, t5], routes);
