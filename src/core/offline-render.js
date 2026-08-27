@@ -68,13 +68,26 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   }
   function fireStep(node, tIndex, pos) {
     const track = node.track;
-    for (const lane of ['main', 'alt']) {
+    // Accent mode: only the main lane sounds, and a coincident alt trigger
+    // accents it. Mirrors the runtime and the in-app scheduler.
+    const accentMode = node.desc.altMode === 'accent';
+    const lanes = accentMode ? ['main'] : ['main', 'alt'];
+    for (const lane of lanes) {
       const step = track[lane][pos];
       if (!step.on) continue;
       const gateSec = Math.max(0.01, step.gateLen * node.stepDur);
-      for (const off of node.desc.notesFor(step.note, node.params)) {
+      const accent = accentMode ? !!track.alt[pos].on : false;
+      const offsets = node.desc.notesFor(step.note, node.params);
+      if (node.desc.mono) {
+        // One reused voice so slide steps glide legato, mirroring the runtime.
+        const off = offsets.length ? offsets[0] : 0;
         const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
-        alloc(node).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params });
+        node.pool[0].noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, slide: !!step.slide, accent });
+      } else {
+        for (const off of offsets) {
+          const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
+          alloc(node).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params });
+        }
       }
       for (const r of routes) {
         if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;

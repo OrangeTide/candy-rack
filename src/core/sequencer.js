@@ -11,7 +11,10 @@ export const MAX_STEPS = 256;
 export const PAGE = 16;
 
 export function makeStep() {
-  return { on: false, note: 60, velocity: 100, gateLen: 0.5, locks: {} };
+  // slide ties this step to the previous note on a monophonic engine: the pitch
+  // glides in and the amplitude envelope does not retrigger (303-style legato).
+  // Polyphonic engines ignore it. Missing on old patterns reads as false.
+  return { on: false, note: 60, velocity: 100, gateLen: 0.5, slide: false, locks: {} };
 }
 
 export function makeLane() {

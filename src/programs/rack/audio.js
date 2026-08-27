@@ -40,8 +40,8 @@ export class Voice {
 
   // time is an AudioContext time; the worklet fires on the exact sample.
   // gateSec is the note length; pitched engines release on it, drum ignores it.
-  trigger(time, note, velocity, gateSec) {
-    this.node.port.postMessage({ type: 'trigger', time, note, velocity, gateSec });
+  trigger(time, note, velocity, gateSec, slide, accent) {
+    this.node.port.postMessage({ type: 'trigger', time, note, velocity, gateSec, slide, accent });
   }
 
   dispose() {

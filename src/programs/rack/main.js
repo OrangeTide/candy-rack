@@ -92,12 +92,25 @@ function scheduleTrackStep(t, absStep, time) {
   const m = track.main[pos];
   const a = track.alt[pos];
   const v = voices[t];
+
+  // The alt lane's meaning is engine-defined. In accent mode a coincident alt
+  // trigger accents the main note (louder, brighter) rather than sounding a
+  // second voice, and an alt step with no main step is inert.
+  if (engineById(track.engine).altMode === 'accent') {
+    if (m.on) {
+      v.trigger(time, m.note, m.velocity, gateSecFor(m, stepDur), m.slide, a.on);
+      modMatrix.onSourceTrigger(t, 'main', time);
+    }
+    litByTrack[t].push({ pos, time, hit: m.on });
+    return;
+  }
+
   if (m.on) {
-    v.trigger(time, m.note, m.velocity, gateSecFor(m, stepDur));
+    v.trigger(time, m.note, m.velocity, gateSecFor(m, stepDur), m.slide, false);
     modMatrix.onSourceTrigger(t, 'main', time);
   }
   if (a.on) {
-    v.trigger(time, a.note, a.velocity, gateSecFor(a, stepDur));
+    v.trigger(time, a.note, a.velocity, gateSecFor(a, stepDur), a.slide, false);
     modMatrix.onSourceTrigger(t, 'alt', time);
   }
   litByTrack[t].push({ pos, time, hit: m.on || a.on });
@@ -488,9 +501,11 @@ function renderGrid() {
   if (plbl) plbl.textContent = `page ${page + 1} / ${maxPage(track) + 1}`;
   grid.innerHTML = '';
 
+  const accentMode = engineById(track.engine).altMode === 'accent';
   ['main', 'alt'].forEach((laneName) => {
     const lane = el('div', 'lane'); lane.dataset.lane = laneName;
-    lane.append(el('div', 'lane-tag', laneName));
+    const isAccent = laneName === 'alt' && accentMode;
+    lane.append(el('div', 'lane-tag' + (isAccent ? ' accent' : ''), isAccent ? 'accent' : laneName));
     const cells = el('div', 'cells');
     for (let i = 0; i < PAGE; i++) {
       const pos = page * PAGE + i;
@@ -500,6 +515,7 @@ function renderGrid() {
       if (pos >= track.length) cell.classList.add('disabled');
       const step = track[laneName][pos];
       if (step && step.on) cell.classList.add('on');
+      if (step && step.slide) cell.append(el('span', 'slide-mark'));
       if (selSteps.has(stepKey(laneName, pos))) cell.classList.add('selected');
       attachCellGestures(cell, laneName, pos);
       cells.append(cell);
@@ -643,8 +659,20 @@ function renderStepEditor() {
   gate.oninput = () => { const g = Number(gate.value); applyAll((s) => { s.gateLen = g / 100; }); gv.textContent = g + '%'; };
   box.append(field('Gate', gate, gv));
 
-  box.append(el('div', 'hint poly',
-    'Polyphony: place a trigger on the ALT lane at the same step for a second simultaneous note. For full chords, switch this track to the CHORD engine (its Type knob picks the chord).'));
+  // Slide is only meaningful on a monophonic engine, where it glides legato
+  // from the previous note (303 style).
+  if (engineById(pattern.tracks[selected].engine).mono) {
+    const slideRow = el('div', 'ed-field');
+    slideRow.append(el('span', 'lbl', 'Slide'));
+    const slideBtn = el('button', 'mute' + (anchor.slide ? ' on' : ''), anchor.slide ? 'ON' : 'OFF');
+    slideBtn.onclick = () => { const nv = !anchor.slide; applyAll((s) => { s.slide = nv; }); renderGrid(); };
+    slideRow.append(slideBtn);
+    box.append(slideRow);
+  }
+
+  box.append(el('div', 'hint poly', engineById(pattern.tracks[selected].engine).altMode === 'accent'
+    ? 'Accent: a trigger on the ACCENT (alt) lane under a main step accents that note, louder and brighter, 303 style. An accent with no main step does nothing.'
+    : 'Polyphony: place a trigger on the ALT lane at the same step for a second simultaneous note. For full chords, switch this track to the CHORD engine (its Type knob picks the chord).'));
 }
 
 function labeled(label, control) {

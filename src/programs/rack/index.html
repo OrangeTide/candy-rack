@@ -346,6 +346,14 @@
     background: radial-gradient(circle at 38% 28%, #ffe6b0, var(--amber) 55%, #c47c10 100%);
     box-shadow: 0 0 12px rgba(255,179,46,.6), 0 2px 4px rgba(0,0,0,.35);
   }
+  /* Slide marker: a small arrow in the corner meaning "glide into the next
+     note". Sits above the cell gloss and reads on both lit and dark cells. */
+  .slide-mark {
+    position: absolute; right: 4px; bottom: 4px; width: 0; height: 0; z-index: 2;
+    border-left: 7px solid var(--cyan); border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    filter: drop-shadow(0 0 3px rgba(53,232,255,.9)); pointer-events: none;
+  }
   .cell.selected { z-index: 3; }
   .cell.selected::before {
     content: ''; position: absolute; inset: -5px; border-radius: 13px;

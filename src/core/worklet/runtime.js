@@ -68,6 +68,14 @@ class VoiceProcessor extends AudioWorkletProcessor {
   fire(ev) {
     const offsets = this.desc.notesFor(ev.note, this.params);
     const gateSec = typeof ev.gateSec === 'number' ? ev.gateSec : 0.1;
+    // Monophonic engines reuse one voice so slide steps can glide legato into
+    // it; polyphonic engines allocate a fresh voice per note.
+    if (this.desc.mono) {
+      const off = offsets.length ? offsets[0] : 0;
+      const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
+      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, slide: !!ev.slide, accent: !!ev.accent });
+      return;
+    }
     for (const off of offsets) {
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
       const v = this.alloc();
