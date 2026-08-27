@@ -41,11 +41,16 @@ export function freshPattern() {
   t3.main[3].slide = true;                // glide into the off-beat note
   t3.main[11].note = 55;                  // a little movement
 
-  // Talkbox hook: sustained-ish notes so the auto-vowel LFO sweeps the vowel
-  // across each note, making it "talk".
-  paint(t4, 'main', [0, 6, 8, 14], { note: 55, gate: 0.7, vel: 100 });
-  t4.main[8].note = 58;
-  t4.main[14].note = 60;
+  // Talkbox hook: four held "whole notes", each tied across four steps, so the
+  // auto-vowel LFO sweeps a-e-i-o-u across the sustain (a singer holding a note)
+  // instead of re-articulating on every step.
+  for (const [start, note] of [[0, 55], [4, 57], [8, 60], [12, 58]]) {
+    for (let i = 0; i < 4; i++) {
+      const s = t4.main[start + i];
+      s.on = true; s.note = note; s.gateLen = 0.9; s.velocity = 100;
+      if (i > 0) s.tie = true;
+    }
+  }
 
   // Funk keys: staccato two-note Rhodes stabs on the offbeats (main + alt lane
   // give the second note, since epiano is polyphonic).
@@ -63,9 +68,9 @@ export function freshPattern() {
     // Kick (T1 main) ducks the bass (T4) VCA: the sidechain.
     { src: { type: 'trig', track: 0, lane: 'main', rateHz: 2, shape: 'sine' },
       dest: { track: 3, param: 'vca' }, depth: 0.7, polarity: -1, decay: 0.18 },
-    // Auto-vowel: an LFO sweeps the vowel hook (T5) through a-e-i-o-u so it
-    // talks. This is an engine-param mod destination (m0 = the Vowel control).
-    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 3, shape: 'sine' },
+    // Auto-vowel: a slow LFO sweeps the vowel hook (T5) through a-e-i-o-u so it
+    // talks across the held notes. Engine-param mod destination (m0 = Vowel).
+    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.9, shape: 'sine' },
       dest: { track: 4, param: 'm0' }, depth: 0.9, polarity: 1, decay: 0.16 },
     // Slow LFO auto-wah on the keys (T6) filter for movement.
     { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.5, shape: 'sine' },

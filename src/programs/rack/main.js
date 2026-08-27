@@ -101,32 +101,38 @@ function scheduleTrackStep(t, absStep, time) {
   const m = track.main[pos];
   const a = track.alt[pos];
   const v = voices[t];
+  let hit = false;
 
   // The alt lane's meaning is engine-defined. In accent mode a coincident alt
   // trigger accents the main note (louder, brighter) rather than sounding a
   // second voice, and an alt step with no main step is inert.
-  if (engineById(track.engine).altMode === 'accent') {
-    if (m.on) {
-      v.trigger(time, m.note, m.velocity, gateSecFor(m, stepDur), m.slide, a.on);
-      modMatrix.onSourceTrigger(t, 'main', time);
-    }
-    litByTrack[t].push({ pos, time, hit: m.on });
-    return;
-  }
+  const accent = engineById(track.engine).altMode === 'accent';
 
-  if (m.on) {
-    v.trigger(time, m.note, m.velocity, gateSecFor(m, stepDur), m.slide, false);
+  if (m.on && !m.tie) {
+    v.trigger(time, m.note, m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on);
     modMatrix.onSourceTrigger(t, 'main', time);
+    hit = true;
   }
-  if (a.on) {
-    v.trigger(time, a.note, a.velocity, gateSecFor(a, stepDur), a.slide, false);
+  if (!accent && a.on && !a.tie) {
+    v.trigger(time, a.note, a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false);
     modMatrix.onSourceTrigger(t, 'alt', time);
+    hit = true;
   }
-  litByTrack[t].push({ pos, time, hit: m.on || a.on });
+  litByTrack[t].push({ pos, time, hit });
 }
 
-function gateSecFor(step, stepDur) {
-  return Math.max(0.01, step.gateLen * stepDur);
+// Gate for a step, extended across any tied steps that follow it on the lane so
+// the note holds as one sustained note. A tie step does not retrigger; it is
+// absorbed here into the preceding note's gate.
+function tiedGate(track, lane, pos, stepDur) {
+  let span = 1;
+  let p = pos;
+  for (let i = 0; i < track.length; i++) {
+    p = (p + 1) % track.length;
+    const nx = track[lane][p];
+    if (nx.on && nx.tie) span += 1; else break;
+  }
+  return Math.max(0.01, (span - 1 + track[lane][pos].gateLen) * stepDur);
 }
 
 function pump(horizon) {
@@ -589,6 +595,7 @@ function renderGrid() {
       const step = track[laneName][pos];
       if (step && step.on) cell.classList.add('on');
       if (step && step.slide) cell.append(el('span', 'slide-mark'));
+      if (step && step.on && step.tie) cell.append(el('span', 'tie-mark'));
       if (selSteps.has(stepKey(laneName, pos))) cell.classList.add('selected');
       attachCellGestures(cell, laneName, pos);
       cells.append(cell);
@@ -742,6 +749,15 @@ function renderStepEditor() {
     slideRow.append(slideBtn);
     box.append(slideRow);
   }
+
+  // Tie merges this step into the previous note (any engine): it holds instead
+  // of re-triggering, so adjacent steps become one sustained note.
+  const tieRow = el('div', 'ed-field');
+  tieRow.append(el('span', 'lbl', 'Tie'));
+  const tieBtn = el('button', 'mute' + (anchor.tie ? ' on' : ''), anchor.tie ? 'ON' : 'OFF');
+  tieBtn.onclick = () => { const nv = !anchor.tie; applyAll((s) => { s.tie = nv; }); renderGrid(); };
+  tieRow.append(tieBtn);
+  box.append(tieRow);
 
   box.append(el('div', 'hint poly', engineById(pattern.tracks[selected].engine).altMode === 'accent'
     ? 'Accent: a trigger on the ACCENT (alt) lane under a main step accents that note, louder and brighter, 303 style. An accent with no main step does nothing.'

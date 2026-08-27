@@ -13,8 +13,11 @@ export const PAGE = 16;
 export function makeStep() {
   // slide ties this step to the previous note on a monophonic engine: the pitch
   // glides in and the amplitude envelope does not retrigger (303-style legato).
-  // Polyphonic engines ignore it. Missing on old patterns reads as false.
-  return { on: false, note: 60, velocity: 100, gateLen: 0.5, slide: false, locks: {} };
+  // Polyphonic engines ignore it. tie merges this step into the previous note:
+  // it does not retrigger, it just extends the held note across this step (a
+  // sustained "whole note" instead of re-articulated steps). Both default false,
+  // so old patterns read as unset.
+  return { on: false, note: 60, velocity: 100, gateLen: 0.5, slide: false, tie: false, locks: {} };
 }
 
 export function makeLane() {
@@ -84,6 +87,9 @@ export function deserialize(text) {
     if (typeof t.output.pan !== 'number') t.output.pan = 0;
     if (typeof t.output.send !== 'number') t.output.send = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
+    for (const lane of ['main', 'alt']) {
+      for (const s of t[lane]) if (typeof s.tie !== 'boolean') s.tie = false;
+    }
   }
   return p;
 }

@@ -386,6 +386,13 @@
     border-bottom: 4px solid transparent;
     filter: drop-shadow(0 0 3px rgba(53,232,255,.9)); pointer-events: none;
   }
+  /* Tie marker: a bar bridging the gap from the previous cell, meaning "held
+     from the previous note". */
+  .tie-mark {
+    position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 4px; border-radius: 2px; z-index: 2;
+    background: var(--amber); box-shadow: 0 0 5px rgba(255,179,46,.8); pointer-events: none;
+  }
   .cell.selected { z-index: 3; }
   .cell.selected::before {
     content: ''; position: absolute; inset: -5px; border-radius: 13px;

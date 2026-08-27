@@ -108,8 +108,15 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     const lanes = accentMode ? ['main'] : ['main', 'alt'];
     for (const lane of lanes) {
       const step = track[lane][pos];
-      if (!step.on) continue;
-      const gateSec = Math.max(0.01, step.gateLen * node.stepDur);
+      if (!step.on || step.tie) continue; // tie steps are absorbed into the held note
+      // Extend the gate across any tied steps that follow, so the note holds.
+      let span = 1, p = pos;
+      for (let i = 0; i < track.length; i++) {
+        p = (p + 1) % track.length;
+        const nx = track[lane][p];
+        if (nx.on && nx.tie) span += 1; else break;
+      }
+      const gateSec = Math.max(0.01, (span - 1 + step.gateLen) * node.stepDur);
       const accent = accentMode ? !!track.alt[pos].on : false;
       const offsets = node.desc.notesFor(step.note, node.params);
       if (node.desc.mono) {
