@@ -10,6 +10,7 @@ import { FM2Voice } from './engines/fm2.js';
 import { ChordVoice, chordNotes } from './engines/chord.js';
 import { CsawVoice } from './engines/csaw.js';
 import { SupersawVoice } from './engines/supersaw.js';
+import { EpianoVoice, FmbassVoice } from './engines/fm6.js';
 
 const mono = () => [0];
 
@@ -19,4 +20,6 @@ export const engines = {
   chord: { Voice: ChordVoice, notesFor: chordNotes, defaults: [0.00, 0.20, 0.30, 0.55, 0.20] },
   csaw: { Voice: CsawVoice, notesFor: mono, defaults: [0.40, 0.60, 0.20, 0.55, 0.20] },
   supersaw: { Voice: SupersawVoice, notesFor: mono, defaults: [0.35, 0.70, 0.70, 0.00, 0.15] },
+  epiano: { Voice: EpianoVoice, notesFor: mono, defaults: [0.55, 0.45, 0.15, 0.55, 0.15] },
+  fmbass: { Voice: FmbassVoice, notesFor: mono, defaults: [0.00, 0.50, 0.45, 0.40, 0.20], mono: true, altMode: 'accent' },
 };
