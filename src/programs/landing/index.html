@@ -1,0 +1,227 @@
+<!doctype html>
+<!--
+  candyRACK landing page. Non-code content: PUBLIC DOMAIN (CC0-1.0).
+  Static page, no scripts. Links to the machine pages built alongside it.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>candyRACK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --disp: 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+    --tech: 'Chakra Petch', ui-monospace, 'Consolas', monospace;
+    --ink: #f6eeff;
+    --ink-dim: #c3b2e6;
+    --ink-mute: #8f7cb8;
+
+    --strawberry: #ff3d6a;
+    --orange: #ff9a2e;
+    --lemon: #ffdc32;
+    --lime: #9ef53a;
+    --grape: #9a5cf0;
+    --licorice: #2a2436;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    font-family: var(--tech);
+    color: var(--ink);
+    background:
+      radial-gradient(700px 380px at 12% 0%, rgba(255,61,106,.24), transparent 60%),
+      radial-gradient(700px 380px at 50% -8%, rgba(255,220,50,.18), transparent 60%),
+      radial-gradient(760px 420px at 88% 4%, rgba(154,92,240,.30), transparent 60%),
+      radial-gradient(700px 460px at 78% 108%, rgba(158,245,58,.16), transparent 55%),
+      #0d0820;
+    padding: 56px 20px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  /* ---- hero ---- */
+  .hero { text-align: center; margin-bottom: 46px; }
+  .logo {
+    font-family: var(--disp); font-weight: 800; font-size: clamp(52px, 11vw, 104px); line-height: .9;
+    letter-spacing: .5px;
+    background: linear-gradient(100deg, var(--strawberry), var(--orange) 22%, var(--lemon) 42%, var(--lime) 60%, var(--grape) 88%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 3px rgba(0,0,0,.45));
+  }
+  .logo .lc { color: var(--ink); -webkit-text-fill-color: var(--ink); opacity: .92; }
+  .tag {
+    font-family: var(--tech); font-weight: 500; font-size: clamp(13px, 2.4vw, 17px);
+    letter-spacing: 3px; text-transform: uppercase; color: var(--ink-dim); margin-top: 14px;
+  }
+
+  /* ---- lineup ---- */
+  .lineup {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  }
+  @media (max-width: 760px) { .lineup { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .lineup { grid-template-columns: 1fr; } }
+
+  .card {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    text-align: center; text-decoration: none; color: inherit;
+    padding: 26px 18px 20px; border-radius: 22px; overflow: hidden;
+    background: linear-gradient(180deg, #2a1c4c, #1c1236);
+    border: 1px solid #0c0720;
+    box-shadow: 0 1px 0 rgba(255,255,255,.10) inset, 0 -20px 40px rgba(0,0,0,.28) inset, 0 16px 30px rgba(0,0,0,.4);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 70px;
+    background: linear-gradient(180deg, var(--accent, #999), transparent);
+    opacity: .30; pointer-events: none;
+  }
+  .card > * { position: relative; }
+
+  /* Candy fruit icon */
+  .fruit {
+    width: 92px; height: 92px; border-radius: 50%; margin-bottom: 16px; position: relative;
+    background: radial-gradient(circle at 36% 28%, #ffffff88, transparent 42%),
+                radial-gradient(circle at 50% 55%, var(--accent), color-mix(in srgb, var(--accent) 55%, #000) 100%);
+    box-shadow: 0 8px 16px rgba(0,0,0,.45), 0 2px 3px rgba(255,255,255,.35) inset, 0 0 26px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .fruit::after {
+    content: ''; position: absolute; top: -8px; right: 20px; width: 16px; height: 10px;
+    background: linear-gradient(160deg, #a6e85a, #5fb320); border-radius: 0 80% 0 80%;
+    transform: rotate(24deg); box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  .card.grape .fruit, .card.licorice .fruit { background: none; box-shadow: none; }
+  .card.grape .fruit::after, .card.licorice .fruit::after { display: none; }
+  .card.licorice .fruit {
+    border-radius: 22px;
+    background: repeating-linear-gradient(45deg, #241c30 0 7px, #15111f 7px 14px);
+    box-shadow: 0 8px 16px rgba(0,0,0,.5), 0 1px 2px rgba(255,255,255,.12) inset;
+  }
+  .grape-svg { width: 92px; height: 100px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
+
+  .m-name { font-family: var(--disp); font-weight: 800; font-size: 26px; line-height: 1; }
+  .m-flavor { font-family: var(--tech); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-dim); margin-top: 5px; }
+  .m-model { font-family: var(--tech); font-size: 10px; letter-spacing: 2px; color: var(--ink-mute); margin-top: 3px; }
+
+  .status {
+    margin-top: 16px; font-family: var(--disp); font-weight: 700; font-size: 13px; letter-spacing: 1px;
+    text-transform: uppercase; padding: 9px 18px; border-radius: 11px;
+  }
+  .status.open {
+    color: #14330a;
+    background: linear-gradient(180deg, #e6ff8f, var(--lime) 60%, #83c015);
+    box-shadow: 0 4px 0 #5f8a0e, 0 1px 0 rgba(255,255,255,.6) inset;
+  }
+  .status.soon { color: var(--ink-mute); background: #16102c; border: 1px solid #2c2048; }
+
+  /* Live card interactions */
+  .card.live { cursor: pointer; }
+  .card.live:hover { transform: translateY(-6px); box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 24px 44px rgba(0,0,0,.5), 0 0 30px color-mix(in srgb, var(--accent) 40%, transparent); }
+  .card.live:hover .status.open { transform: translateY(2px); box-shadow: 0 2px 0 #5f8a0e; }
+  .card.soon { opacity: .82; }
+  .ribbon {
+    position: absolute; top: 14px; right: -34px; transform: rotate(38deg);
+    background: #0c0720; color: var(--ink-mute); font-family: var(--tech); font-weight: 600;
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase; padding: 4px 40px;
+    border-top: 1px solid #2c2048; border-bottom: 1px solid #2c2048;
+  }
+
+  /* Accents */
+  .card.strawberry { --accent: var(--strawberry); }
+  .card.orange { --accent: var(--orange); }
+  .card.lemon { --accent: var(--lemon); }
+  .card.lime { --accent: var(--lime); }
+  .card.grape { --accent: var(--grape); }
+  .card.licorice { --accent: var(--licorice); }
+
+  .foot { text-align: center; margin-top: 46px; color: var(--ink-mute); font-size: 11px; letter-spacing: 1px; }
+  .foot a { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="logo"><span class="lc">candy</span>RACK</div>
+    <div class="tag">a rack of candy-colored grooveboxes &middot; pick a flavor</div>
+  </header>
+
+  <main class="lineup">
+
+    <a class="card grape live" href="rack.html">
+      <svg class="grape-svg" viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="berry" cx="36%" cy="30%" r="75%">
+            <stop offset="0" stop-color="#d9b8ff"/><stop offset="55%" stop-color="#8a3ff0"/><stop offset="100%" stop-color="#54199f"/>
+          </radialGradient>
+          <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a6e85a"/><stop offset="1" stop-color="#5fb320"/></linearGradient>
+        </defs>
+        <path d="M30 14 q3-8 11-9" fill="none" stroke="#6b4a2a" stroke-width="3" stroke-linecap="round"/>
+        <path d="M40 5 c8 -4 15 1 13 8 c-1 5 -9 6 -15 2 c-2 -4 -2 -7 2 -10 z" fill="url(#leaf)"/>
+        <g stroke="rgba(0,0,0,.18)" stroke-width="1">
+          <circle cx="18" cy="30" r="8.5" fill="url(#berry)"/><circle cx="32" cy="27" r="8.5" fill="url(#berry)"/>
+          <circle cx="46" cy="30" r="8.5" fill="url(#berry)"/><circle cx="25" cy="42" r="8.5" fill="url(#berry)"/>
+          <circle cx="39" cy="42" r="8.5" fill="url(#berry)"/><circle cx="32" cy="55" r="8.5" fill="url(#berry)"/>
+        </g>
+      </svg>
+      <div class="m-name">Grape</div>
+      <div class="m-flavor">funky electro</div>
+      <div class="m-model">GR-6</div>
+      <div class="status open">Open &#9656;</div>
+    </a>
+
+    <div class="card strawberry soon">
+      <span class="ribbon">soon</span>
+      <div class="fruit"></div>
+      <div class="m-name">Strawberry</div>
+      <div class="m-flavor">bubblegum rave</div>
+      <div class="m-model">SB-6</div>
+      <div class="status soon">Coming soon</div>
+    </div>
+
+    <div class="card orange soon">
+      <span class="ribbon">soon</span>
+      <div class="fruit"></div>
+      <div class="m-name">Orange</div>
+      <div class="m-flavor">sunshine breaks</div>
+      <div class="m-model">OR-6</div>
+      <div class="status soon">Coming soon</div>
+    </div>
+
+    <div class="card lemon soon">
+      <span class="ribbon">soon</span>
+      <div class="fruit"></div>
+      <div class="m-name">Lemon</div>
+      <div class="m-flavor">acid squelch</div>
+      <div class="m-model">LM-6</div>
+      <div class="status soon">Coming soon</div>
+    </div>
+
+    <div class="card lime soon">
+      <span class="ribbon">soon</span>
+      <div class="fruit"></div>
+      <div class="m-name">Lime</div>
+      <div class="m-flavor">dub techno</div>
+      <div class="m-model">LI-6</div>
+      <div class="status soon">Coming soon</div>
+    </div>
+
+    <div class="card licorice soon">
+      <span class="ribbon">soon</span>
+      <div class="fruit"></div>
+      <div class="m-name">Licorice</div>
+      <div class="m-flavor">gothic industrial</div>
+      <div class="m-model">LC-6</div>
+      <div class="status soon">Coming soon</div>
+    </div>
+
+  </main>
+
+  <footer class="foot">
+    candyRACK &middot; code 0BSD, content CC0-1.0 &middot; more flavors on the way
+  </footer>
+</div>
+</body>
+</html>

@@ -10,6 +10,12 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 const PROGRAMS = [
   {
+    // Landing page. Static: no worklet, no main bundle. Built to build/index.html
+    // so opening build/ lands here; it links to the machine pages.
+    name: 'index',
+    html: 'src/programs/landing/index.html',
+  },
+  {
     name: 'rack',
     main: 'src/programs/rack/main.js',
     html: 'src/programs/rack/index.html',
@@ -32,13 +38,16 @@ async function bundle(entry, { format = 'iife' } = {}) {
 mkdirSync('build', { recursive: true });
 
 for (const prog of PROGRAMS) {
-  const workletSrc = await bundle(prog.worklet);
-  const mainSrc = await bundle(prog.main);
-  const workletB64 = Buffer.from(workletSrc, 'utf8').toString('base64');
-
   let html = readFileSync(prog.html, 'utf8');
-  html = html.replace('__WORKLET_B64__', () => workletB64);
-  html = html.replace('__MAIN_SRC__', () => mainSrc);
+
+  if (prog.worklet) {
+    const workletB64 = Buffer.from(await bundle(prog.worklet), 'utf8').toString('base64');
+    html = html.replace('__WORKLET_B64__', () => workletB64);
+  }
+  if (prog.main) {
+    const mainSrc = await bundle(prog.main);
+    html = html.replace('__MAIN_SRC__', () => mainSrc);
+  }
 
   const out = `build/${prog.name}.html`;
   writeFileSync(out, html);

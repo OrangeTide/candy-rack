@@ -34,10 +34,12 @@ lookahead scheduler that hands the worklets sample-accurate trigger times.
 The build needs Node and installs esbuild on first run.
 
 ```sh
-make            # builds build/rack.html, one self-contained file
+make            # builds build/index.html (landing) and build/rack.html
 ```
 
-Open `build/rack.html` in a browser and press Play, or press the space bar.
+Open `build/index.html` for the candyRACK landing page, which lists the
+machines, then pick a flavor. The Grape machine is `build/rack.html`. Press Play,
+or press the space bar.
 Audio starts after the first click, which browsers require. The page pulls two
 web fonts from Google Fonts as a progressive enhancement and falls back to
 system fonts when offline.
