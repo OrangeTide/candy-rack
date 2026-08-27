@@ -39,11 +39,14 @@ class VoiceProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     const id = options.processorOptions && options.processorOptions.engine;
-    this.desc = engines[id] || engines.drum;
+    // A kit hosts four drum parts on fixed pool slots, each with its own params.
+    this.kit = id === 'kit';
+    this.desc = this.kit ? engines.drum : (engines[id] || engines.drum);
     // base holds the knob values (set by messages); params is the effective
     // array the voices read each block, base plus the m0..m4 mod offsets.
     this.base = (this.desc.defaults || [0, 0, 0, 0, 0]).slice();
     this.params = this.base.slice();
+    this.partParams = this.kit ? [0, 1, 2, 3].map(() => this.desc.defaults.slice()) : null;
     this.pool = Array.from({ length: POLY }, () => new this.desc.Voice(sampleRate));
     this.rr = 0;
     // A stereo engine fills outL/outR via renderStereo(); mono engines return a
@@ -65,6 +68,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
         case 'params':
           for (let i = 0; i < m.values.length; i++) this.base[i] = m.values[i];
           break;
+        case 'kitparams':
+          if (this.partParams) this.partParams[m.part] = m.values.slice();
+          break;
         case 'trigger':
           this.events.push(m);
           break;
@@ -80,6 +86,12 @@ class VoiceProcessor extends AudioWorkletProcessor {
   }
 
   fire(ev) {
+    if (this.kit) {
+      const part = (ev.part | 0) % 4;
+      const freq = 440 * Math.pow(2, ((ev.note ?? 60) - 69) / 12);
+      this.pool[part].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec: 0.1, params: this.partParams[part] });
+      return;
+    }
     const offsets = this.desc.notesFor(ev.note, this.params);
     const gateSec = typeof ev.gateSec === 'number' ? ev.gateSec : 0.1;
     // Monophonic engines reuse one voice so slide steps can glide legato into

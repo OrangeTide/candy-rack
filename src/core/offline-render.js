@@ -72,10 +72,12 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   const cap = loopSamples + Math.floor(maxTailSec * SR);
 
   const nodes = pattern.tracks.map((track) => {
-    const desc = engines[track.engine] || engines.drum;
+    const kit = track.engine === 'kit';
+    const desc = kit ? engines.drum : (engines[track.engine] || engines.drum);
     const pool = Array.from({ length: POLY }, () => new desc.Voice(SR));
     return {
-      track, desc,
+      track, desc, kit,
+      partParams: kit ? track.parts.map((p) => p.params) : null,
       params: track.params.slice(),
       pool, rr: 0, lpL: 0, lpR: 0, hpL: 0, hpR: 0,
       stereo: typeof pool[0].renderStereo === 'function',
@@ -102,6 +104,22 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   }
   function fireStep(node, tIndex, pos) {
     const track = node.track;
+    // Kit: each of the four part rows drives its own drum voice (fixed pool
+    // slot), and each part is its own trigger source (part0..part3).
+    if (node.kit) {
+      for (let part = 0; part < 4; part++) {
+        const step = track.parts[part].lane[pos];
+        if (!step.on) continue;
+        const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
+        node.pool[part].noteOn({ freq, note: step.note, vel: step.velocity, gateSec: 0.1, params: node.partParams[part] });
+        for (const r of routes) {
+          if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
+          if (r.src.lane !== 'both' && r.src.lane !== 'part' + part) continue;
+          r._env = 1;
+        }
+      }
+      return;
+    }
     // Accent mode: only the main lane sounds, and a coincident alt trigger
     // accents it. Mirrors the runtime and the in-app scheduler.
     const accentMode = node.desc.altMode === 'accent';

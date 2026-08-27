@@ -45,6 +45,15 @@ export class Voice {
     this.node.port.postMessage({ type: 'trigger', time, note, velocity, gateSec, slide, accent });
   }
 
+  // Kit tracks: set one part's drum params, and trigger one part.
+  setPartParams(part, values) {
+    this.node.port.postMessage({ type: 'kitparams', part, values });
+  }
+
+  triggerPart(time, note, velocity, part) {
+    this.node.port.postMessage({ type: 'trigger', time, note, velocity, part });
+  }
+
   dispose() {
     try { this.node.disconnect(); } catch (_) {}
   }

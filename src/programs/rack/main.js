@@ -14,7 +14,7 @@ import { Transport } from '../../core/transport.js';
 import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
 import { defaultParams } from '../../core/engines/drum-meta.js';
-import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS } from '../../core/sequencer.js';
+import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
 import { freshPattern, TRACKS } from './starter.js';
 import { AudioHost } from './audio.js';
 import { recordWav } from './record.js';
@@ -75,7 +75,8 @@ async function ensureAudio() {
   await host.init();
   voices = pattern.tracks.map((t, i) => {
     const v = host.createVoice(t.engine, i);
-    v.setParams(t.params);
+    if (isKit(t)) t.parts.forEach((p, pi) => v.setPartParams(pi, p.params));
+    else v.setParams(t.params);
     v.setOutput(t.output);
     host.setChannel(i, { pan: t.output.pan, send: t.output.send });
     return v;
@@ -98,10 +99,24 @@ function scheduleTrackStep(t, absStep, time) {
   if (!trackAudible(t)) return;
   const stepDur = transport.stepDuration(track.ratio);
   const pos = absStep % track.length;
-  const m = track.main[pos];
-  const a = track.alt[pos];
   const v = voices[t];
   let hit = false;
+
+  // Kit: fire each of the four part rows; each part is its own trigger source.
+  if (isKit(track)) {
+    for (let part = 0; part < 4; part++) {
+      const step = track.parts[part].lane[pos];
+      if (!step.on) continue;
+      v.triggerPart(time, step.note, step.velocity, part);
+      modMatrix.onSourceTrigger(t, 'part' + part, time);
+      hit = true;
+    }
+    litByTrack[t].push({ pos, time, hit });
+    return;
+  }
+
+  const m = track.main[pos];
+  const a = track.alt[pos];
 
   // The alt lane's meaning is engine-defined. In accent mode a coincident alt
   // trigger accents the main note (louder, brighter) rather than sounding a
@@ -221,6 +236,7 @@ function flashChip(t) {
 
 const app = document.getElementById('app');
 let selected = 0;
+let selectedPart = 0; // which kit part's sound the editor shows
 let pageByTrack = new Array(TRACKS).fill(0);
 // Steps selected for editing, keyed `lane:pos` within the current track. A tap
 // toggles a step on or off; a long-press adds or removes it from this set, and
@@ -247,7 +263,7 @@ function selectedStepObjs() {
   for (const k of selSteps) {
     const pos = Number(k.slice(k.indexOf(':') + 1));
     const lane = k.slice(0, k.indexOf(':'));
-    if (pos < track.length) out.push(track[lane][pos]);
+    if (pos < track.length) out.push(laneSteps(track, lane)[pos]);
   }
   return out;
 }
@@ -541,14 +557,34 @@ function renderEditor() {
   // The output-stage channel controls (Filter, HP, Level) live in the mixer.
   ed.append(top);
 
-  // Knobs
-  const knobs = el('div', 'knobs');
-  meta.params.forEach((p, i) => knobs.append(makeKnob(p.label, track.params[i], (val) => {
-    track.params[i] = val;
-    if (voices[selected]) voices[selected].setParam(i, val);
-    save();
-  })));
-  ed.append(knobs);
+  // Knobs. A kit edits one part's drum voice at a time; a part selector (P1..P4)
+  // chooses which, and the five knobs write that part's params.
+  if (isKit(track)) {
+    if (selectedPart >= track.parts.length) selectedPart = 0;
+    const tabs = el('div', 'part-tabs');
+    track.parts.forEach((_, pi) => {
+      const tab = el('button', 'part-tab' + (pi === selectedPart ? ' on' : ''), 'P' + (pi + 1));
+      tab.onclick = () => { selectedPart = pi; renderEditor(); renderGrid(); };
+      tabs.append(tab);
+    });
+    ed.append(labeled('Part', tabs));
+    const params = track.parts[selectedPart].params;
+    const knobs = el('div', 'knobs');
+    meta.params.forEach((p, i) => knobs.append(makeKnob(p.label, params[i], (val) => {
+      params[i] = val;
+      if (voices[selected]) voices[selected].setPartParams(selectedPart, params);
+      save();
+    })));
+    ed.append(knobs);
+  } else {
+    const knobs = el('div', 'knobs');
+    meta.params.forEach((p, i) => knobs.append(makeKnob(p.label, track.params[i], (val) => {
+      track.params[i] = val;
+      if (voices[selected]) voices[selected].setParam(i, val);
+      save();
+    })));
+    ed.append(knobs);
+  }
 
   // Pages
   const pageRow = el('div', 'pages');
@@ -581,10 +617,18 @@ function renderGrid() {
   grid.innerHTML = '';
 
   const accentMode = engineById(track.engine).altMode === 'accent';
-  ['main', 'alt'].forEach((laneName) => {
+  const kit = isKit(track);
+  trackLanes(track).forEach((laneName, li) => {
     const lane = el('div', 'lane'); lane.dataset.lane = laneName;
-    const isAccent = laneName === 'alt' && accentMode;
-    lane.append(el('div', 'lane-tag' + (isAccent ? ' accent' : ''), isAccent ? 'accent' : laneName));
+    // Lane tag: kit shows P1..P4 (clickable to pick the part to edit); a melodic
+    // alt lane shows ACCENT in accent mode.
+    let tag = laneName, tagCls = '';
+    if (kit) { tag = 'P' + (li + 1); if (li === selectedPart) tagCls = ' partsel'; }
+    else if (laneName === 'alt' && accentMode) { tag = 'accent'; tagCls = ' accent'; }
+    const tagEl = el('div', 'lane-tag' + tagCls, tag);
+    if (kit) tagEl.onclick = () => { selectedPart = li; renderEditor(); };
+    lane.append(tagEl);
+    const steps = laneSteps(track, laneName);
     const cells = el('div', 'cells');
     for (let i = 0; i < PAGE; i++) {
       const pos = page * PAGE + i;
@@ -592,7 +636,7 @@ function renderGrid() {
       cell.dataset.i = i; cell.dataset.pos = pos;
       if (i % 4 === 0) cell.classList.add('beat');
       if (pos >= track.length) cell.classList.add('disabled');
-      const step = track[laneName][pos];
+      const step = steps[pos];
       if (step && step.on) cell.classList.add('on');
       if (step && step.slide) cell.append(el('span', 'slide-mark'));
       if (step && step.on && step.tie) cell.append(el('span', 'tie-mark'));
@@ -663,7 +707,7 @@ function attachCellGestures(cell, laneName, pos) {
 function toggleStep(cell, laneName, pos) {
   const track = pattern.tracks[selected];
   if (pos >= track.length) return;
-  const step = track[laneName][pos];
+  const step = laneSteps(track, laneName)[pos];
   step.on = !step.on;
   cell.classList.toggle('on', step.on);
   if (!step.on) {
@@ -719,7 +763,7 @@ function renderStepEditor() {
   }
 
   // The anchor seeds the control positions; edits write to every selected step.
-  const anchor = pattern.tracks[selected][selAnchor.lane][selAnchor.pos];
+  const anchor = laneSteps(pattern.tracks[selected], selAnchor.lane)[selAnchor.pos];
   const applyAll = (fn) => { for (const s of selectedStepObjs()) fn(s); save(); };
 
   const title = el('div', 'ed-title');
@@ -853,8 +897,12 @@ function renderMatrix() {
     // Source
     row.append(pick([['trig', 'Trig'], ['lfo', 'LFO']], r.src.type, (v) => { r.src.type = v; applyRoutes(); renderMatrix(); }));
     if (r.src.type === 'trig') {
-      row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); }));
-      row.append(pick([['main', 'main'], ['alt', 'alt'], ['both', 'both']], r.src.lane, (v) => { r.src.lane = v; applyRoutes(); }));
+      row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); renderMatrix(); }));
+      // A kit source track taps a part row; a melodic one taps main/alt.
+      const laneOpts = isKit(pattern.tracks[r.src.track])
+        ? [['part0', 'P1'], ['part1', 'P2'], ['part2', 'P3'], ['part3', 'P4'], ['both', 'all']]
+        : [['main', 'main'], ['alt', 'alt'], ['both', 'both']];
+      row.append(pick(laneOpts, r.src.lane, (v) => { r.src.lane = v; applyRoutes(); }));
     } else {
       row.append(pick([['sine', 'sine'], ['tri', 'tri'], ['saw', 'saw'], ['square', 'sqr']], r.src.shape, (v) => { r.src.shape = v; applyRoutes(); }));
       const rate = el('input', 'mini');
@@ -916,10 +964,13 @@ function flipEngine(t, id) {
   const track = pattern.tracks[t];
   track.engine = id;
   track.params = defaultParams(engineById(id));
+  if (id === 'kit' && !Array.isArray(track.parts)) track.parts = makeKitParts();
+  selectedPart = 0;
   if (voices[t]) {
     voices[t].dispose();
     voices[t] = host.createVoice(id, t);
-    voices[t].setParams(track.params);
+    if (isKit(track)) track.parts.forEach((p, pi) => voices[t].setPartParams(pi, p.params));
+    else voices[t].setParams(track.params);
     voices[t].setOutput(track.output);
     // The voice node is new, so its AudioParams changed identity; reconnect.
     modMatrix.attach(voices);
@@ -928,6 +979,7 @@ function flipEngine(t, id) {
   save();
   renderRail();
   renderEditor();
+  if (t === selected) renderGrid(); // lane count changes with kit/melodic
 }
 
 function makeKnob(label, value, onChange) {

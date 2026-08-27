@@ -299,6 +299,19 @@
   }
   .solo.on { background: linear-gradient(180deg, #7ef0ff, var(--cyan)); color: #04222a; border-color: var(--cyan); box-shadow: 0 0 8px rgba(53,232,255,.55); }
   .mix-reso { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; }
+
+  /* Kit part selector and part rows */
+  .part-tabs { display: flex; gap: 6px; }
+  .part-tab {
+    font-family: var(--disp); font-weight: 800; font-size: 13px; letter-spacing: 1px;
+    color: var(--ink-dim); background: linear-gradient(180deg, var(--well-2), var(--well));
+    border: 1px solid #000; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,.5) inset;
+  }
+  .part-tab.on { color: #2a0713; background: linear-gradient(180deg, #ffd27a, var(--amber)); border-color: var(--amber); box-shadow: 0 0 10px rgba(255,179,46,.5); }
+  .lane-tag.partsel { color: var(--amber); text-shadow: 0 0 8px rgba(255,179,46,.6); }
+  .lane .lane-tag[class*="partsel"], .lane .lane-tag { cursor: default; }
+  .lane[data-lane^="part"] .lane-tag { cursor: pointer; }
   .ed-top { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
   .engine-sel {
     font-family: var(--disp); font-weight: 700; font-size: 15px; letter-spacing: 1px; color: var(--cyan);

@@ -24,8 +24,23 @@ export function makeLane() {
   return Array.from({ length: MAX_STEPS }, makeStep);
 }
 
+export const KIT_PARTS = 4;
+
+// The 'kit' engine turns a track into a 4-part drum kit: four freely-assignable
+// drum voices, each with its own 5 controls and its own step row. Sensible
+// starting sounds: kick, snare, hat, perc.
+export function makeKitParts() {
+  const defs = [
+    [0.12, 0.55, 0.10, 0.55, 0.35],
+    [0.55, 0.32, 0.70, 0.50, 0.20],
+    [0.88, 0.12, 0.95, 0.30, 0.10],
+    [0.66, 0.22, 0.80, 0.40, 0.25],
+  ];
+  return defs.map((p) => ({ params: p.slice(), lane: makeLane() }));
+}
+
 export function makeTrack(engineId, params) {
-  return {
+  const t = {
     engine: engineId,
     params: params.slice(),
     length: 16,
@@ -41,6 +56,24 @@ export function makeTrack(engineId, params) {
     // (0 center), send is 0..1 into the (reserved) aux bus.
     output: { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0 },
   };
+  if (engineId === 'kit') t.parts = makeKitParts();
+  return t;
+}
+
+// A track is a drum kit when its engine is 'kit'. Kit tracks sequence four part
+// rows (part0..part3); melodic tracks sequence main and alt.
+export function isKit(track) {
+  return track.engine === 'kit';
+}
+export function trackLanes(track) {
+  return isKit(track) ? ['part0', 'part1', 'part2', 'part3'] : ['main', 'alt'];
+}
+// The step array for a lane name, unifying melodic lanes and kit part rows.
+export function laneSteps(track, name) {
+  if (name.charCodeAt(0) === 112 /* 'p' */ && name.startsWith('part')) {
+    return track.parts[+name.slice(4)].lane;
+  }
+  return track[name];
 }
 
 // Master mixer section, one per pattern. volume 0..1 scales the master gain,
@@ -87,8 +120,9 @@ export function deserialize(text) {
     if (typeof t.output.pan !== 'number') t.output.pan = 0;
     if (typeof t.output.send !== 'number') t.output.send = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
-    for (const lane of ['main', 'alt']) {
-      for (const s of t[lane]) if (typeof s.tie !== 'boolean') s.tie = false;
+    if (t.engine === 'kit' && !Array.isArray(t.parts)) t.parts = makeKitParts();
+    for (const lane of trackLanes(t)) {
+      for (const s of laneSteps(t, lane)) if (typeof s.tie !== 'boolean') s.tie = false;
     }
   }
   return p;
