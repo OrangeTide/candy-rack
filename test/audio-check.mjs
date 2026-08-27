@@ -186,5 +186,37 @@ console.log('== mod matrix graph ==');
   check('non-matching source is ignored', trig.cs.offset.calls.length === before);
 }
 
+console.log('== offline render (WAV recorder) ==');
+{
+  const { renderPattern, loopSeconds } = await import('../src/core/offline-render.js');
+  const { engines } = await import('../src/core/worklet/registry.js');
+  const { freshPattern } = await import('../src/programs/rack/starter.js');
+  const pat = freshPattern();
+  const loopSamp = Math.round(loopSeconds(pat) * SR);
+
+  const one = renderPattern(pat, { engines, mode: 'oneshot', sampleRate: SR });
+  const tails = renderPattern(pat, { engines, mode: 'tails', sampleRate: SR });
+  const loop = renderPattern(pat, { engines, mode: 'loop', sampleRate: SR });
+
+  check('one-shot length is exactly the loop length', one.length === loopSamp, `${(one.length / SR).toFixed(2)}s`);
+  check('tails mode runs longer than one-shot', tails.length > one.length, `${(tails.length / SR).toFixed(2)}s vs ${(one.length / SR).toFixed(2)}s`);
+  check('loop mode keeps the one-shot length', loop.length === one.length);
+
+  let chan = 0;
+  for (let i = 0; i < one.length; i++) chan += Math.abs(one.left[i] - one.right[i]);
+  check('render is stereo (L != R)', chan > 1, `L/R diff ${chan.toFixed(0)}`);
+
+  // Loop mode folds the overhanging tail back onto the start, so the head of the
+  // loop differs from the plain one-shot.
+  let head = 0;
+  const region = Math.min(loopSamp, Math.floor(0.4 * SR));
+  for (let i = 0; i < region; i++) head += Math.abs(loop.left[i] - one.left[i]);
+  check('loop folds the tail into the start', head > 0.5, `head diff ${head.toFixed(1)}`);
+
+  let peak = 0;
+  for (let i = 0; i < tails.length; i++) peak = Math.max(peak, Math.abs(tails.left[i]), Math.abs(tails.right[i]));
+  check('render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
+}
+
 console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);
 process.exit(fails === 0 ? 0 : 1);

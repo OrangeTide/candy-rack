@@ -17,6 +17,7 @@ import { defaultParams } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS } from '../../core/sequencer.js';
 import { freshPattern, TRACKS } from './starter.js';
 import { AudioHost } from './audio.js';
+import { recordWav } from './record.js';
 import { ModMatrix } from './modmatrix.js';
 
 const STORE_KEY = 'web-rack:rack:v2';
@@ -269,6 +270,31 @@ function render() {
   matrix.id = 'matrix';
   app.append(matrix);
   renderMatrix();
+
+  // Recorder
+  const rec = el('div', 'io');
+  rec.append(el('div', 'panel-tag', 'Record WAV'));
+  const recMode = el('select', 'sel rec-mode');
+  [['loop', 'seamless loop'], ['oneshot', 'one-shot'], ['tails', 'with tails']].forEach(([v, t]) => {
+    const o = el('option', null, t); o.value = v;
+    recMode.append(o);
+  });
+  const recBtn = el('button', 'iobtn rec', 'Record ●');
+  recBtn.onclick = () => {
+    recBtn.textContent = 'Rendering…';
+    // Let the label paint before the synchronous render.
+    setTimeout(() => {
+      try {
+        const secs = recordWav(pattern, recMode.value);
+        recBtn.textContent = `Saved ${secs.toFixed(1)}s`;
+      } catch (err) {
+        recBtn.textContent = 'Failed';
+      }
+      setTimeout(() => { recBtn.textContent = 'Record ●'; }, 1600);
+    }, 20);
+  };
+  rec.append(recMode, recBtn);
+  app.append(rec);
 
   // Persistence
   const io = el('div', 'io');

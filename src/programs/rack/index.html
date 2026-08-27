@@ -414,7 +414,7 @@
   }
 
   /* ---- io ---- */
-  .io { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+  .io { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; align-items: center; }
   .iobtn {
     font-family: var(--tech); font-weight: 600; font-size: 12px; letter-spacing: .5px;
     background: linear-gradient(180deg, #4a2a92, #34196e); color: var(--ink);
@@ -423,6 +423,13 @@
   }
   .iobtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f1040; }
   .iobtn:hover { color: var(--cyan); }
+  .iobtn.rec {
+    color: #2a0713; font-weight: 700;
+    background: linear-gradient(180deg, #ff6f8c, var(--lamp)); border-color: var(--lamp);
+    box-shadow: 0 3px 0 #7a1330, 0 1px 0 rgba(255,255,255,.4) inset;
+  }
+  .iobtn.rec:hover { color: #2a0713; }
+  .rec-mode { width: 150px; color: var(--ink); }
 </style>
 </head>
 <body>
