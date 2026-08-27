@@ -12,8 +12,10 @@ import { epianoMeta } from './engines/epiano-meta.js';
 import { fmbassMeta } from './engines/fmbass-meta.js';
 import { vowelMeta } from './engines/vowel-meta.js';
 import { kitMeta } from './engines/kit-meta.js';
+import { clapMeta } from './engines/clap-meta.js';
+import { cowbellMeta } from './engines/cowbell-meta.js';
 
-export const engines = [kitMeta, drumMeta, fm2Meta, chordMeta, csawMeta, supersawMeta, epianoMeta, fmbassMeta, vowelMeta];
+export const engines = [kitMeta, drumMeta, clapMeta, cowbellMeta, fm2Meta, chordMeta, csawMeta, supersawMeta, epianoMeta, fmbassMeta, vowelMeta];
 
 export function engineById(id) {
   return engines.find((e) => e.id === id) || engines[0];

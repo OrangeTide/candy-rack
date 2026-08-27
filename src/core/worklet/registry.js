@@ -12,11 +12,21 @@ import { CsawVoice } from './engines/csaw.js';
 import { SupersawVoice } from './engines/supersaw.js';
 import { EpianoVoice, FmbassVoice } from './engines/fm6.js';
 import { VowelVoice } from './engines/vowel.js';
+import { ClapVoice, CowbellVoice } from './engines/percussion.js';
 
 const mono = () => [0];
 
+// A kit part's voice, chosen by its type. All share the drum sub-voice interface.
+export function kitPartVoice(type, sampleRate) {
+  if (type === 'clap') return new ClapVoice(sampleRate);
+  if (type === 'cowbell') return new CowbellVoice(sampleRate);
+  return new DrumVoice(sampleRate);
+}
+
 export const engines = {
   drum: { Voice: DrumVoice, notesFor: mono, defaults: [0.30, 0.50, 0.35, 0.45, 0.20] },
+  clap: { Voice: ClapVoice, notesFor: mono, defaults: [0.45, 0.35, 0.55, 0.50, 0.25] },
+  cowbell: { Voice: CowbellVoice, notesFor: mono, defaults: [0.40, 0.40, 0.50, 0.50, 0.20] },
   fm2: { Voice: FM2Voice, notesFor: mono, defaults: [0.50, 0.40, 0.20, 0.50, 0.20] },
   chord: { Voice: ChordVoice, notesFor: chordNotes, defaults: [0.00, 0.20, 0.30, 0.55, 0.20] },
   csaw: { Voice: CsawVoice, notesFor: mono, defaults: [0.40, 0.60, 0.20, 0.55, 0.20] },

@@ -31,12 +31,12 @@ export const KIT_PARTS = 4;
 // starting sounds: kick, snare, hat, perc.
 export function makeKitParts() {
   const defs = [
-    [0.12, 0.55, 0.10, 0.55, 0.35],
-    [0.55, 0.32, 0.70, 0.50, 0.20],
-    [0.88, 0.12, 0.95, 0.30, 0.10],
-    [0.66, 0.22, 0.80, 0.40, 0.25],
+    { type: 'drum', params: [0.12, 0.55, 0.10, 0.55, 0.35] }, // kick
+    { type: 'drum', params: [0.55, 0.32, 0.70, 0.50, 0.20] }, // snare
+    { type: 'drum', params: [0.88, 0.12, 0.95, 0.30, 0.10] }, // hat
+    { type: 'clap', params: [0.45, 0.35, 0.55, 0.50, 0.25] }, // 808 clap
   ];
-  return defs.map((p) => ({ params: p.slice(), lane: makeLane() }));
+  return defs.map((d) => ({ type: d.type, mute: false, params: d.params.slice(), lane: makeLane() }));
 }
 
 export function makeTrack(engineId, params) {
@@ -121,6 +121,10 @@ export function deserialize(text) {
     if (typeof t.output.send !== 'number') t.output.send = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
     if (t.engine === 'kit' && !Array.isArray(t.parts)) t.parts = makeKitParts();
+    if (t.engine === 'kit') for (const pt of t.parts) {
+      if (typeof pt.type !== 'string') pt.type = 'drum';
+      if (typeof pt.mute !== 'boolean') pt.mute = false;
+    }
     for (const lane of trackLanes(t)) {
       for (const s of laneSteps(t, lane)) if (typeof s.tie !== 'boolean') s.tie = false;
     }

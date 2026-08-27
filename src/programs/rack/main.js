@@ -75,7 +75,7 @@ async function ensureAudio() {
   await host.init();
   voices = pattern.tracks.map((t, i) => {
     const v = host.createVoice(t.engine, i);
-    if (isKit(t)) t.parts.forEach((p, pi) => v.setPartParams(pi, p.params));
+    if (isKit(t)) t.parts.forEach((p, pi) => { v.setPartType(pi, p.type); v.setPartParams(pi, p.params); });
     else v.setParams(t.params);
     v.setOutput(t.output);
     host.setChannel(i, { pan: t.output.pan, send: t.output.send });
@@ -105,6 +105,7 @@ function scheduleTrackStep(t, absStep, time) {
   // Kit: fire each of the four part rows; each part is its own trigger source.
   if (isKit(track)) {
     for (let part = 0; part < 4; part++) {
+      if (track.parts[part].mute) continue;
       const step = track.parts[part].lane[pos];
       if (!step.on) continue;
       v.triggerPart(time, step.note, step.velocity, part);
@@ -567,8 +568,18 @@ function renderEditor() {
       tab.onclick = () => { selectedPart = pi; renderEditor(); renderGrid(); };
       tabs.append(tab);
     });
-    ed.append(labeled('Part', tabs));
-    const params = track.parts[selectedPart].params;
+    const part = track.parts[selectedPart];
+    // Part selector and its drum model (Drum / 808 Clap / 808 Cowbell) side by
+    // side, with room before the knobs.
+    const kitHead = el('div', 'kit-head');
+    kitHead.append(labeled('Part', tabs));
+    kitHead.append(labeled('Type', pick([['drum', 'Drum'], ['clap', '808 Clap'], ['cowbell', '808 Cowbell']], part.type, (v) => {
+      part.type = v;
+      if (voices[selected]) voices[selected].setPartType(selectedPart, v);
+      save();
+    })));
+    ed.append(kitHead);
+    const params = part.params;
     const knobs = el('div', 'knobs');
     meta.params.forEach((p, i) => knobs.append(makeKnob(p.label, params[i], (val) => {
       params[i] = val;
@@ -622,12 +633,21 @@ function renderGrid() {
     const lane = el('div', 'lane'); lane.dataset.lane = laneName;
     // Lane tag: kit shows P1..P4 (clickable to pick the part to edit); a melodic
     // alt lane shows ACCENT in accent mode.
-    let tag = laneName, tagCls = '';
-    if (kit) { tag = 'P' + (li + 1); if (li === selectedPart) tagCls = ' partsel'; }
-    else if (laneName === 'alt' && accentMode) { tag = 'accent'; tagCls = ' accent'; }
-    const tagEl = el('div', 'lane-tag' + tagCls, tag);
-    if (kit) tagEl.onclick = () => { selectedPart = li; renderEditor(); };
-    lane.append(tagEl);
+    if (kit) {
+      const part = track.parts[li];
+      if (part.mute) lane.classList.add('lane-muted');
+      const head = el('div', 'kit-lane-head');
+      const tagEl = el('div', 'lane-tag' + (li === selectedPart ? ' partsel' : ''), 'P' + (li + 1));
+      tagEl.onclick = () => { selectedPart = li; renderEditor(); renderGrid(); };
+      const mb = el('button', 'lanemute' + (part.mute ? ' on' : ''), 'M');
+      mb.title = 'Mute part';
+      mb.onclick = (e) => { e.stopPropagation(); part.mute = !part.mute; save(); renderGrid(); };
+      head.append(tagEl, mb);
+      lane.append(head);
+    } else {
+      const isAccent = laneName === 'alt' && accentMode;
+      lane.append(el('div', 'lane-tag' + (isAccent ? ' accent' : ''), isAccent ? 'accent' : laneName));
+    }
     const steps = laneSteps(track, laneName);
     const cells = el('div', 'cells');
     for (let i = 0; i < PAGE; i++) {
@@ -969,7 +989,7 @@ function flipEngine(t, id) {
   if (voices[t]) {
     voices[t].dispose();
     voices[t] = host.createVoice(id, t);
-    if (isKit(track)) track.parts.forEach((p, pi) => voices[t].setPartParams(pi, p.params));
+    if (isKit(track)) track.parts.forEach((p, pi) => { voices[t].setPartType(pi, p.type); voices[t].setPartParams(pi, p.params); });
     else voices[t].setParams(track.params);
     voices[t].setOutput(track.output);
     // The voice node is new, so its AudioParams changed identity; reconnect.

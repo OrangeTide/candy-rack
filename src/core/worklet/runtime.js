@@ -11,7 +11,7 @@
 // Params are shared across the pool and read live, so knob moves affect held
 // notes. Gate length (seconds) rides on the trigger so pitched voices release
 // on time without a separate note-off message.
-import { engines } from './registry.js';
+import { engines, kitPartVoice } from './registry.js';
 
 const POLY = 8;
 
@@ -70,6 +70,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
           break;
         case 'kitparams':
           if (this.partParams) this.partParams[m.part] = m.values.slice();
+          break;
+        case 'kittype':
+          if (this.kit) this.pool[m.part] = kitPartVoice(m.kind, sampleRate);
           break;
         case 'trigger':
           this.events.push(m);

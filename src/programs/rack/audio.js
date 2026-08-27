@@ -45,7 +45,11 @@ export class Voice {
     this.node.port.postMessage({ type: 'trigger', time, note, velocity, gateSec, slide, accent });
   }
 
-  // Kit tracks: set one part's drum params, and trigger one part.
+  // Kit tracks: set one part's voice type and drum params, and trigger one part.
+  setPartType(part, kind) {
+    this.node.port.postMessage({ type: 'kittype', part, kind });
+  }
+
   setPartParams(part, values) {
     this.node.port.postMessage({ type: 'kitparams', part, values });
   }

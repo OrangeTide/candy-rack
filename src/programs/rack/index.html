@@ -310,8 +310,18 @@
   }
   .part-tab.on { color: #2a0713; background: linear-gradient(180deg, #ffd27a, var(--amber)); border-color: var(--amber); box-shadow: 0 0 10px rgba(255,179,46,.5); }
   .lane-tag.partsel { color: var(--amber); text-shadow: 0 0 8px rgba(255,179,46,.6); }
-  .lane .lane-tag[class*="partsel"], .lane .lane-tag { cursor: default; }
   .lane[data-lane^="part"] .lane-tag { cursor: pointer; }
+  /* Part selector + its Type, side by side, with room before the knobs. */
+  .kit-head { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+  /* Per-part row: P-label plus a mute button. */
+  .kit-lane-head { display: flex; align-items: center; gap: 6px; }
+  .lanemute {
+    font-family: var(--tech); font-size: 8px; font-weight: 700; width: 16px; height: 15px;
+    padding: 0; border-radius: 4px; cursor: pointer; background: #1c1140; color: var(--ink-mute);
+    border: 1px solid #000; -webkit-user-select: none; user-select: none;
+  }
+  .lanemute.on { background: linear-gradient(180deg, #ff6f8c, var(--lamp)); color: #2a0713; border-color: var(--lamp); box-shadow: 0 0 8px rgba(255,90,125,.5); }
+  .lane-muted .cells { opacity: .4; }
   .ed-top { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
   .engine-sel {
     font-family: var(--disp); font-weight: 700; font-size: 15px; letter-spacing: 1px; color: var(--cyan);

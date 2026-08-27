@@ -11,6 +11,8 @@
 //   loop:    loop length, but the tail that rings past the end is wrapped and
 //            mixed back onto the start, so the WAV repeats seamlessly.
 
+import { kitPartVoice } from './worklet/registry.js';
+
 const POLY = 8;
 const TWO_PI = Math.PI * 2;
 
@@ -75,6 +77,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     const kit = track.engine === 'kit';
     const desc = kit ? engines.drum : (engines[track.engine] || engines.drum);
     const pool = Array.from({ length: POLY }, () => new desc.Voice(SR));
+    if (kit) for (let i = 0; i < 4; i++) pool[i] = kitPartVoice(track.parts[i].type, SR);
     return {
       track, desc, kit,
       partParams: kit ? track.parts.map((p) => p.params) : null,
@@ -108,6 +111,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     // slot), and each part is its own trigger source (part0..part3).
     if (node.kit) {
       for (let part = 0; part < 4; part++) {
+        if (track.parts[part].mute) continue;
         const step = track.parts[part].lane[pos];
         if (!step.on) continue;
         const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
