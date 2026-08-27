@@ -384,6 +384,7 @@ function renderEditor() {
   ed.append(pageRow);
 
   // Grid + step editor placeholders
+  ed.append(el('div', 'hint', 'Click a step to place it and select it. Click the selected step again to clear it. The Note / Velocity / Gate below edit the highlighted step.'));
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
   const stepEd = el('div', 'stepedit'); stepEd.id = 'stepedit'; ed.append(stepEd);
 
@@ -413,7 +414,7 @@ function renderGrid() {
       if (pos >= track.length) cell.classList.add('disabled');
       const step = track[laneName][pos];
       if (step && step.on) cell.classList.add('on');
-      if (laneName === selStep.lane && pos === selStep.pos) cell.classList.add('sel');
+      if (laneName === selStep.lane && pos === selStep.pos) cell.classList.add('selected');
       cell.onclick = () => onCellClick(laneName, pos);
       cells.append(cell);
     }
@@ -427,7 +428,12 @@ function onCellClick(laneName, pos) {
   const track = pattern.tracks[selected];
   if (pos >= track.length) return;
   const step = track[laneName][pos];
-  step.on = !step.on;
+  const wasSelected = selStep.lane === laneName && selStep.pos === pos;
+  if (!step.on) {
+    step.on = true;            // place a new trigger and select it for editing
+  } else if (wasSelected) {
+    step.on = false;           // clicking the already-selected trigger clears it
+  }                            // clicking a placed but unselected trigger just selects it
   selStep = { lane: laneName, pos };
   save();
   renderGrid();
@@ -438,13 +444,31 @@ function renderStepEditor() {
   if (!box) return;
   box.innerHTML = '';
   const step = pattern.tracks[selected][selStep.lane][selStep.pos];
-  box.append(el('div', 'ed-title', `${selStep.lane} step ${selStep.pos + 1}`));
 
+  const title = el('div', 'ed-title');
+  title.append(el('span', null, `${selStep.lane.toUpperCase()} lane · step ${selStep.pos + 1}`));
+  title.append(el('span', 'state ' + (step.on ? 'placed' : 'empty'), step.on ? 'placed' : 'empty'));
+  box.append(title);
+
+  // Note row: big readout with semitone steppers plus a slider.
+  const noteRow = el('div', 'ed-field');
+  noteRow.append(el('span', 'lbl', 'Note'));
+  const nDown = el('button', 'note-btn', '‹');
+  const nName = el('span', 'note-name', noteName(step.note));
+  const nUp = el('button', 'note-btn', '›');
   const note = el('input', 'range');
   note.type = 'range'; note.min = 24; note.max = 96; note.value = step.note;
-  const nv = el('span', 'val', noteName(step.note));
-  note.oninput = () => { step.note = Number(note.value); nv.textContent = noteName(step.note); save(); };
-  box.append(field('Note', note, nv));
+  const setNote = (v) => {
+    step.note = Math.min(96, Math.max(24, v));
+    note.value = step.note;
+    nName.textContent = noteName(step.note);
+    save();
+  };
+  note.oninput = () => setNote(Number(note.value));
+  nDown.onclick = () => setNote(step.note - 1);
+  nUp.onclick = () => setNote(step.note + 1);
+  noteRow.append(nDown, nName, nUp, note);
+  box.append(noteRow);
 
   const vel = el('input', 'range');
   vel.type = 'range'; vel.min = 1; vel.max = 127; vel.value = step.velocity;
@@ -457,6 +481,9 @@ function renderStepEditor() {
   const gv = el('span', 'val', Math.round(step.gateLen * 100) + '%');
   gate.oninput = () => { step.gateLen = Number(gate.value) / 100; gv.textContent = gate.value + '%'; save(); };
   box.append(field('Gate', gate, gv));
+
+  box.append(el('div', 'hint poly',
+    'Polyphony: place a trigger on the ALT lane at the same step for a second simultaneous note. For full chords, switch this track to the CHORD engine (its Type knob picks the chord).'));
 }
 
 function labeled(label, control) {

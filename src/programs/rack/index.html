@@ -330,14 +330,43 @@
     background: radial-gradient(circle at 38% 28%, #ffe6b0, var(--amber) 55%, #c47c10 100%);
     box-shadow: 0 0 12px rgba(255,179,46,.6), 0 2px 4px rgba(0,0,0,.35);
   }
-  .cell.sel { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .cell.selected { z-index: 3; }
+  .cell.selected::before {
+    content: ''; position: absolute; inset: -5px; border-radius: 13px;
+    border: 2px solid var(--cyan);
+    box-shadow: 0 0 10px 1px rgba(53,232,255,.9), 0 0 4px rgba(53,232,255,.7);
+    pointer-events: none; z-index: 3;
+  }
   .cell.play { transform: scale(1.14); box-shadow: 0 0 0 3px var(--magenta), 0 0 16px var(--magenta); animation: pop .18s ease; }
   .cell.disabled { opacity: .22; pointer-events: none; }
   @keyframes pop { 0% { transform: scale(1); } 60% { transform: scale(1.2); } 100% { transform: scale(1.14); } }
 
   /* ---- step editor ---- */
   .stepedit { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(0,0,0,.4); box-shadow: 0 -1px 0 rgba(255,255,255,.06); }
-  .ed-title { font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; font-weight: 600; }
+  .ed-title { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; font-weight: 600; }
+  .ed-title .state { font-size: 9px; padding: 2px 9px; border-radius: 20px; letter-spacing: 1px; }
+  .ed-title .state.placed { background: rgba(195,255,62,.18); color: var(--lime); border: 1px solid rgba(195,255,62,.4); }
+  .ed-title .state.empty { background: rgba(0,0,0,.28); color: var(--ink-mute); border: 1px solid #2c2048; }
+
+  /* Instruction hints */
+  .hint {
+    font-family: var(--tech); font-size: 11px; line-height: 1.55; color: var(--ink-dim);
+    background: rgba(0,0,0,.20); border-left: 3px solid var(--cyan); border-radius: 8px;
+    padding: 8px 12px; margin: 4px 0 12px;
+  }
+  .hint.poly { border-left-color: var(--amber); margin: 14px 0 0; }
+
+  /* Note picker */
+  .note-name {
+    font-family: var(--tech); font-weight: 700; font-size: 20px; color: var(--amber);
+    min-width: 54px; text-align: center; text-shadow: 0 0 8px rgba(255,179,46,.4);
+  }
+  .note-btn {
+    font-family: var(--disp); font-weight: 700; font-size: 16px; line-height: 1; color: #23103f;
+    background: linear-gradient(180deg, #c79bff, #9a63e6); border: none; border-radius: 7px;
+    width: 26px; height: 26px; cursor: pointer; box-shadow: 0 2px 0 #5b2fb0;
+  }
+  .note-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #5b2fb0; }
   .ed-field { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
   .ed-field .lbl { width: 64px; }
   .range { flex: 1; height: 6px; -webkit-appearance: none; appearance: none; background: transparent; }
