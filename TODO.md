@@ -1,0 +1,68 @@
+# TODO
+
+## 80s electro-funk (Warp 9: "Nunk", "Light Years Away")
+
+The bass (fmbass + slide), robot vocal (vowel engine), and keys/stabs
+(epiano/chord/csaw) are largely there. The percussion and the space are not.
+Ranked by impact toward that record.
+
+- [ ] 808 percussion. Kit parts now pick a voice type (Drum / 808 Clap / 808
+      Cowbell). Remaining:
+  - [x] 808 handclap: multi-burst noise + tail. Done (percussion.js ClapVoice).
+  - [x] 808 cowbell: two detuned squares through a bandpass. Done (CowbellVoice).
+  - [ ] 808 kick boom: the drum voice decay caps at ~0.3s; needs ~0.5-1s of
+        tuned sub with a click attack. Add a 'kick' part type (or extend drum).
+  - [ ] 808 snare: two-tone body (~180/330 Hz) + noise, as a 'snare' part type.
+- [ ] Reverb + delay send FX on the mixer aux bus. The send bus is built and
+      reserved but has no effect wired. Electro is drenched in plate/gated reverb
+      (snare/clap) and tape-delay throws. Same FX section dub techno wants.
+- [ ] Swing / shuffle in the transport. We run straight 16ths; electro has a
+      slight 16th push. Also helps every groove.
+
+## Sequencer
+
+- [ ] Polyphonic chord rows on poly engines. The kit's 4-lane machinery
+      (laneSteps/trackLanes, N-row grid, per-lane scheduling) generalizes: a poly
+      engine could use N note-rows, one voice per row, to play an N-note chord per
+      step, each row with its own pitch. The multi-lane plumbing is already there;
+      this needs a poly-engine "voice rows" mode (like kit parts, but each row is
+      a pitched note into one shared engine rather than a separate drum voice) and
+      a row-count control.
+
+## Future genre programs
+
+Each program is a standalone fruit-branded machine. Grouped by build cost.
+Existing backlog: Bubblegum rave (cheap, next), acid squelch (needs 303 mono
+engine), sunshine breaks (gated on sampler), dub techno (gated on FX-send),
+gothic-industrial / Licorice (needs distortion/ringmod/Rings).
+
+Cheapest (content + existing engines):
+
+- [ ] Blueberry: space jazz / electronic blues (midnight blue). EPIANO Rhodes,
+      FM BASS walking lines, CHORD 7th/9th voicings. Wants richer chord Type sets
+      (min7/dom7/dim). Closest to free.
+- [ ] Blackberry: dungeon synth / electronic-folk (deep desaturated indigo).
+      Detuned CHORD pads, VOWEL choir/monk drone, EPIANO as bell/harpsichord.
+      Wants the tempo-synced tape-wobble LFO.
+
+One small engine:
+
+- [ ] Green Apple: chiptune / bitpop (acid lime). Bit-crushed pulses (SUPERSAW
+      Decimate already exists), needs a pulse/duty engine + arpeggiator.
+
+Gated on the sampler:
+
+- [ ] Peach: vaporwave / mallsoft (pastel pink-orange, chrome). Pitched-down
+      EPIANO, heavy swing, slow.
+- [ ] Plum: trip-hop / downtempo (bruised purple-red). FM BASS, dusty EPIANO,
+      swing, sidechain; needs chopped breaks.
+
+Gated on FX-send (reverb/delay):
+
+- [ ] Coconut: ambient (pale bone-white). SUPERSAW + CHORD drones, long ties,
+      slow filter LFOs.
+
+## Other
+
+- [ ] add MOD Matrix targets for master mixer
+- [ ] oversample the FM core to fix the high-note aliasing
