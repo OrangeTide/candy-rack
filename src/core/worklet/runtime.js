@@ -25,6 +25,14 @@ class VoiceProcessor extends AudioWorkletProcessor {
       { name: 'cutoff', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       { name: 'hp', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       { name: 'vca', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
+      // Mod offsets for the 5 engine controls. The matrix connects sources here;
+      // they sum onto the message-set base per block (k-rate is fine for timbre
+      // modulation). Default 0 means an un-modulated param is untouched.
+      { name: 'm0', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'k-rate' },
+      { name: 'm1', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'k-rate' },
+      { name: 'm2', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'k-rate' },
+      { name: 'm3', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'k-rate' },
+      { name: 'm4', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'k-rate' },
     ];
   }
 
@@ -32,7 +40,10 @@ class VoiceProcessor extends AudioWorkletProcessor {
     super();
     const id = options.processorOptions && options.processorOptions.engine;
     this.desc = engines[id] || engines.drum;
-    this.params = (this.desc.defaults || [0, 0, 0, 0, 0]).slice();
+    // base holds the knob values (set by messages); params is the effective
+    // array the voices read each block, base plus the m0..m4 mod offsets.
+    this.base = (this.desc.defaults || [0, 0, 0, 0, 0]).slice();
+    this.params = this.base.slice();
     this.pool = Array.from({ length: POLY }, () => new this.desc.Voice(sampleRate));
     this.rr = 0;
     // A stereo engine fills outL/outR via renderStereo(); mono engines return a
@@ -49,10 +60,10 @@ class VoiceProcessor extends AudioWorkletProcessor {
       const m = e.data;
       switch (m.type) {
         case 'param':
-          this.params[m.index] = m.value;
+          this.base[m.index] = m.value;
           break;
         case 'params':
-          for (let i = 0; i < m.values.length; i++) this.params[i] = m.values[i];
+          for (let i = 0; i < m.values.length; i++) this.base[i] = m.values[i];
           break;
         case 'trigger':
           this.events.push(m);
@@ -92,6 +103,14 @@ class VoiceProcessor extends AudioWorkletProcessor {
     const chR = out.length > 1 ? out[1] : null;
     const n = ch0.length;
     const blockStart = currentFrame / sampleRate;
+
+    // Effective engine params = base (knobs) + mod offsets, clamped 0..1. Voices
+    // read this.params live, so a modulated control sweeps held notes.
+    for (let i = 0; i < 5; i++) {
+      const off = parameters['m' + i];
+      let v = this.base[i] + (off ? off[0] : 0);
+      this.params[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+    }
 
     const cutoffArr = parameters.cutoff;
     const hpArr = parameters.hp;

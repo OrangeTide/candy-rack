@@ -820,9 +820,13 @@ function renderMatrix() {
 
     row.append(el('span', 'arrow', '→'));
 
-    // Destination
-    row.append(trackSelect(r.dest.track, (v) => { r.dest.track = v; applyRoutes(); }));
-    row.append(pick([['cutoff', 'Filter'], ['vca', 'Level']], r.dest.param, (v) => { r.dest.param = v; applyRoutes(); }));
+    // Destination. Options are the output stage plus the destination engine's
+    // five controls (m0..m4), labelled by that engine.
+    row.append(trackSelect(r.dest.track, (v) => { r.dest.track = v; applyRoutes(); renderMatrix(); }));
+    const destEng = engineById(pattern.tracks[r.dest.track].engine);
+    const destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']]
+      .concat(destEng.params.map((p, i) => ['m' + i, p.label]));
+    row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; applyRoutes(); }));
 
     // Depth
     const depth = el('input', 'mini');

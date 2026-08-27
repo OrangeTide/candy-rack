@@ -137,6 +137,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   const rawR = new Float32Array(cap);
   const modCut = new Array(nodes.length).fill(0);
   const modVca = new Array(nodes.length).fill(0);
+  const modParam = nodes.map(() => [0, 0, 0, 0, 0]);
 
   let rawLen = cap;
   for (let i = 0; i < cap; i++) {
@@ -153,7 +154,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       }
     }
 
-    for (let n = 0; n < nodes.length; n++) { modCut[n] = 0; modVca[n] = 0; }
+    for (let n = 0; n < nodes.length; n++) { modCut[n] = 0; modVca[n] = 0; modParam[n].fill(0); }
     for (const r of routes) {
       let val;
       if (r.src.type === 'lfo') {
@@ -164,8 +165,10 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         r._env *= r._decayCoef;
       }
       const c = r.depth * r.polarity * val;
-      if (r.dest.param === 'cutoff') modCut[r.dest.track] += c;
-      else modVca[r.dest.track] += c;
+      const p = r.dest.param;
+      if (p === 'cutoff') modCut[r.dest.track] += c;
+      else if (p === 'vca') modVca[r.dest.track] += c;
+      else if (p[0] === 'm') modParam[r.dest.track][+p[1]] += c;
     }
 
     let mixL = 0;
@@ -174,6 +177,13 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     for (let n = 0; n < nodes.length; n++) {
       const node = nodes[n];
       if (!audible(node.track)) continue;
+      // Effective engine params = base + mod offsets, clamped. Voices read the
+      // node.params array live, mirroring the worklet.
+      const mp = modParam[n];
+      for (let i = 0; i < 5; i++) {
+        const v = node.track.params[i] + mp[i];
+        node.params[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+      }
       let sL = 0;
       let sR = 0;
       for (const v of node.pool) {
