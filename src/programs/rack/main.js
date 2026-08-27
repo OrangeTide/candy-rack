@@ -48,6 +48,23 @@ let voices = []; // one Voice per track, created on first play
 let clock = null;
 let playing = false;
 
+// The engine runs in an AudioWorklet, which has no fallback path. Browsers
+// without it (notably iOS Safari before 14.5) cannot play back, so detect it
+// once and show a message rather than throwing on the first play. Offline WAV
+// export is pure JavaScript and still works, so it is not gated on this.
+const AUDIO_SUPPORTED = typeof window.AudioWorklet !== 'undefined';
+
+function showUnsupported() {
+  if (document.getElementById('audio-unsupported')) return;
+  const bar = el('div', 'unsupported');
+  bar.id = 'audio-unsupported';
+  bar.textContent =
+    'Live playback needs AudioWorklet, which this browser does not support. ' +
+    'Use an up-to-date Chrome, Firefox, or Safari (iOS 14.5 or newer). ' +
+    'WAV export still works.';
+  document.body.prepend(bar);
+}
+
 // Per-track scheduling cursors and playhead queues.
 let cursors = [];
 let litByTrack = [];
@@ -104,6 +121,7 @@ function pump(horizon) {
 }
 
 async function play() {
+  if (!AUDIO_SUPPORTED) { showUnsupported(); return; }
   await ensureAudio();
   await host.resume();
   const start = host.currentTime + 0.1;
@@ -712,6 +730,7 @@ function pct(v) { return Math.round(v * 100) + '%'; }
 // ---- boot ------------------------------------------------------------------
 
 render();
+if (!AUDIO_SUPPORTED) showUnsupported();
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); togglePlay(); }
   if (e.key >= '1' && e.key <= '6' && e.target === document.body) selectTrack(Number(e.key) - 1);
