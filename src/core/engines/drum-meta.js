@@ -23,3 +23,13 @@ export const drumMeta = {
 export function defaultParams(meta) {
   return meta.params.map((p) => p.default);
 }
+
+// Every engine may declare up to 3 on/off toggles (meta.toggles), alongside its
+// 5 knobs, for switch-style controls the knobs do not suit. The data model
+// always carries 3 booleans so the shape is uniform; an engine that declares
+// fewer leaves the trailing slots unused (the UI dims them). This returns the
+// engine's default 3-boolean array.
+export function defaultToggles(meta) {
+  const defs = meta.toggles || [];
+  return [0, 1, 2].map((i) => (defs[i] ? !!defs[i].default : false));
+}

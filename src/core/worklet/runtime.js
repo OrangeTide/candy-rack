@@ -46,6 +46,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
     // array the voices read each block, base plus the m0..m4 mod offsets.
     this.base = (this.desc.defaults || [0, 0, 0, 0, 0]).slice();
     this.params = this.base.slice();
+    // Engine on/off switches, mutated in place so voices holding this reference
+    // see live changes. Always 3 booleans; an engine reads only the ones it uses.
+    this.toggles = [false, false, false];
     this.partParams = this.kit ? [0, 1, 2, 3].map(() => this.desc.defaults.slice()) : null;
     this.pool = Array.from({ length: POLY }, () => new this.desc.Voice(sampleRate));
     this.rr = 0;
@@ -67,6 +70,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
           break;
         case 'params':
           for (let i = 0; i < m.values.length; i++) this.base[i] = m.values[i];
+          break;
+        case 'toggles':
+          for (let i = 0; i < 3; i++) this.toggles[i] = !!m.values[i];
           break;
         case 'kitparams':
           if (this.partParams) this.partParams[m.part] = m.values.slice();
@@ -102,13 +108,13 @@ class VoiceProcessor extends AudioWorkletProcessor {
     if (this.desc.mono) {
       const off = offsets.length ? offsets[0] : 0;
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
-      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, slide: !!ev.slide, accent: !!ev.accent });
+      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, slide: !!ev.slide, accent: !!ev.accent });
       return;
     }
     for (const off of offsets) {
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
       const v = this.alloc();
-      v.noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params });
+      v.noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles });
     }
   }
 

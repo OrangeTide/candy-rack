@@ -19,6 +19,9 @@ if (!desc) {
   process.exit(1);
 }
 const out = process.argv[3] || `build/preview-${id}.wav`;
+// Optional engine toggles as a comma list, e.g. "1,0,0" to audition switch 1.
+const toggles = (process.argv[4] || '').split(',').map((s) => s.trim() === '1');
+while (toggles.length < 3) toggles.push(false);
 
 const SR = 48000;
 const POLY = 8;
@@ -37,7 +40,7 @@ function alloc() {
 function fire(note, gateSec) {
   for (const off of desc.notesFor(note, params)) {
     const freq = 440 * Math.pow(2, (note - 69 + off) / 12);
-    alloc().noteOn({ freq, note, vel: 110, gateSec, params });
+    alloc().noteOn({ freq, note, vel: 110, gateSec, params, toggles });
   }
 }
 

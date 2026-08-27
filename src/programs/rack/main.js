@@ -13,7 +13,7 @@
 import { Transport } from '../../core/transport.js';
 import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
-import { defaultParams } from '../../core/engines/drum-meta.js';
+import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
 import { freshPattern, TRACKS } from './starter.js';
 import { AudioHost } from './audio.js';
@@ -76,7 +76,7 @@ async function ensureAudio() {
   voices = pattern.tracks.map((t, i) => {
     const v = host.createVoice(t.engine, i);
     if (isKit(t)) t.parts.forEach((p, pi) => { v.setPartType(pi, p.type); v.setPartParams(pi, p.params); });
-    else v.setParams(t.params);
+    else { v.setParams(t.params); v.setToggles(t.toggles); }
     v.setOutput(t.output);
     host.setChannel(i, { pan: t.output.pan, send: t.output.send });
     return v;
@@ -608,6 +608,20 @@ function renderEditor() {
     ed.append(knobs);
   }
 
+  // Engine switches: 3 slots beside the knobs. The engine's meta.toggles says
+  // how many it uses; the rest are dimmed. Kit tracks define none (all dimmed).
+  const toggleDefs = meta.toggles || [];
+  const switches = el('div', 'switches');
+  for (let i = 0; i < 3; i++) {
+    const def = toggleDefs[i];
+    switches.append(makeSwitch(def ? def.label : '', !!track.toggles[i], !def, (val) => {
+      track.toggles[i] = val;
+      if (voices[selected] && !isKit(track)) voices[selected].setToggles(track.toggles);
+      save();
+    }));
+  }
+  ed.append(switches);
+
   // Pages
   const pageRow = el('div', 'pages');
   const prev = el('button', 'pgbtn', '◀');
@@ -995,13 +1009,14 @@ function flipEngine(t, id) {
   const track = pattern.tracks[t];
   track.engine = id;
   track.params = defaultParams(engineById(id));
+  track.toggles = defaultToggles(engineById(id));
   if (id === 'kit' && !Array.isArray(track.parts)) track.parts = makeKitParts();
   selectedPart = 0;
   if (voices[t]) {
     voices[t].dispose();
     voices[t] = host.createVoice(id, t);
     if (isKit(track)) track.parts.forEach((p, pi) => { voices[t].setPartType(pi, p.type); voices[t].setPartParams(pi, p.params); });
-    else voices[t].setParams(track.params);
+    else { voices[t].setParams(track.params); voices[t].setToggles(track.toggles); }
     voices[t].setOutput(track.output);
     // The voice node is new, so its AudioParams changed identity; reconnect.
     modMatrix.attach(voices);
@@ -1037,6 +1052,24 @@ function makeKnob(label, value, onChange) {
   dial.addEventListener('pointerup', end);
   dial.addEventListener('pointercancel', end);
   dial.addEventListener('dblclick', () => { v = value; paint(); onChange(v); });
+  return wrap;
+}
+
+// One engine on/off switch. A disabled slot (the engine defines no toggle here)
+// is dimmed and inert.
+function makeSwitch(label, on, disabled, onChange) {
+  const wrap = el('div', 'switch' + (on ? ' on' : '') + (disabled ? ' disabled' : ''));
+  const body = el('div', 'sw-body');
+  body.append(el('div', 'sw-knob'));
+  wrap.append(body, el('div', 'knob-label', label));
+  if (!disabled) {
+    body.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      on = !on;
+      wrap.classList.toggle('on', on);
+      onChange(on);
+    });
+  }
   return wrap;
 }
 

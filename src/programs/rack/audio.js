@@ -27,6 +27,11 @@ export class Voice {
     this.node.port.postMessage({ type: 'param', index, value });
   }
 
+  // The engine's up-to-3 on/off switches. Sent as the full 3-boolean array.
+  setToggles(values) {
+    this.node.port.postMessage({ type: 'toggles', values });
+  }
+
   // Base values for the output-stage AudioParams. Mod sources connect on top of
   // these and sum, so setting the base here still lets the matrix modulate.
   setOutput(output) {

@@ -363,6 +363,27 @@
   .knob-label { margin-top: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--ink); font-weight: 600; }
   .knob-val { font-family: var(--tech); font-size: 10px; color: var(--ink-mute); }
 
+  /* Engine on/off switches, up to 3 per engine, beside the knobs. Unused slots
+     for the engine are dimmed. */
+  .switches { display: flex; gap: 16px; flex-wrap: wrap; margin: 2px 0 10px; }
+  .switch { display: flex; flex-direction: column; align-items: center; width: 76px; }
+  .sw-body {
+    width: 46px; height: 24px; border-radius: 13px; position: relative; cursor: pointer; touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    background: #241046; border: 1px solid #3a1f6e;
+    box-shadow: 0 2px 4px rgba(0,0,0,.5) inset, 0 1px 0 rgba(255,255,255,.08);
+    transition: background .12s;
+  }
+  .sw-body .sw-knob {
+    position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 30%, #b79bec, #6a3fc0);
+    box-shadow: 0 2px 3px rgba(0,0,0,.5); transition: left .12s;
+  }
+  .switch.on .sw-body { background: linear-gradient(180deg, #7bd86a, #3f9b2f); border-color: var(--lime); box-shadow: 0 0 8px rgba(123,216,106,.45) inset; }
+  .switch.on .sw-body .sw-knob { left: 26px; background: radial-gradient(circle at 38% 30%, #eaffe4, #9fe08c); }
+  .switch.disabled { opacity: .28; pointer-events: none; }
+  .switch .knob-label { margin-top: 6px; }
+
   .mini { width: 92px; height: 5px; -webkit-appearance: none; appearance: none; background: transparent; }
 
   /* ---- pages ---- */

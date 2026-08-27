@@ -39,10 +39,15 @@ export function makeKitParts() {
   return defs.map((d) => ({ type: d.type, mute: false, params: d.params.slice(), lane: makeLane() }));
 }
 
-export function makeTrack(engineId, params) {
+export function makeTrack(engineId, params, toggles) {
   const t = {
     engine: engineId,
     params: params.slice(),
+    // Up to 3 engine-defined on/off switches, beside the 5 knobs. Always 3
+    // booleans (unused slots stay false; the engine's meta.toggles says how many
+    // it actually uses). Callers pass the engine's default toggles; the plain
+    // [false,false,false] fallback suits every engine whose defaults are all off.
+    toggles: (toggles || [false, false, false]).slice(),
     length: 16,
     ratio: 1,
     mute: false,
@@ -100,7 +105,7 @@ export function makeRoute() {
 
 export function makePattern(tracks, routes = []) {
   // swing 0..1 delays the off-beat 16ths toward a triplet shuffle (0 = straight).
-  return { version: 3, bpm: 120, swing: 0, tracks, routes, master: makeMaster() };
+  return { version: 4, bpm: 120, swing: 0, tracks, routes, master: makeMaster() };
 }
 
 export function serialize(pattern) {
@@ -122,6 +127,10 @@ export function deserialize(text) {
     if (typeof t.output.pan !== 'number') t.output.pan = 0;
     if (typeof t.output.send !== 'number') t.output.send = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
+    // Engine toggles added in version 4: ensure exactly 3 booleans.
+    if (!Array.isArray(t.toggles)) t.toggles = [false, false, false];
+    while (t.toggles.length < 3) t.toggles.push(false);
+    t.toggles = t.toggles.slice(0, 3).map((b) => !!b);
     if (t.engine === 'kit' && !Array.isArray(t.parts)) t.parts = makeKitParts();
     if (t.engine === 'kit') for (const pt of t.parts) {
       if (typeof pt.type !== 'string') pt.type = 'drum';
