@@ -265,6 +265,11 @@
     touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   .mute.on { background: linear-gradient(180deg, #ff6f8c, var(--lamp)); color: #2a0713; border-color: var(--lamp); box-shadow: 0 0 10px rgba(255,90,125,.5); }
+  /* Narrow screens: wrap the six tracks into two rows of three so each chip is
+     wide enough to show its engine label in full. */
+  @media (max-width: 520px) {
+    .rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
 
   /* ---- editor panel ---- */
   .editor, .matrix {
