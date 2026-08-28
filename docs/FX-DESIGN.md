@@ -296,9 +296,10 @@ Everything else reuses the panel, knob, and selector styles already in
 - More effect types: Reverb and Chorus. Each is one meta file plus one shared
   voice class, no new plumbing (Delay and Fuzz already follow this shape).
 - More of DooomFuzzz. The full LV2 is 2-3 pedals' worth. Shipped so far: Fuzz
-  (the "dooom" heart, 2x clip core + Green Ringer octave + RAT tone) and Octave
-  (the Green Ringer split out with blend/null). The shared 2x oversampler lives
-  in fx/voices.js (Oversampler2x) and both use it. Remaining splits: a Muff-style
-  sustain pedal (two-stage cubic + Muff parallel tone stack + sag) and an amp /
-  cab sim (the SVF cascade with the cab low-pass). The slew limiter, supply sag,
-  and the other clip curves from clip.h are drop-in additions to the Fuzz voice.
+  (the "dooom" heart, 2x clip core + Green Ringer octave + RAT tone), Octave (the
+  Green Ringer split out with blend/null), and Muff (two-stage cubic + in-stage
+  rolloff + Muff parallel tone stack + supply sag). The shared 2x oversampler
+  (fx/voices.js Oversampler2x) and the clip.h curves (clipCubic, clipCubicT) are
+  reused across them. Remaining split: an amp / cab sim (the SVF cascade with the
+  cab low-pass). The slew limiter and the other clip curves from clip.h are
+  drop-in additions to the existing drive voices.

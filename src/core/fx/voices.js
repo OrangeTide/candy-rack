@@ -116,6 +116,22 @@ class Oversampler2x {
   }
 }
 
+// Clipping curves from clip.h. clipCubic is the silicon Big Muff cubic (T = 1
+// with a small bias, 1.5x restores unity); clipCubicT is the parametric cubic
+// clamped to [-tneg, tpos], saturating with zero slope at a (2/3)T ceiling.
+function clipCubic(inp, gain, bias) {
+  let x = inp * gain + bias;
+  if (x > 1) x = 1; else if (x < -1) x = -1;
+  x = x - (1 / 3) * x * x * x;
+  return 1.5 * x - bias;
+}
+
+function clipCubicT(x, tpos, tneg) {
+  if (x > tpos) x = tpos; else if (x < -tneg) x = -tneg;
+  const t = x >= 0 ? tpos : tneg;
+  return x - x * x * x / (3 * t * t);
+}
+
 export class FuzzVoice {
   constructor(sr) {
     this.sr = sr;
@@ -253,11 +269,89 @@ export class OctaveVoice {
   }
 }
 
+// Muff-style sustain, ported from the DooomFuzzz MUFF profile (dooomfuzzz.c
+// two_stage path, clip.h, tone.h). The classic Big Muff violin sustain: two
+// cascaded soft cubic clipping stages, each followed by the in-stage high-cut
+// the feedback caps give (stagelp), into the Muff parallel LP/HP tone stack.
+// The Sag knob adds the vintage supply-sag compression on attacks; without it
+// the stage is the stiff op-amp Muff.
+//
+//   Sustain (drive into both stages)  Tone (dark LP .. bright HP crossfade)
+//   Sag (supply-sag depth on stage 1) Level
+export class MuffVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.fs2 = 2 * sr;
+    this.dcR = 1 - 2 * Math.PI * 5 / sr;
+    this.stagelpCoef = 1 - Math.exp(-2 * Math.PI * 7000 / this.fs2); // ~7 kHz at 2x
+    this.sagCoef = 1 - Math.exp(-1 / (0.004 * this.fs2));            // ~4 ms at 2x
+    this.os = new Oversampler2x();
+    this.lp1 = 0; this.lp2 = 0;   // in-stage rolloff states, one per stage
+    this.sagEnv = 0;
+    this.dcx = 0; this.dcy = 0;
+    this.mLp = 0; this.mHp = 0;    // Muff tone stack states
+    this.setParams([0.6, 0.5, 0.2, 0.5]);
+  }
+
+  // values = [sustain, tone, sag, level], each 0..1.
+  setParams(values) {
+    this.drive = Math.pow(10, 2 * (values[0] || 0)); // 1x..100x
+    this.tone = values[1] || 0;
+    this.sagOn = (values[2] || 0) > 0.01;
+    this.sagDepth = 0.3 * (values[2] || 0);
+    // Muff tone: parallel 1st-order LP at 400 Hz, HP at 1.5 kHz, base rate.
+    const glp = Math.tan(Math.PI * 400 / this.sr);
+    const ghp = Math.tan(Math.PI * 1500 / this.sr);
+    this.mGlp = glp / (1 + glp);
+    this.mGhp = ghp / (1 + ghp);
+    this.level = (values[3] || 0) * 1.3;
+  }
+
+  // Two cascaded cubics with in-stage rolloff between and after, at one 2x
+  // subsample. Stage 1 swaps to the sag path when the Sag knob is up.
+  _stage(x) {
+    if (this.sagOn) {
+      const y = x * this.drive;
+      this.sagEnv += this.sagCoef * (Math.abs(y) - this.sagEnv);
+      let ceil = 1 - this.sagDepth * this.sagEnv;
+      if (ceil < 0.6) ceil = 0.6;   // sag floor: always stable
+      x = clipCubicT(y, ceil, ceil);
+    } else {
+      x = clipCubic(x, this.drive, 0);
+    }
+    this.lp1 += this.stagelpCoef * (x - this.lp1); x = this.lp1;
+    x = clipCubic(x, 0.8, 0.05);    // second stage, slightly biased
+    this.lp2 += this.stagelpCoef * (x - this.lp2); x = this.lp2;
+    return x;
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const os = this.os, R = this.dcR, tone = this.tone;
+    const Glp = this.mGlp, Ghp = this.mGhp, level = this.level;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5 + 1e-20;
+      os.up(x);
+      const ev = this._stage(os.ev);
+      const od = this._stage(os.od);
+      let wet = os.down(ev, od);
+      const dc = wet - this.dcx + R * this.dcy; this.dcx = wet; this.dcy = dc; wet = dc;
+      // Muff parallel LP/HP tone crossfade (tone.h muff_tone_process)
+      const vlp = (wet - this.mLp) * Glp; const outlp = vlp + this.mLp; this.mLp = outlp + vlp;
+      const vhp = (wet - this.mHp) * Ghp; const lpofhp = vhp + this.mHp; this.mHp = lpofhp + vhp;
+      const outhp = wet - lpofhp;
+      wet = (1 - tone) * outlp + tone * outhp;
+      wet *= level;
+      outL[i] = wet; outR[i] = wet;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
   if (type === 'delay') return new DelayVoice(sr);
   if (type === 'fuzz') return new FuzzVoice(sr);
   if (type === 'octave') return new OctaveVoice(sr);
+  if (type === 'muff') return new MuffVoice(sr);
   return new ThruVoice(sr);
 }

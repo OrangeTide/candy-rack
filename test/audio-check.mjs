@@ -321,6 +321,40 @@ console.log('== fx octave (Green Ringer) ==');
   check('blend 0 keeps the dry fundamental', fund2 > oct2, `fund ${fund2.toFixed(3)} vs oct ${oct2.toFixed(3)}`);
 }
 
+console.log('== fx muff (sustain) ==');
+{
+  const { MuffVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000;
+  const N = 8192, f0 = 220;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  const bright = new Float32Array(N), dark = new Float32Array(N), tmp = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.4 * Math.sin(2 * Math.PI * f0 * i / SR);
+
+  // Heavy sustain: expect strong distortion (odd harmonics), a squashed crest
+  // (compression), bounded, finite, mono.
+  const v = new MuffVoice(SR);
+  v.setParams([0.8, 1.0, 0.0, 0.6]);   // high sustain, bright tone, no sag
+  v.process(inL, inR, bright, tmp, N);
+  let peak = 0, nan = false, mono = true;
+  for (let i = 0; i < N; i++) { if (Number.isNaN(bright[i])) nan = true; if (bright[i] !== tmp[i]) mono = false; peak = Math.max(peak, Math.abs(bright[i])); }
+  const mag = (buf, f) => { let re = 0, im = 0; const w = 2 * Math.PI * f / SR; for (let i = 1024; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); } return Math.sqrt(re * re + im * im) / (N - 1024); };
+  check('muff output is finite and bounded', !nan && peak > 0.05 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('muff is mono (L == R)', mono);
+  check('muff distorts (3rd harmonic present)', mag(bright, 3 * f0) > 0.02, `h3 ${mag(bright, 3 * f0).toFixed(3)}`);
+
+  // Dark (LP) render reflects the clipped waveform: high sustain squares the
+  // sine, so its crest drops below a clean sine's sqrt(2) ~= 1.41.
+  const vd = new MuffVoice(SR);
+  vd.setParams([0.8, 0.0, 0.0, 0.6]);  // dark tone
+  vd.process(inL, inR, dark, tmp, N);
+  let dpeak = 0, drms = 0;
+  for (let i = 1024; i < N; i++) { dpeak = Math.max(dpeak, Math.abs(dark[i])); drms += dark[i] * dark[i]; }
+  const crest = dpeak / (Math.sqrt(drms / (N - 1024)) + 1e-9);
+  check('muff sustain compresses (crest below a clean sine)', crest < 1.41, `crest ${crest.toFixed(2)}`);
+  const hiB = mag(bright, 9 * f0), hiD = mag(dark, 9 * f0);
+  check('muff tone shifts brightness (HP > LP up top)', hiB > hiD, `hi bright ${hiB.toFixed(3)} vs dark ${hiD.toFixed(3)}`);
+}
+
 console.log('== offline fx loop (send -> delay -> return) ==');
 {
   const { renderPattern } = await import('../src/core/offline-render.js');
