@@ -32,9 +32,12 @@ Ranked by impact toward that record.
 ## Future genre programs
 
 Each program is a standalone fruit-branded machine. Grouped by build cost.
-Existing backlog: Bubblegum rave (cheap, next), acid squelch (needs 303 mono
-engine), sunshine breaks (gated on sampler), dub techno (gated on FX-send),
-gothic-industrial / Licorice (needs distortion/ringmod/Rings).
+Existing backlog: Bubblegum rave (cheap, next), acid squelch (the ACID/TB-303
+engine and the RAT/Dist+ drive pedals now exist, so this is content-ready: a
+fruit-branded program with an acid line into the RAT stack), sunshine breaks
+(gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
+gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
+a Rings-style engine).
 
 Cheapest (content + existing engines):
 

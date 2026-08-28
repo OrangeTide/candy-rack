@@ -79,6 +79,51 @@ console.log('== supersaw stereo spread ==');
   check('renderStereo produces a stereo image', width > 1, `L/R diff energy ${width.toFixed(1)}`);
 }
 
+console.log('== acid (TB-303) engine ==');
+{
+  const { Acid303Voice } = await import('../src/core/worklet/engines/acid.js');
+  const P = [0.4, 0.6, 0.6, 0.4, 0.5];
+
+  const r = measure(new Acid303Voice(SR), P, { freq: 110, gate: 0.25, seconds: 1 });
+  check('acid audible and not clipping', r.peak > 0.05 && r.peak <= 1.001, `peak ${r.peak.toFixed(3)} rms ${r.rms.toFixed(3)}`);
+  const rv = new Acid303Voice(SR);
+  measure(rv, P, { freq: 110, gate: 0.1, seconds: 0.6 });
+  check('acid releases after gate (mono AR)', !rv.active);
+
+  const capture = (opts) => {
+    const v = new Acid303Voice(SR);
+    v.noteOn({ freq: opts.freq, note: 45, vel: 100, gateSec: opts.gate ?? 0.3, params: P, slide: opts.slide, accent: opts.accent, toggles: [opts.wave ?? false] });
+    const n = Math.floor(0.3 * SR);
+    let peak = 0, energy = 0; const buf = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const s = v.render(); buf[i] = s; peak = Math.max(peak, Math.abs(s)); energy += s * s; }
+    return { v, buf, peak, rms: Math.sqrt(energy / n) };
+  };
+
+  const plain = capture({ freq: 110 }), acc = capture({ freq: 110, accent: true });
+  check('acid accent boosts level', acc.rms > plain.rms * 1.1, `acc ${acc.rms.toFixed(3)} vs ${plain.rms.toFixed(3)}`);
+
+  const saw = capture({ freq: 110, wave: false }), sqr = capture({ freq: 110, wave: true });
+  let wdiff = 0; for (let i = 0; i < saw.buf.length; i++) wdiff += Math.abs(saw.buf[i] - sqr.buf[i]);
+  check('acid waveform toggle changes the sound', wdiff > 1, `saw/sqr Δ ${wdiff.toFixed(0)}`);
+
+  // Slide glides the pitch (no retrigger); a normal note jumps.
+  const vs = new Acid303Voice(SR);
+  vs.noteOn({ freq: 110, note: 45, vel: 100, gateSec: 0.4, params: P, toggles: [false] });
+  for (let i = 0; i < 1000; i++) vs.render();
+  vs.noteOn({ freq: 220, note: 57, vel: 100, gateSec: 0.4, params: P, slide: true, toggles: [false] });
+  vs.render();
+  const f1 = vs.freq;
+  for (let i = 0; i < SR * 0.03; i++) vs.render();
+  const f2 = vs.freq;
+  check('acid slide glides pitch', f1 < 130 && f2 > f1 + 20 && vs.freqTarget === 220, `f1 ${f1.toFixed(0)} f2 ${f2.toFixed(0)}`);
+  const vj = new Acid303Voice(SR);
+  vj.noteOn({ freq: 110, note: 45, vel: 100, gateSec: 0.4, params: P, toggles: [false] });
+  for (let i = 0; i < 1000; i++) vj.render();
+  vj.noteOn({ freq: 220, note: 57, vel: 100, gateSec: 0.4, params: P, slide: false, toggles: [false] });
+  vj.render();
+  check('acid non-slide jumps pitch', Math.abs(vj.freq - 220) < 2, `freq ${vj.freq.toFixed(0)}`);
+}
+
 console.log('== worklet bundle (build/rack.html) ==');
 if (!existsSync('build/rack.html')) {
   console.log('SKIP  build/rack.html missing, run `make` first');
@@ -218,6 +263,20 @@ if (!existsSync('build/rack.html')) {
     for (let i = 0; i < 128; i++) chanDiff += Math.abs(outS[0][i] - outS[1][i]);
   }
   check('supersaw bundle output is stereo (L != R)', chanDiff > 1, `L/R diff ${chanDiff.toFixed(1)}`);
+
+  // Acid (TB-303) engine through the bundle: mono voice, params + toggle +
+  // trigger, produces audio.
+  const pacid = new Proc({ processorOptions: { engine: 'acid' } });
+  pacid.port.onmessage({ data: { type: 'params', values: [0.4, 0.6, 0.6, 0.4, 0.5] } });
+  pacid.port.onmessage({ data: { type: 'toggles', values: [false, false, false] } });
+  pacid.port.onmessage({ data: { type: 'trigger', time: 0, note: 45, velocity: 110, gateSec: 0.3 } });
+  let acidPeak = 0;
+  for (let blk = 0; blk < 80; blk++) {
+    globalThis.currentFrame = blk * 128;
+    pacid.process([], [out], paramsOpen);
+    for (let i = 0; i < 128; i++) acidPeak = Math.max(acidPeak, Math.abs(out[0][i]));
+  }
+  check('bundle renders the acid engine', acidPeak > 0.05 && acidPeak <= 1.001, `peak ${acidPeak.toFixed(3)}`);
 
   // Channel drive (mixer overdrive) is read as an a-rate param and changes the
   // output-stage clip; drive 0 is the clean baseline. Deterministic engine.
