@@ -426,6 +426,43 @@ console.log('== fx echo (analog PT2399 delay) ==');
   check('echo Osc self-oscillates (sustains vs decays)', run(true) > run(false) * 2, `osc ${run(true).toFixed(3)} vs ${run(false).toFixed(4)}`);
 }
 
+console.log('== fx dimension (chorus) ==');
+{
+  const { DimVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000, N = 8192, f0 = 330;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.5 * Math.sin(2 * Math.PI * f0 * i / SR);
+  const proc = (mix, width, toggles) => {
+    const v = new DimVoice(SR); v.setParams([mix, width]); v.setToggles(toggles);
+    const oL = new Float32Array(N), oR = new Float32Array(N); v.process(inL, inR, oL, oR, N); return { oL, oR };
+  };
+  const stereo = (r) => { let s = 0; for (let i = 0; i < N; i++) s += Math.abs(r.oL[i] - r.oR[i]); return s; };
+
+  const on = proc(0.7, 0.8, [true, false, false]);
+  let peak = 0, nan = false;
+  for (let i = 0; i < N; i++) { if (Number.isNaN(on.oL[i])) nan = true; peak = Math.max(peak, Math.abs(on.oL[i]), Math.abs(on.oR[i])); }
+  check('dimension output is finite and bounded', !nan && peak > 0.05 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('dimension widens the stereo image', stereo(on) > 1, `L/R diff ${stereo(on).toFixed(0)}`);
+
+  // No mode button = dry passthrough (the effect idles).
+  const dry = proc(0.7, 0.8, [false, false, false]);
+  let diffDry = 0; for (let i = 0; i < N; i++) diffDry += Math.abs(dry.oL[i] - inL[i]);
+  check('dimension with no mode passes dry', diffDry < 1e-4, `Δ ${diffDry.toExponential(1)}`);
+
+  // Width 0 collapses toward mono; higher mode widens more than a low one.
+  const mono = proc(0.7, 0.0, [true, false, false]);
+  check('width 0 collapses toward mono', stereo(mono) < stereo(on) * 0.5, `mono ${stereo(mono).toFixed(0)} vs ${stereo(on).toFixed(0)}`);
+  // The mode buttons change the chorus (different rate/depth per mode).
+  const m1 = proc(0.7, 0.8, [true, false, false]);
+  const m3 = proc(0.7, 0.8, [false, false, true]);
+  let modeDiff = 0; for (let i = 0; i < N; i++) modeDiff += Math.abs(m1.oL[i] - m3.oL[i]);
+  check('mode buttons change the chorus', modeDiff > 1, `I vs III Δ ${modeDiff.toFixed(0)}`);
+
+  let same = true; const a = proc(0.7, 0.8, [true, false, false]);
+  for (let i = 0; i < N; i++) if (a.oL[i] !== on.oL[i]) { same = false; break; }
+  check('dimension is deterministic', same);
+}
+
 console.log('== fx octave (Green Ringer) ==');
 {
   const { OctaveVoice } = await import('../src/core/fx/voices.js');

@@ -557,6 +557,77 @@ export class EchoVoice {
   }
 }
 
+// Dimension: a Roland Dimension D / Boss DC-2 style stereo chorus. Its identity
+// is the "dimensional" widener, not a wobble: two short modulated delay taps
+// read in anti-phase so the stereo image spreads without an obvious pitch
+// warble, with the dry kept common so it stays mostly mono-safe. Like the
+// hardware it has no rate/depth knobs, just mode buttons I/II/III (the toggles,
+// combinable for in-between settings) that step the rate and depth; Mix and
+// Width are the only knobs. The chord/pad widener for dub techno, French house,
+// and vaporwave.
+export class DimVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.max = Math.ceil(sr * 0.05) + 2; // ~50 ms, plenty for a chorus tap
+    this.buf = new Float32Array(this.max);
+    this.w = 0;
+    this.ph = 0;
+    this.baseSamp = 0.009 * sr; // ~9 ms base delay
+    this.setToggles([true, false, false]);
+    this.setParams([0.6, 0.7]);
+  }
+
+  // values = [mix, width], each 0..1.
+  setParams(values) {
+    this.mix = values[0] || 0;
+    this.width = values[1] || 0;
+  }
+
+  // Mode buttons I/II/III. Higher/more buttons = more intensity (rate + depth),
+  // combos push a little further, matching the hardware's stacked buttons. No
+  // button = dry (the effect idles).
+  setToggles(values) {
+    const t0 = !!(values && values[0]), t1 = !!(values && values[1]), t2 = !!(values && values[2]);
+    let mode = 0;
+    if (t0) mode = 1;
+    if (t1) mode = 2;
+    if (t2) mode = 3;
+    const extra = (t0 ? 1 : 0) + (t1 ? 1 : 0) + (t2 ? 1 : 0) > 1 ? 0.5 : 0;
+    const intensity = mode + extra; // 0..3.5
+    this.wetOn = intensity > 0 ? 1 : 0;
+    this.modInc = 2 * Math.PI * (0.25 + intensity * 0.4) / this.sr; // ~0.25..~1.65 Hz
+    this.depthSamp = (intensity > 0 ? 1.5 + intensity * 1.2 : 0) * 0.001 * this.sr; // ms->samp
+  }
+
+  _read(d) {
+    let rp = this.w - d;
+    if (rp < 0) rp += this.max;
+    const i0 = rp | 0;
+    const fr = rp - i0;
+    const a = this.buf[i0];
+    const b = this.buf[i0 + 1 >= this.max ? 0 : i0 + 1];
+    return a + (b - a) * fr;
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const base = this.baseSamp, depth = this.depthSamp, mix = this.mix;
+    const width = this.width, wet = this.wetOn, modInc = this.modInc;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5;
+      this.buf[this.w] = x;
+      this.ph += modInc; if (this.ph > 6.2831853) this.ph -= 6.2831853;
+      const lfo = Math.sin(this.ph);
+      // Width decorrelates the right tap: 0 = mono (same as L), 1 = anti-phase.
+      const lfoR = lfo * (1 - 2 * width);
+      const wetL = this._read(base + depth * (0.5 + 0.5 * lfo));
+      const wetR = this._read(base + depth * (0.5 + 0.5 * lfoR));
+      this.w = this.w + 1 >= this.max ? 0 : this.w + 1;
+      outL[i] = wet ? inL[i] * (1 - mix) + wetL * mix : inL[i];
+      outR[i] = wet ? inR[i] * (1 - mix) + wetR * mix : inR[i];
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
@@ -567,5 +638,6 @@ export function fxVoice(type, sr) {
   if (type === 'rat') return new RatVoice(sr);
   if (type === 'dist') return new DistVoice(sr);
   if (type === 'echo') return new EchoVoice(sr);
+  if (type === 'dim') return new DimVoice(sr);
   return new ThruVoice(sr);
 }

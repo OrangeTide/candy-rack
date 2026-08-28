@@ -10,13 +10,14 @@ import { muffMeta } from './muff-meta.js';
 import { ratMeta } from './rat-meta.js';
 import { distMeta } from './dist-meta.js';
 import { echoMeta } from './echo-meta.js';
+import { dimMeta } from './dim-meta.js';
 
 // The empty slot: no knobs, straight-through. Every fresh pedal starts here.
 export const thruMeta = { id: 'thru', label: 'Thru', color: '#7d68ad', stereo: false, knobs: [] };
 
 // Order shown in the pedal type selector. Add reverb/chorus here as their
 // meta + voice land; no other wiring changes.
-export const fxTypes = [thruMeta, delayMeta, echoMeta, fuzzMeta, octaveMeta, muffMeta, ratMeta, distMeta];
+export const fxTypes = [thruMeta, delayMeta, echoMeta, dimMeta, fuzzMeta, octaveMeta, muffMeta, ratMeta, distMeta];
 
 // Every pedal stores a fixed-size control block regardless of how many its type
 // actually uses, so the data model, persistence, and worklet messages pass the
