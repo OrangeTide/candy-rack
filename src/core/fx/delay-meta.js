@@ -15,4 +15,6 @@ export const delayMeta = {
     { key: 'tone', label: 'Tone', default: 0.60 },
     { key: 'mix', label: 'Mix', default: 0.50 },
   ],
+  // Secondary footswitch: hold to freeze the buffer into an infinite loop.
+  sw2: { label: 'Hold', mode: 'momentary' },
 };

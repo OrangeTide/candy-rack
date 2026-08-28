@@ -35,6 +35,7 @@ export class DelayVoice {
     this.w = 0;
     this.lpL = 0;
     this.lpR = 0;
+    this.hold = false; // freeze footswitch (sw2): loop the buffer, mute input
     this.setParams([0.4, 0.45, 0.6, 0.5]);
   }
 
@@ -46,11 +47,21 @@ export class DelayVoice {
     this.mix = values[3] || 0;
   }
 
+  // Secondary footswitch = Freeze/Hold (momentary). While held, the delay stops
+  // capturing new input and recirculates at near-unity so the current contents
+  // loop as a frozen phrase; releasing returns to the knob feedback.
+  setSecondary(on) {
+    this.hold = !!on;
+  }
+
   process(inL, inR, outL, outR, n) {
     const max = this.max;
     // Time maps to 20ms..750ms. No tempo sync yet.
     const delaySamp = Math.max(1, Math.min(max - 1, Math.round((0.02 + this.time * 0.73) * this.sr)));
-    const fb = Math.min(0.95, this.feedback * 0.95);
+    // While frozen, drive the feedback to near-unity and mute the input so the
+    // captured audio loops instead of decaying or taking new sound.
+    const fb = this.hold ? 0.995 : Math.min(0.95, this.feedback * 0.95);
+    const inG = this.hold ? 0 : 1;
     // Tone is a one-pole lowpass on the repeats: bright near 1, dark near 0.
     const toneA = 0.04 + this.tone * this.tone * 0.92;
     const mix = this.mix;
@@ -61,7 +72,7 @@ export class DelayVoice {
       const dR = this.bufR[rp];
       this.lpL += (dL - this.lpL) * toneA;
       this.lpR += (dR - this.lpR) * toneA;
-      const inMono = (inL[i] + inR[i]) * 0.5;
+      const inMono = (inL[i] + inR[i]) * 0.5 * inG;
       this.bufL[w] = inMono + this.lpR * fb;
       this.bufR[w] = this.lpL * fb;
       w = w + 1 === max ? 0 : w + 1;

@@ -294,7 +294,9 @@ upright rounded rectangle, roughly 1 : 1.8):
   bypass footswitch and its LED, set apart from the knobs so they are not kicked.
   When the type declares `sw2` a second footswitch sits beside it in the same
   zone (momentary = press-and-hold, latching = toggle). The LED lights when
-  engaged; the footswitch toggles bypass and sends one message.
+  engaged; the footswitch toggles bypass and sends one message. The Delay uses
+  `sw2` as a momentary Freeze: while held it mutes the delay input and drives
+  feedback to near-unity so the buffer loops as a frozen phrase.
 - The enclosure is painted with the effect's accent color over the cast metal;
   a pedal with `meta.colors` gets a diagonal two-tone split whose live accent
   follows its first switch (the Dist+/DOD 250 goes mustard to green).

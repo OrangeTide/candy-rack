@@ -147,6 +147,27 @@ if (!existsSync('build/rack.html')) {
     check('bundle applies the dist Ge/Si toggle (Si louder)', siRms > geRms * 1.2, `si ${siRms.toFixed(3)} vs ge ${geRms.toFixed(3)}`);
   }
 
+  // The delay Freeze reaches the voice through the worklet 'fxsw2' path.
+  {
+    const Fx = registered['fx-processor'];
+    const freeze = (hold) => {
+      const fp = new Fx({ processorOptions: { fx: 'delay' } });
+      fp.port.onmessage({ data: { type: 'fxparams', values: [0.3, 0.45, 0.7, 1.0] } });
+      fp.port.onmessage({ data: { type: 'fxbypass', bypass: false } });
+      const fin = [[new Float32Array(128)]];
+      const fout = [new Float32Array(128), new Float32Array(128)];
+      for (let blk = 0; blk < 400; blk++) {
+        for (let i = 0; i < 128; i++) fin[0][0][i] = blk < 40 ? (Math.random() * 2 - 1) * 0.5 : 0;
+        if (blk === 60) fp.port.onmessage({ data: { type: 'fxsw2', value: hold } });
+        fp.process(fin, [fout]);
+      }
+      let e = 0, c = 0;
+      for (let blk = 0; blk < 150; blk++) { fin[0][0].fill(0); fp.process(fin, [fout]); for (let i = 0; i < 128; i++) { e += fout[0][i] * fout[0][i]; c++; } }
+      return Math.sqrt(e / c);
+    };
+    check('bundle applies delay Freeze via fxsw2', freeze(true) > freeze(false) * 3, `hold ${freeze(true).toFixed(3)}`);
+  }
+
   // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
   const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]) };
   const paramsMuted = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([0]) };
@@ -306,6 +327,38 @@ console.log('== fx fuzz (DooomFuzzz port) ==');
   let same = true;
   for (let i = 0; i < N; i++) if (o2L[i] !== outL[i]) { same = false; break; }
   check('fuzz is deterministic', same);
+}
+
+console.log('== fx delay freeze (sw2 hold) ==');
+{
+  const { DelayVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000;
+  const N = 128;
+  // Prime the delay with a burst, then run silence: held it should keep looping
+  // near its primed level; not held it decays with the knob feedback.
+  const run = (hold) => {
+    const v = new DelayVoice(SR);
+    v.setParams([0.3, 0.45, 0.7, 1.0]); // 100% wet so we measure the buffer
+    const inL = new Float32Array(N), inR = new Float32Array(N);
+    const oL = new Float32Array(N), oR = new Float32Array(N);
+    for (let blk = 0; blk < 400; blk++) {
+      // 40 blocks of noise to fill the line, then silence
+      for (let i = 0; i < N; i++) { const s = blk < 40 ? (Math.random() * 2 - 1) * 0.5 : 0; inL[i] = inR[i] = s; }
+      if (blk === 60) v.setSecondary(hold); // engage after the burst, before decay
+      v.process(inL, inR, oL, oR, N);
+    }
+    // measure sustained level over the next stretch of silence
+    let e = 0, c = 0;
+    for (let blk = 0; blk < 200; blk++) {
+      for (let i = 0; i < N; i++) inL[i] = inR[i] = 0;
+      v.process(inL, inR, oL, oR, N);
+      for (let i = 0; i < N; i++) { e += oL[i] * oL[i]; c++; }
+    }
+    return Math.sqrt(e / c);
+  };
+  const frozen = run(true), free = run(false);
+  check('delay hold sustains the loop', frozen > 0.02, `frozen rms ${frozen.toFixed(3)}`);
+  check('delay hold sustains longer than free feedback', frozen > free * 3, `frozen ${frozen.toFixed(3)} vs free ${free.toFixed(4)}`);
 }
 
 console.log('== fx octave (Green Ringer) ==');
