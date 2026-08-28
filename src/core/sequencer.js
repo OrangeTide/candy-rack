@@ -61,8 +61,9 @@ export function makeTrack(engineId, params, toggles) {
     // engine. cutoff (lowpass) and hp (highpass) form the channel band filter;
     // both are real mod destinations. cutoff/vca: 1 = fully open / unity; hp: 0
     // = open (no low cut). vca doubles as the mixer channel Level. pan is -1..1
-    // (0 center), send is 0..1 into the (reserved) aux bus.
-    output: { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0 },
+    // (0 center), send is 0..1 into the aux bus, drive is 0..1 mixer overdrive
+    // pushing the output-stage soft clip for grit.
+    output: { cutoff: 1, hp: 0, vca: 1, pan: 0, send: 0, drive: 0 },
   };
   if (engineId === 'kit') t.parts = makeKitParts();
   return t;
@@ -160,6 +161,7 @@ export function deserialize(text) {
     if (typeof t.output.hp !== 'number') t.output.hp = 0;
     if (typeof t.output.pan !== 'number') t.output.pan = 0;
     if (typeof t.output.send !== 'number') t.output.send = 0;
+    if (typeof t.output.drive !== 'number') t.output.drive = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
     // Engine toggles added in version 4: ensure exactly 3 booleans.
     if (!Array.isArray(t.toggles)) t.toggles = [false, false, false];

@@ -252,8 +252,13 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       const pan = node.track.output.pan || 0;
       const gL = pan > 0 ? 1 - pan : 1;
       const gR = pan < 0 ? 1 + pan : 1;
-      const outCL = Math.tanh(bpL * 1.2) * vca * gL;
-      const outCR = Math.tanh(bpR * 1.2) * vca * gR;
+      // Channel drive: push the soft clip harder with makeup, mirroring the
+      // worklet (drive 0 => gain 1.2, makeup 1 = the previous clean behavior).
+      const dr = node.track.output.drive || 0;
+      const dg = 1.2 + dr * 6;
+      const mk = 1 / (1 + dr * 1.5);
+      const outCL = Math.tanh(bpL * dg) * mk * vca * gL;
+      const outCR = Math.tanh(bpR * dg) * mk * vca * gR;
       mixL += outCL;
       mixR += outCR;
       // Post-pan send tap, downmixed to mono, matching panner -> send -> sendBus.

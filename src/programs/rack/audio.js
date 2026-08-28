@@ -38,6 +38,7 @@ export class Voice {
     if (typeof output.cutoff === 'number') this.node.parameters.get('cutoff').value = output.cutoff;
     if (typeof output.hp === 'number') this.node.parameters.get('hp').value = output.hp;
     if (typeof output.vca === 'number') this.node.parameters.get('vca').value = output.vca;
+    if (typeof output.drive === 'number') this.node.parameters.get('drive').value = output.drive;
   }
 
   param(name) {

@@ -331,6 +331,8 @@ Everything else reuses the panel, knob, and selector styles already in
   pedal-toggle contract (meta.toggles -> pedal.toggles -> worklet 'fxtoggles'
   message -> a switch on the pedal face, mirroring the engine scheme) and split
   enclosure colors (meta.colors -> a diagonal two-tone, the live accent following
-  the switch). Remaining drive work: drum grit via mixer overdrive (a soft-clip
-  Drive on the channel/master strips), which is mixer work, not a pedal. Amp/cab
-  sim was dropped: no planned genre needs it.
+  the switch). Drum grit is handled off the pedal rack by a per-channel mixer
+  Drive (output.drive pushes the voice output-stage soft clip; a Drive knob on
+  every mix strip), so the kit can be gritted for that electro/French-house
+  crunch. Amp/cab sim was dropped: no planned genre needs it. The drive lineage
+  (RAT, Dist+/DOD 250, mixer Drive) now covers Hardfloor / Prodigy / Daft Punk.

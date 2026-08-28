@@ -517,6 +517,13 @@ function renderMixer() {
       if (host.ctx) host.setChannel(t, { send: v });
       save();
     }));
+    // Drive: mixer overdrive into the output-stage soft clip. Grit the kit for
+    // that dirty electro/French-house drum crunch.
+    strip.append(makeKnob('Drive', track.output.drive, (v) => {
+      track.output.drive = v;
+      if (voices[t]) voices[t].setOutput({ drive: v });
+      save();
+    }));
     strips.append(strip);
   });
 

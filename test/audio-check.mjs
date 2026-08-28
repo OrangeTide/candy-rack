@@ -169,8 +169,8 @@ if (!existsSync('build/rack.html')) {
   }
 
   // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
-  const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]) };
-  const paramsMuted = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([0]) };
+  const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]), drive: new Float32Array([0]) };
+  const paramsMuted = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([0]), drive: new Float32Array([0]) };
 
   const Proc = registered['voice-processor'];
   const p = new Proc({ processorOptions: { engine: 'fm2' } });
@@ -218,6 +218,23 @@ if (!existsSync('build/rack.html')) {
     for (let i = 0; i < 128; i++) chanDiff += Math.abs(outS[0][i] - outS[1][i]);
   }
   check('supersaw bundle output is stereo (L != R)', chanDiff > 1, `L/R diff ${chanDiff.toFixed(1)}`);
+
+  // Channel drive (mixer overdrive) is read as an a-rate param and changes the
+  // output-stage clip; drive 0 is the clean baseline. Deterministic engine.
+  const renderNote = (drive) => {
+    const p = new Proc({ processorOptions: { engine: 'fm2' } });
+    p.port.onmessage({ data: { type: 'params', values: [0.5, 0.6, 0.2, 0.5, 0.2] } });
+    p.port.onmessage({ data: { type: 'trigger', time: 0, note: 57, velocity: 110, gateSec: 0.4 } });
+    const o = [new Float32Array(128), new Float32Array(128)];
+    const params = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]), drive: new Float32Array([drive]) };
+    const buf = [];
+    for (let blk = 0; blk < 60; blk++) { globalThis.currentFrame = blk * 128; p.process([], [o], params); for (let i = 0; i < 128; i++) buf.push(o[0][i]); }
+    return buf;
+  };
+  const dclean = renderNote(0), ddirty = renderNote(0.85);
+  let ddiff = 0, dpeak = 0, dnan = false;
+  for (let i = 0; i < dclean.length; i++) { if (Number.isNaN(ddirty[i])) dnan = true; ddiff += Math.abs(ddirty[i] - dclean[i]); dpeak = Math.max(dpeak, Math.abs(ddirty[i])); }
+  check('bundle channel drive changes output, bounded', !dnan && ddiff > 1 && dpeak <= 1.0, `diff ${ddiff.toFixed(1)} peak ${dpeak.toFixed(3)}`);
 }
 
 console.log('== mod matrix graph ==');
@@ -287,6 +304,16 @@ console.log('== offline render (WAV recorder) ==');
   let peak = 0;
   for (let i = 0; i < tails.length; i++) peak = Math.max(peak, Math.abs(tails.left[i]), Math.abs(tails.right[i]));
   check('render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
+
+  // Channel drive grits a track: the kit (T0) render changes and stays bounded.
+  const gritty = freshPattern();
+  gritty.tracks[0].output.drive = 0.8;
+  const gr = renderPattern(gritty, { engines, mode: 'oneshot', sampleRate: SR });
+  let gdiff = 0, gpeak = 0;
+  const gN = Math.min(gr.length, one.length);
+  for (let i = 0; i < gN; i++) { gdiff += Math.abs(gr.left[i] - one.left[i]); gpeak = Math.max(gpeak, Math.abs(gr.left[i]), Math.abs(gr.right[i])); }
+  check('offline channel drive changes the mix (grit)', gdiff > 1, `Δ ${gdiff.toFixed(0)}`);
+  check('offline channel drive stays bounded', gpeak <= 1.0, `peak ${gpeak.toFixed(3)}`);
 }
 
 console.log('== fx fuzz (DooomFuzzz port) ==');

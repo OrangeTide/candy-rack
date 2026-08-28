@@ -25,6 +25,9 @@ class VoiceProcessor extends AudioWorkletProcessor {
       { name: 'cutoff', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       { name: 'hp', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       { name: 'vca', defaultValue: 1, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
+      // Channel drive: pushes the output-stage soft clip harder for grit (mixer
+      // overdrive). 0 = clean (unchanged), up to a crushed, level-compensated clip.
+      { name: 'drive', defaultValue: 0, minValue: -8, maxValue: 8, automationRate: 'a-rate' },
       // Mod offsets for the 5 engine controls. The matrix connects sources here;
       // they sum onto the message-set base per block (k-rate is fine for timbre
       // modulation). Default 0 means an un-modulated param is untouched.
@@ -136,9 +139,11 @@ class VoiceProcessor extends AudioWorkletProcessor {
     const cutoffArr = parameters.cutoff;
     const hpArr = parameters.hp;
     const vcaArr = parameters.vca;
+    const driveArr = parameters.drive;
     const cutConst = cutoffArr.length === 1;
     const hpConst = hpArr.length === 1;
     const vcaConst = vcaArr.length === 1;
+    const driveConst = driveArr.length === 1;
     const stereo = this.stereo;
 
     for (let i = 0; i < n; i++) {
@@ -186,8 +191,14 @@ class VoiceProcessor extends AudioWorkletProcessor {
 
       let vca = vcaConst ? vcaArr[0] : vcaArr[i];
       vca = vca < 0 ? 0 : vca > 4 ? 4 : vca;
-      const l = Math.tanh(bpL * 1.2) * vca;
-      const r = Math.tanh(bpR * 1.2) * vca;
+      // Drive pushes the soft clip harder; makeup keeps it grit, not just boom.
+      // drive 0 => gain 1.2, makeup 1 (the previous clean behavior exactly).
+      let dr = driveConst ? driveArr[0] : driveArr[i];
+      dr = dr < 0 ? 0 : dr > 1 ? 1 : dr;
+      const dg = 1.2 + dr * 6;
+      const mk = 1 / (1 + dr * 1.5);
+      const l = Math.tanh(bpL * dg) * mk * vca;
+      const r = Math.tanh(bpR * dg) * mk * vca;
       ch0[i] = l;
       if (chR) chR[i] = r;
     }
