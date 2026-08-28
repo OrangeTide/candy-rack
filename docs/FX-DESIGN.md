@@ -295,11 +295,17 @@ Everything else reuses the panel, knob, and selector styles already in
 - Tempo-synced delay time, so Time snaps to note divisions off the transport.
 - More effect types: Reverb and Chorus. Each is one meta file plus one shared
   voice class, no new plumbing (Delay and Fuzz already follow this shape).
-- More of DooomFuzzz. The full LV2 is 2-3 pedals' worth. Shipped so far: Fuzz
-  (the "dooom" heart, 2x clip core + Green Ringer octave + RAT tone), Octave (the
-  Green Ringer split out with blend/null), and Muff (two-stage cubic + in-stage
-  rolloff + Muff parallel tone stack + supply sag). The shared 2x oversampler
-  (fx/voices.js Oversampler2x) and the clip.h curves (clipCubic, clipCubicT) are
-  reused across them. Remaining split: an amp / cab sim (the SVF cascade with the
-  cab low-pass). The slew limiter and the other clip curves from clip.h are
-  drop-in additions to the existing drive voices.
+- Drive lineage (Hardfloor / Prodigy / Daft Punk). Shipped: Fuzz (the "dooom"
+  heart, 2x clip core + Green Ringer octave + RAT tone), Octave (Green Ringer
+  split out), Muff (two-stage cubic + in-stage rolloff + Muff tone + sag), and
+  RAT (silicon cubic + LM308 slew + RAT tone, no octave, stacks two-in-a-row for
+  the acid rig). The shared 2x oversampler (fx/voices.js Oversampler2x), the
+  clip.h curves (clipCubic, clipCubicT), and the slew limiter are reused across
+  them. Remaining drive work: a Dist+/DOD 250 pedal (op-amp + diode clip, a
+  germanium/silicon switch), which needs a small pedal-toggle addition to the fx
+  contract (mirror the engine meta.toggles scheme: meta.toggle -> pedal.toggle
+  in the data model -> worklet 'fxtoggle' message -> a switch on the pedal face);
+  and drum grit via mixer overdrive (a soft-clip Drive on the channel/master
+  strips), which is mixer work, not a pedal. Amp/cab sim was dropped: no planned
+  genre needs it. The other clip curves from clip.h (germanium CLIP_GE, op-amp
+  hard clamp) are drop-in for the Dist+/DOD 250 switch.

@@ -346,6 +346,67 @@ export class MuffVoice {
   }
 }
 
+// RAT-style distortion, ported from the DooomFuzzz RAT profile (dooomfuzzz.c:
+// CLIP_SYM + slew + TONE_RAT). The LM308 op-amp overdrive into hard silicon
+// clipping: a slew limiter softens the input (the LM308's slew rate), the
+// silicon cubic clips hard, and the RAT "Filter" variable low-pass sets the
+// tone. No octave, so it stacks cleanly (two in a row = the Hardfloor rig).
+//
+//   Drive (1x..100x)   Tone (RAT variable LP, up = brighter)   Level
+export class RatVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.fs2 = 2 * sr;
+    this.dcR = 1 - 2 * Math.PI * 5 / sr;
+    this.os = new Oversampler2x();
+    this.slewLast = 0;
+    this.dcx = 0; this.dcy = 0;
+    this.ratS = 0;
+    this.setParams([0.5, 0.5, 0.5]);
+  }
+
+  // values = [drive, tone, level], each 0..1.
+  setParams(values) {
+    this.drive = Math.pow(10, 2 * (values[0] || 0));
+    let fc = 400 * Math.exp(3.68888 * (values[1] || 0)); // ~400 Hz .. ~16 kHz
+    const nyq = this.sr * 0.49;
+    if (fc > nyq) fc = nyq;
+    let w = Math.PI * fc / this.sr;
+    if (w > 1.4) w = 1.4;
+    const g = Math.tan(w);
+    this.ratG = g / (1 + g);
+    this.level = (values[2] || 0) * 1.3;
+    // Fixed LM308 slew rate (the RAT has no slew knob); the DooomFuzzz rat
+    // profile forces it on at 0.2, step = 0.5 - 0.45*0.2 (per 2x sample).
+    this.slewStep = 0.41;
+  }
+
+  // Slew-limit the pre-drive signal, then silicon cubic clip. Shared slew state
+  // across the even and odd subsamples in time order, matching the C.
+  _slewClip(x, drive, step) {
+    let d = x - this.slewLast;
+    if (d > step) d = step; else if (d < -step) d = -step;
+    this.slewLast += d;
+    return clipCubic(this.slewLast, drive, 0);
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const os = this.os, drive = this.drive, ratG = this.ratG, level = this.level;
+    const R = this.dcR, step = this.slewStep;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5 + 1e-20;
+      os.up(x);
+      const ev = this._slewClip(os.ev, drive, step);
+      const od = this._slewClip(os.od, drive, step);
+      let wet = os.down(ev, od);
+      const dc = wet - this.dcx + R * this.dcy; this.dcx = wet; this.dcy = dc; wet = dc;
+      const v = (wet - this.ratS) * ratG; const lp = v + this.ratS; this.ratS = lp + v; wet = lp;
+      wet *= level;
+      outL[i] = wet; outR[i] = wet;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
@@ -353,5 +414,6 @@ export function fxVoice(type, sr) {
   if (type === 'fuzz') return new FuzzVoice(sr);
   if (type === 'octave') return new OctaveVoice(sr);
   if (type === 'muff') return new MuffVoice(sr);
+  if (type === 'rat') return new RatVoice(sr);
   return new ThruVoice(sr);
 }

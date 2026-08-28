@@ -355,6 +355,40 @@ console.log('== fx muff (sustain) ==');
   check('muff tone shifts brightness (HP > LP up top)', hiB > hiD, `hi bright ${hiB.toFixed(3)} vs dark ${hiD.toFixed(3)}`);
 }
 
+console.log('== fx rat (distortion) ==');
+{
+  const { RatVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000;
+  const N = 8192, f0 = 220;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  const outL = new Float32Array(N), outR = new Float32Array(N), tmp = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.4 * Math.sin(2 * Math.PI * f0 * i / SR);
+  const mag = (buf, f) => { let re = 0, im = 0; const w = 2 * Math.PI * f / SR; for (let i = 1024; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); } return Math.sqrt(re * re + im * im) / (N - 1024); };
+
+  const v = new RatVoice(SR);
+  v.setParams([0.7, 0.6, 0.6]);
+  v.process(inL, inR, outL, outR, N);
+  let peak = 0, nan = false, mono = true;
+  for (let i = 0; i < N; i++) { if (Number.isNaN(outL[i])) nan = true; if (outL[i] !== outR[i]) mono = false; peak = Math.max(peak, Math.abs(outL[i])); }
+  check('rat output is finite and bounded', !nan && peak > 0.05 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('rat is mono (L == R)', mono);
+  check('rat distorts (3rd harmonic present)', mag(outL, 3 * f0) > 0.02, `h3 ${mag(outL, 3 * f0).toFixed(3)}`);
+
+  // Deterministic (guards the ported DSP against hidden global state).
+  const v2 = new RatVoice(SR); v2.setParams([0.7, 0.6, 0.6]);
+  v2.process(inL, inR, tmp, new Float32Array(N), N);
+  let same = true; for (let i = 0; i < N; i++) if (tmp[i] !== outL[i]) { same = false; break; }
+  check('rat is deterministic', same);
+
+  // Stacking: a second RAT after the first (the Hardfloor rig) adds more upper
+  // harmonics than one alone. Feed one RAT's output into a second.
+  const stage2 = new RatVoice(SR); stage2.setParams([0.7, 0.6, 0.6]);
+  const s2 = new Float32Array(N);
+  stage2.process(outL, outL, s2, new Float32Array(N), N);
+  const oneH5 = mag(outL, 5 * f0), twoH5 = mag(s2, 5 * f0);
+  check('stacking two rats adds harmonics', twoH5 > oneH5, `2x h5 ${twoH5.toFixed(3)} vs 1x ${oneH5.toFixed(3)}`);
+}
+
 console.log('== offline fx loop (send -> delay -> return) ==');
 {
   const { renderPattern } = await import('../src/core/offline-render.js');
