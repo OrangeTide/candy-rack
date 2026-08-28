@@ -293,5 +293,12 @@ Everything else reuses the panel, knob, and selector styles already in
 - Mod matrix into FX params. The matrix could target a pedal knob (delay time,
   drive amount) as a new destination class. Out of scope for v1.
 - Tempo-synced delay time, so Time snaps to note divisions off the transport.
-- The rest of the first-build effect set: Reverb, Drive, Chorus. Each is one
-  meta file plus one shared voice class, no new plumbing.
+- More effect types: Reverb and Chorus. Each is one meta file plus one shared
+  voice class, no new plumbing (Delay and Fuzz already follow this shape).
+- More of DooomFuzzz. The Fuzz pedal ports only the "dooom" heart (2x clip core
+  + Green Ringer octave + RAT tone). The full LV2 is 2-3 pedals' worth and can
+  be split: an octave / ring-mod pedal (the Green Ringer plus null/blend), a
+  Muff-style sustain pedal (two-stage cubic + Muff parallel tone stack + sag),
+  and an amp / cab sim (the SVF cascade with the cab low-pass). Each reuses the
+  shared voice pattern; the slew limiter, supply sag, and the other clip curves
+  from clip.h are drop-in additions to the existing Fuzz voice.

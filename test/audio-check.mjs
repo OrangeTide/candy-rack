@@ -245,6 +245,46 @@ console.log('== offline render (WAV recorder) ==');
   check('render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
 }
 
+console.log('== fx fuzz (DooomFuzzz port) ==');
+{
+  const { FuzzVoice } = await import('../src/core/fx/voices.js');
+  const v = new FuzzVoice(SR);
+  v.setParams([0.7, 0.6, 0.4, 0.6]); // driven, some fuzz
+  // A pure 220 Hz sine in; a distortion adds harmonics, so the output must
+  // carry energy well above the fundamental, and must not blow up or go NaN.
+  const N = 4096;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  const outL = new Float32Array(N), outR = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.5 * Math.sin(2 * Math.PI * 220 * i / SR);
+  v.process(inL, inR, outL, outR, N);
+  let peak = 0, nan = false, mono = true, energy = 0;
+  for (let i = 0; i < N; i++) {
+    if (Number.isNaN(outL[i])) nan = true;
+    if (outL[i] !== outR[i]) mono = false;
+    peak = Math.max(peak, Math.abs(outL[i]));
+    energy += outL[i] * outL[i];
+  }
+  // Goertzel-ish: measure energy at the 3rd harmonic (660 Hz) vs total. A clean
+  // sine has ~none there; distortion puts real energy in the odd harmonics.
+  let hRe = 0, hIm = 0;
+  const w = 2 * Math.PI * 660 / SR;
+  for (let i = 0; i < N; i++) { hRe += outL[i] * Math.cos(w * i); hIm += outL[i] * Math.sin(w * i); }
+  const h3 = Math.sqrt(hRe * hRe + hIm * hIm) / N;
+  check('fuzz output is finite and bounded', !nan && peak > 0.05 && peak <= 1.5, `peak ${peak.toFixed(3)}`);
+  check('fuzz is mono (L == R)', mono);
+  check('fuzz adds harmonic energy (3rd harmonic present)', h3 > 0.01, `h3 mag ${h3.toFixed(3)}`);
+
+  // Bit-exact reproducibility: a second instance with the same params and input
+  // must match, guarding the ported DSP against hidden global state.
+  const v2 = new FuzzVoice(SR);
+  v2.setParams([0.7, 0.6, 0.4, 0.6]);
+  const o2L = new Float32Array(N), o2R = new Float32Array(N);
+  v2.process(inL, inR, o2L, o2R, N);
+  let same = true;
+  for (let i = 0; i < N; i++) if (o2L[i] !== outL[i]) { same = false; break; }
+  check('fuzz is deterministic', same);
+}
+
 console.log('== offline fx loop (send -> delay -> return) ==');
 {
   const { renderPattern } = await import('../src/core/offline-render.js');
