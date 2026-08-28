@@ -114,6 +114,6 @@ export function freshPattern() {
 
   const p = makePattern([t0, t1, t2, t3, t4, t5], routes);
   p.bpm = 120;
-  p.swing = 0.32; // slight shuffle
+  p.tracks.forEach((t) => { t.swing = 0.32; }); // slight shuffle, now per track
   return p;
 }

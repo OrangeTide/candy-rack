@@ -172,9 +172,9 @@ function tiedGate(track, lane, pos, stepDur) {
 }
 
 function pump(horizon) {
-  const swing = pattern.swing || 0;
   for (let t = 0; t < TRACKS; t++) {
     const track = pattern.tracks[t];
+    const swing = track.swing || 0;
     const stepDur = transport.stepDuration(track.ratio);
     const c = cursors[t];
     while (c.nextTime < horizon) {
@@ -350,18 +350,11 @@ function render() {
   steppers.append(up, down);
   lcd.append(screen, steppers);
 
-  // Swing control: delays the off-beat 16ths toward a shuffle.
-  const swingCtl = el('div', 'swing-ctl');
-  swingCtl.append(el('span', 'swing-lbl', 'Swing'));
-  const swingIn = el('input', 'swing-slider');
-  swingIn.type = 'range'; swingIn.min = 0; swingIn.max = 100; swingIn.value = Math.round((pattern.swing || 0) * 100);
-  swingIn.oninput = () => { pattern.swing = Number(swingIn.value) / 100; save(); };
-  swingCtl.append(swingIn);
-
+  // Swing moved to a per-track control in the sequence bar above the step grid.
   playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
   playBtn.onclick = togglePlay;
 
-  right.append(lcd, swingCtl, playBtn);
+  right.append(lcd, playBtn);
   head.append(right);
   app.append(head);
 
@@ -567,21 +560,22 @@ function renderMixer() {
 const FX_LETTERS = ['A', 'B', 'C', 'D'];
 
 // Series routing icon (out1 <- A <- B <- C <- D <- in1), drawn from the same
-// FM-algorithm metaphor: boxes and arrows between the in and out terminals.
+// FM-algorithm metaphor: the four pedal boxes chained between the out and in
+// terminals. Wide enough that no box is clipped.
 function seriesIcon() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 96 26');
+  svg.setAttribute('viewBox', '0 0 132 30');
   svg.setAttribute('class', 'algo-svg');
-  svg.innerHTML =
-    '<circle class="term" cx="4" cy="13" r="2.4"/>' +
-    '<path class="ln" d="M6.4 13 H12 M30 13 H36 M54 13 H60 M78 13 H90"/>' +
-    '<circle class="term" cx="92" cy="13" r="2.4"/>' +
-    '<rect class="box" x="12" y="6" width="18" height="14" rx="3"/>' +
-    '<rect class="box" x="36" y="6" width="18" height="14" rx="3"/>' +
-    '<rect class="box" x="60" y="6" width="18" height="14" rx="3"/>' +
-    '<text class="bl" x="21" y="16" text-anchor="middle">A</text>' +
-    '<text class="bl" x="45" y="16" text-anchor="middle">B</text>' +
-    '<text class="bl" x="69" y="16" text-anchor="middle">C</text>';
+  const boxes = [12, 40, 68, 96];
+  let s =
+    '<circle class="term" cx="4" cy="15" r="2.6"/>' +
+    '<circle class="term" cx="128" cy="15" r="2.6"/>' +
+    '<path class="ln" d="M6.6 15 H12 M32 15 H40 M60 15 H68 M88 15 H96 M116 15 H125.4"/>';
+  boxes.forEach((x, i) => {
+    s += `<rect class="box" x="${x}" y="7" width="20" height="16" rx="3"/>`;
+    s += `<text class="bl" x="${x + 10}" y="19" text-anchor="middle">${FX_LETTERS[i]}</text>`;
+  });
+  svg.innerHTML = s;
   return svg;
 }
 
@@ -774,25 +768,7 @@ function renderEditor() {
   engSel.onchange = () => flipEngine(selected, engSel.value);
   top.append(labeled('Engine', engSel));
 
-  const ratioSel = el('select', 'sel');
-  [['0.5', '/2'], ['1', '1x'], ['2', 'x2'], ['4', 'x4']].forEach(([v, t]) => {
-    const o = el('option', null, t); o.value = v;
-    if (Number(v) === track.ratio) o.selected = true;
-    ratioSel.append(o);
-  });
-  ratioSel.onchange = () => { track.ratio = Number(ratioSel.value); save(); };
-  top.append(labeled('Speed', ratioSel));
-
-  const lenInput = el('input', 'num');
-  lenInput.type = 'number'; lenInput.min = 1; lenInput.max = MAX_STEPS; lenInput.value = track.length;
-  lenInput.oninput = () => {
-    track.length = clampNum(lenInput.value, 1, MAX_STEPS, 16);
-    if (pageOf(selected) > maxPage(track)) pageByTrack[selected] = maxPage(track);
-    save();
-    renderGrid();
-  };
-  top.append(labeled('Length', lenInput));
-
+  // Speed, Length, and Swing moved to the sequence bar just above the step grid.
   // The output-stage channel controls (Filter, HP, Level) live in the mixer.
   ed.append(top);
 
@@ -849,19 +825,53 @@ function renderEditor() {
   }
   ed.append(switches);
 
-  // Pages
+  // Sequence bar above the step grid: page nav, then Speed, Length, and the
+  // per-track Swing, so the controls that act on the strip sit right over it.
+  // The usage instructions live once, below the grid (in the step editor).
+  const seqBar = el('div', 'seq-bar');
+
   const pageRow = el('div', 'pages');
   const prev = el('button', 'pgbtn', '◀');
   const next = el('button', 'pgbtn', '▶');
-  const plbl = el('span', 'pglbl', '');
-  plbl.id = 'pglbl';
+  const plbl = el('span', 'pglbl', ''); plbl.id = 'pglbl';
   prev.onclick = () => { pageByTrack[selected] = Math.max(0, pageOf(selected) - 1); renderGrid(); };
   next.onclick = () => { pageByTrack[selected] = Math.min(maxPage(track), pageOf(selected) + 1); renderGrid(); };
   pageRow.append(prev, plbl, next);
-  ed.append(pageRow);
+  seqBar.append(pageRow);
 
-  // Grid + step editor placeholders
-  ed.append(el('div', 'hint', 'Tap places or clears steps. Long-press a step to edit it; then tap to move the selection, long-press to select several. The Note / Velocity / Gate below set the same value on every selected step.'));
+  const ratioSel = el('select', 'sel');
+  [['0.5', '/2'], ['1', '1x'], ['2', 'x2'], ['4', 'x4']].forEach(([v, t]) => {
+    const o = el('option', null, t); o.value = v;
+    if (Number(v) === track.ratio) o.selected = true;
+    ratioSel.append(o);
+  });
+  ratioSel.onchange = () => { track.ratio = Number(ratioSel.value); save(); };
+  seqBar.append(labeled('Speed', ratioSel));
+
+  const lenInput = el('input', 'num');
+  lenInput.type = 'number'; lenInput.min = 1; lenInput.max = MAX_STEPS; lenInput.value = track.length;
+  lenInput.oninput = () => {
+    track.length = clampNum(lenInput.value, 1, MAX_STEPS, 16);
+    if (pageOf(selected) > maxPage(track)) pageByTrack[selected] = maxPage(track);
+    save();
+    renderGrid();
+  };
+  seqBar.append(labeled('Length', lenInput));
+
+  // Per-track swing, with a groove slider and a percent readout.
+  const swingWrap = el('label', 'field');
+  swingWrap.append(el('span', 'lbl', 'Swing'));
+  const swingRow = el('div', 'swing-row');
+  const swingIn = el('input', 'swing-slider');
+  swingIn.type = 'range'; swingIn.min = 0; swingIn.max = 100; swingIn.value = Math.round((track.swing || 0) * 100);
+  const swingVal = el('span', 'swing-val', Math.round((track.swing || 0) * 100) + '%');
+  swingIn.oninput = () => { track.swing = Number(swingIn.value) / 100; swingVal.textContent = swingIn.value + '%'; save(); };
+  swingRow.append(swingIn, swingVal);
+  swingWrap.append(swingRow);
+  seqBar.append(swingWrap);
+
+  ed.append(seqBar);
+
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
   const stepEd = el('div', 'stepedit'); stepEd.id = 'stepedit'; ed.append(stepEd);
 

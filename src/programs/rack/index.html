@@ -285,11 +285,11 @@
     color: #04222a; background: linear-gradient(180deg, #7ef0ff, var(--cyan));
     padding: 3px 9px; border-radius: 7px; box-shadow: 0 2px 0 #178a9c;
   }
-  .algo-pick { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .algo-pick { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
   .algo-cap { font-family: var(--tech); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; }
-  .algo-chip { padding: 5px 8px 4px; border-radius: 10px; text-align: center; background: linear-gradient(180deg, var(--well-2), var(--well)); border: 1px solid #000; box-shadow: 0 2px 5px rgba(0,0,0,.55) inset; }
+  .algo-chip { flex: none; width: 156px; padding: 5px 10px 4px; border-radius: 10px; text-align: center; background: linear-gradient(180deg, var(--well-2), var(--well)); border: 1px solid #000; box-shadow: 0 2px 5px rgba(0,0,0,.55) inset; }
   .algo-chip.sel { box-shadow: 0 0 0 2px var(--lime) inset, 0 0 14px rgba(195,255,62,.3); }
-  .algo-svg { display: block; width: 92px; height: 24px; }
+  .algo-svg { display: block; width: 100%; height: 30px; }
   .algo-svg .box { fill: #3a2168; stroke: var(--grape-hi); stroke-width: 1.4; }
   .algo-svg .ln { stroke: var(--lime); stroke-width: 1.4; fill: none; }
   .algo-svg .term { fill: var(--amber); }
@@ -462,8 +462,6 @@
   .lane-muted .cells { opacity: .4; }
 
   /* Swing control in the transport */
-  .swing-ctl { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-  .swing-lbl { font-family: var(--tech); font-size: 9px; letter-spacing: 1px; color: var(--ink-dim); text-transform: uppercase; }
   .swing-slider { width: 78px; height: 6px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
   .swing-slider::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--cyan), #1c1140); }
   .swing-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #fff, var(--cyan)); box-shadow: 0 0 6px rgba(53,232,255,.7); }
@@ -525,6 +523,12 @@
   .mini { width: 92px; height: 5px; -webkit-appearance: none; appearance: none; background: transparent; }
 
   /* ---- pages ---- */
+  /* Sequence bar above the step grid: page nav + Speed / Length / Swing. */
+  .seq-bar { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 16px 0 10px; }
+  .seq-bar .pages { margin: 0; }
+  .seq-bar .field { gap: 5px; }
+  .swing-row { display: flex; align-items: center; gap: 8px; }
+  .swing-val { font-family: var(--tech); font-size: 11px; color: var(--cyan); min-width: 34px; text-align: right; text-shadow: 0 0 8px rgba(53,232,255,.4); }
   .pages { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; }
   .pgbtn {
     font-family: var(--disp); font-weight: 700; color: #23103f;

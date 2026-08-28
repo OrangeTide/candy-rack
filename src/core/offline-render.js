@@ -179,10 +179,10 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   for (let i = 0; i < cap; i++) {
     const t = i / SR;
     if (i < loopSamples) {
-      const swing = pattern.swing || 0;
       for (let n = 0; n < nodes.length; n++) {
         const node = nodes[n];
         if (!audible(node.track)) continue;
+        const swing = node.track.swing || 0;
         // Swing delays the off-beat 16ths (odd steps).
         while (t >= node.cursor.nextTime + (node.cursor.step % 2 === 1 ? swing * node.stepDur * 0.4 : 0)) {
           fireStep(node, n, node.cursor.step % node.track.length);

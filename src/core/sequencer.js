@@ -53,6 +53,9 @@ export function makeTrack(engineId, params, toggles) {
     toggles: (toggles || [false, false, false]).slice(),
     length: 16,
     ratio: 1,
+    // swing 0..1 delays this track's off-beat 16ths toward a shuffle. Per track
+    // so, e.g., the drums can swing while the bass stays straight.
+    swing: 0,
     mute: false,
     solo: false,
     main: makeLane(),
@@ -163,6 +166,8 @@ export function deserialize(text) {
     if (typeof t.output.send !== 'number') t.output.send = 0;
     if (typeof t.output.drive !== 'number') t.output.drive = 0;
     if (typeof t.solo !== 'boolean') t.solo = false;
+    // Swing became per-track: migrate an old global pattern.swing onto tracks.
+    if (typeof t.swing !== 'number') t.swing = (typeof p.swing === 'number' ? p.swing : 0);
     // Engine toggles added in version 4: ensure exactly 3 booleans.
     if (!Array.isArray(t.toggles)) t.toggles = [false, false, false];
     while (t.toggles.length < 3) t.toggles.push(false);
