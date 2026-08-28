@@ -7,7 +7,7 @@
 // pattern-level routes list are the seams left open for full parameter locks
 // and the modulation matrix later, so growing into them is not a migration.
 
-import { fxById, defaultFxParams } from './fx/registry.js';
+import { fxById, defaultFxParams, defaultFxToggles } from './fx/registry.js';
 
 export const MAX_STEPS = 256;
 export const PAGE = 16;
@@ -98,7 +98,7 @@ export function makeMaster() {
 // flag. The Return level and pan are the mix-side controls, surfaced on the
 // master mixer strip. algorithm names the routing topology (see fx/algorithms).
 export function makeFxPedal() {
-  return { type: 'thru', bypass: true, params: [] };
+  return { type: 'thru', bypass: true, params: [], toggles: [] };
 }
 
 export function makeFxLoop(id = 'loop1') {
@@ -182,6 +182,10 @@ export function deserialize(text) {
       if (typeof pd.bypass !== 'boolean') pd.bypass = pd.type === 'thru';
       const want = fxById(pd.type).knobs.length;
       if (!Array.isArray(pd.params) || pd.params.length !== want) pd.params = defaultFxParams(pd.type);
+      // Pedal on/off switches added with the fx-toggle contract; size to the type.
+      const wantT = (fxById(pd.type).toggles || []).length;
+      if (!Array.isArray(pd.toggles) || pd.toggles.length !== wantT) pd.toggles = defaultFxToggles(pd.type);
+      else pd.toggles = pd.toggles.map((b) => !!b);
     }
   }
   return p;

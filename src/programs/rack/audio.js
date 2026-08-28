@@ -165,6 +165,10 @@ export class AudioHost {
     if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxbypass', bypass });
   }
 
+  setFxToggles(slot, values) {
+    if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxtoggles', values });
+  }
+
   // Return Level and Return Pan, the mix-side controls for the loop.
   setReturn({ level, pan } = {}) {
     if (typeof level === 'number') this.returnGain.gain.value = Math.max(0, Math.min(2, level));

@@ -312,17 +312,33 @@
   }
   .jack.mono { box-shadow: 0 0 0 3px #15161d, 0 0 0 4px rgba(53,232,255,.25), 0 2px 4px rgba(0,0,0,.6) inset; }
 
-  /* a pedal: tall die-cast enclosure ~1 : 1.8 */
+  /* a pedal: tall die-cast enclosure ~1 : 1.8, painted with its accent color
+     (real pedals are painted boxes) over the cast-metal gradient. */
   .pedal {
     position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0;
     padding: 12px 8px 14px; border-radius: 12px;
     background:
-      linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 22%),
+      linear-gradient(160deg, color-mix(in srgb, var(--accent, #888) 32%, transparent), color-mix(in srgb, var(--accent, #888) 7%, transparent) 55%, transparent 82%),
+      linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 22%),
       linear-gradient(168deg, #3a4150, #262b36 60%, #171a22 100%);
     border: 1px solid #0a0b10;
     box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 -18px 30px rgba(0,0,0,.22) inset, 0 10px 18px rgba(0,0,0,.5), 0 3px 0 #0c0d12;
   }
-  .slot-letter { position: absolute; top: 7px; left: 9px; font-family: var(--disp); font-weight: 800; font-size: 13px; color: rgba(255,255,255,.3); }
+  /* Split pedal (Distortion+ / DOD 250): a diagonal two-tone enclosure. */
+  .pedal.split {
+    background:
+      linear-gradient(134deg, color-mix(in srgb, var(--accent-a) 36%, transparent) 0 46%, color-mix(in srgb, var(--accent-b) 36%, transparent) 54% 100%),
+      linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 22%),
+      linear-gradient(168deg, #3a4150, #262b36 60%, #171a22 100%);
+  }
+  .slot-letter { position: absolute; top: 7px; left: 9px; font-family: var(--disp); font-weight: 800; font-size: 13px; color: rgba(255,255,255,.45); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  /* compact on/off switch on the pedal face (e.g. the Ge/Si diode) */
+  .pedal-switches { display: flex; justify-content: center; gap: 10px; margin: 2px 0 8px; }
+  .pedal-switches .switch { width: auto; }
+  .pedal-switches .sw-body { width: 34px; height: 16px; border-radius: 9px; }
+  .pedal-switches .sw-body .sw-knob { width: 12px; height: 12px; top: 2px; left: 2px; }
+  .pedal-switches .switch.on .sw-body .sw-knob { left: 20px; }
+  .pedal-switches .knob-label { margin-top: 4px; font-size: 7.5px; letter-spacing: .5px; }
   /* nameplate = the effect type selector */
   .plate {
     width: 100%; margin-top: 4px; padding: 6px 6px; border-radius: 7px; cursor: pointer; text-align: center; text-align-last: center;

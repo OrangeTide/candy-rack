@@ -301,11 +301,11 @@ Everything else reuses the panel, knob, and selector styles already in
   RAT (silicon cubic + LM308 slew + RAT tone, no octave, stacks two-in-a-row for
   the acid rig). The shared 2x oversampler (fx/voices.js Oversampler2x), the
   clip.h curves (clipCubic, clipCubicT), and the slew limiter are reused across
-  them. Remaining drive work: a Dist+/DOD 250 pedal (op-amp + diode clip, a
-  germanium/silicon switch), which needs a small pedal-toggle addition to the fx
-  contract (mirror the engine meta.toggles scheme: meta.toggle -> pedal.toggle
-  in the data model -> worklet 'fxtoggle' message -> a switch on the pedal face);
-  and drum grit via mixer overdrive (a soft-clip Drive on the channel/master
-  strips), which is mixer work, not a pedal. Amp/cab sim was dropped: no planned
-  genre needs it. The other clip curves from clip.h (germanium CLIP_GE, op-amp
-  hard clamp) are drop-in for the Dist+/DOD 250 switch.
+  them. Also shipped: Dist+/DOD 250 (op-amp + diode clip; a Silicon toggle flips
+  germanium CLIP_GE, soft/quiet, to the silicon cubic, hard/loud). It added the
+  pedal-toggle contract (meta.toggles -> pedal.toggles -> worklet 'fxtoggles'
+  message -> a switch on the pedal face, mirroring the engine scheme) and split
+  enclosure colors (meta.colors -> a diagonal two-tone, the live accent following
+  the switch). Remaining drive work: drum grit via mixer overdrive (a soft-clip
+  Drive on the channel/master strips), which is mixer work, not a pedal. Amp/cab
+  sim was dropped: no planned genre needs it.

@@ -407,6 +407,61 @@ export class RatVoice {
   }
 }
 
+// Distortion+ / DOD 250, the near-identical op-amp-into-diode-clipper circuit.
+// One pedal, a Ge/Si toggle picks the diode: germanium (MXR Distortion+) is the
+// soft, compressed, quieter clip (clip.h CLIP_GE, 0.45 ceiling); silicon (DOD
+// 250) is the harder, louder cubic clip. A fixed output low-pass tames the fizz
+// both circuits leave. 2x oversampled.
+//
+//   Drive (1x..100x)   Level      toggle: Silicon (on) vs Germanium (off)
+export class DistVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.fs2 = 2 * sr;
+    this.dcR = 1 - 2 * Math.PI * 5 / sr;
+    this.outLpCoef = 1 - Math.exp(-2 * Math.PI * 4000 / sr); // fixed ~4 kHz de-fizz
+    this.os = new Oversampler2x();
+    this.dcx = 0; this.dcy = 0;
+    this.outLp = 0;
+    this.silicon = false;
+    this.setParams([0.5, 0.5]);
+  }
+
+  // values = [drive, level], each 0..1.
+  setParams(values) {
+    this.drive = Math.pow(10, 2 * (values[0] || 0));
+    this.level = (values[1] || 0) * 1.3;
+  }
+
+  // toggles[0] = silicon (DOD 250) when true, germanium (Distortion+) when false.
+  setToggles(values) {
+    this.silicon = !!(values && values[0]);
+  }
+
+  _clip(x) {
+    if (this.silicon) return clipCubic(x, this.drive, 0); // silicon: hard cubic
+    // germanium: soft exp knee, low 0.45 ceiling, compressed and quieter
+    const y = x * this.drive;
+    if (y >= 0) return 0.45 * (1 - Math.exp(-3 * y));
+    return -0.45 * (1 - Math.exp(3 * y));
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const os = this.os, R = this.dcR, level = this.level, lpc = this.outLpCoef;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5 + 1e-20;
+      os.up(x);
+      const ev = this._clip(os.ev);
+      const od = this._clip(os.od);
+      let wet = os.down(ev, od);
+      const dc = wet - this.dcx + R * this.dcy; this.dcx = wet; this.dcy = dc; wet = dc;
+      this.outLp += lpc * (wet - this.outLp); wet = this.outLp; // fixed de-fizz LP
+      wet *= level;
+      outL[i] = wet; outR[i] = wet;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
@@ -415,5 +470,6 @@ export function fxVoice(type, sr) {
   if (type === 'octave') return new OctaveVoice(sr);
   if (type === 'muff') return new MuffVoice(sr);
   if (type === 'rat') return new RatVoice(sr);
+  if (type === 'dist') return new DistVoice(sr);
   return new ThruVoice(sr);
 }

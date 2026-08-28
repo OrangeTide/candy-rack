@@ -15,7 +15,7 @@ import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
 import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
-import { fxTypes, fxById, defaultFxParams } from '../../core/fx/registry.js';
+import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
 import { freshPattern, TRACKS } from './starter.js';
 import { AudioHost } from './audio.js';
@@ -99,6 +99,7 @@ function applyFx() {
   loop.pedals.forEach((pd, i) => {
     host.setFxType(i, pd.type);
     host.setFxParams(i, pd.params);
+    host.setFxToggles(i, pd.toggles);
     host.setFxBypass(i, pd.bypass);
   });
   host.buildFxGraph(algoById(loop.algorithm));
@@ -580,11 +581,13 @@ function setPedalType(i, type) {
   const pd = pattern.fx.loops[0].pedals[i];
   pd.type = type;
   pd.params = defaultFxParams(type);
+  pd.toggles = defaultFxToggles(type);
   // Engage a real effect when it is loaded; the empty Thru stays bypassed.
   pd.bypass = type === 'thru';
   if (host.ctx) {
     host.setFxType(i, type);
     host.setFxParams(i, pd.params);
+    host.setFxToggles(i, pd.toggles);
     host.setFxBypass(i, pd.bypass);
   }
   save();
@@ -626,8 +629,16 @@ function renderPedals() {
     const meta = fxById(pd.type);
     const isThru = pd.type === 'thru';
     const engaged = !pd.bypass && !isThru;
-    const pedal = el('div', 'pedal' + (engaged ? ' on' : '') + (isThru ? ' empty-slot' : ''));
-    pedal.style.setProperty('--accent', meta.color);
+    const pedal = el('div', 'pedal' + (engaged ? ' on' : '') + (isThru ? ' empty-slot' : '') + (meta.colors ? ' split' : ''));
+    // A split pedal (Dist+/DOD 250) carries two enclosure colors; the live
+    // accent follows the first switch. Single-color pedals just set --accent.
+    if (meta.colors) {
+      pedal.style.setProperty('--accent-a', meta.colors[0]);
+      pedal.style.setProperty('--accent-b', meta.colors[1]);
+      pedal.style.setProperty('--accent', pd.toggles && pd.toggles[0] ? meta.colors[1] : meta.colors[0]);
+    } else {
+      pedal.style.setProperty('--accent', meta.color);
+    }
     pedal.append(el('span', 'slot-letter', FX_LETTERS[i]));
 
     const sel = el('select', 'plate' + (isThru ? ' empty' : ''));
@@ -650,6 +661,22 @@ function renderPedals() {
       knobs.append(el('div', 'plate-hint', 'pick an effect above'));
     }
     pedal.append(knobs);
+
+    // Pedal on/off switches (e.g. the Dist+ germanium/silicon diode). The first
+    // switch also flips the live accent on a split-color pedal.
+    const toggleDefs = meta.toggles || [];
+    if (toggleDefs.length) {
+      const sw = el('div', 'pedal-switches');
+      toggleDefs.forEach((def, ti) => {
+        sw.append(makeSwitch(def.label, !!pd.toggles[ti], false, (val) => {
+          pd.toggles[ti] = val;
+          if (host.ctx) host.setFxToggles(i, pd.toggles);
+          if (meta.colors && ti === 0) pedal.style.setProperty('--accent', val ? meta.colors[1] : meta.colors[0]);
+          save();
+        }));
+      });
+      pedal.append(sw);
+    }
 
     pedal.append(el('div', 'led'));
     const stomp = el('button', 'stomp');

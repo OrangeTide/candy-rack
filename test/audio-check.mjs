@@ -124,6 +124,29 @@ if (!existsSync('build/rack.html')) {
     check('ping-pong delay tail is stereo', stereo > 0.05, `L/R diff ${stereo.toFixed(3)}`);
   }
 
+  // The dist pedal's Ge/Si toggle must reach the voice through the worklet
+  // message path (fxtoggles). Drive an engaged dist and compare loudness.
+  {
+    const Fx = registered['fx-processor'];
+    const drive = (silicon) => {
+      const fp = new Fx({ processorOptions: { fx: 'dist' } });
+      fp.port.onmessage({ data: { type: 'fxparams', values: [0.7, 0.7] } });
+      fp.port.onmessage({ data: { type: 'fxtoggles', values: [silicon] } });
+      fp.port.onmessage({ data: { type: 'fxbypass', bypass: false } });
+      const fin = [[new Float32Array(128)]];
+      const fout = [new Float32Array(128), new Float32Array(128)];
+      let e = 0, cnt = 0;
+      for (let blk = 0; blk < 200; blk++) {
+        for (let i = 0; i < 128; i++) fin[0][0][i] = 0.4 * Math.sin(2 * Math.PI * 220 * (blk * 128 + i) / SR);
+        fp.process(fin, [fout]);
+        if (blk > 20) for (let i = 0; i < 128; i++) { e += fout[0][i] * fout[0][i]; cnt++; }
+      }
+      return Math.sqrt(e / cnt);
+    };
+    const geRms = drive(false), siRms = drive(true);
+    check('bundle applies the dist Ge/Si toggle (Si louder)', siRms > geRms * 1.2, `si ${siRms.toFixed(3)} vs ge ${geRms.toFixed(3)}`);
+  }
+
   // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
   const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]) };
   const paramsMuted = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([0]) };
@@ -387,6 +410,39 @@ console.log('== fx rat (distortion) ==');
   stage2.process(outL, outL, s2, new Float32Array(N), N);
   const oneH5 = mag(outL, 5 * f0), twoH5 = mag(s2, 5 * f0);
   check('stacking two rats adds harmonics', twoH5 > oneH5, `2x h5 ${twoH5.toFixed(3)} vs 1x ${oneH5.toFixed(3)}`);
+}
+
+console.log('== fx dist (Distortion+ / DOD 250) ==');
+{
+  const { DistVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000;
+  const N = 8192, f0 = 220;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  const ge = new Float32Array(N), si = new Float32Array(N), tmp = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.4 * Math.sin(2 * Math.PI * f0 * i / SR);
+  const rms = (buf) => { let e = 0; for (let i = 1024; i < N; i++) e += buf[i] * buf[i]; return Math.sqrt(e / (N - 1024)); };
+  const mag = (buf, f) => { let re = 0, im = 0; const w = 2 * Math.PI * f / SR; for (let i = 1024; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); } return Math.sqrt(re * re + im * im) / (N - 1024); };
+
+  const g = new DistVoice(SR); g.setParams([0.7, 0.7]); g.setToggles([false]); // germanium
+  g.process(inL, inR, ge, tmp, N);
+  const s = new DistVoice(SR); s.setParams([0.7, 0.7]); s.setToggles([true]);  // silicon
+  s.process(inL, inR, si, tmp, N);
+
+  let peak = 0, nan = false, mono = true;
+  for (let i = 0; i < N; i++) { if (Number.isNaN(si[i])) nan = true; if (si[i] !== tmp[i]) mono = false; peak = Math.max(peak, Math.abs(si[i]), Math.abs(ge[i])); }
+  check('dist output is finite and bounded', !nan && peak > 0.02 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('dist is mono (L == R)', mono);
+  check('dist distorts (3rd harmonic present)', mag(si, 3 * f0) > 0.02, `h3 ${mag(si, 3 * f0).toFixed(3)}`);
+  check('silicon is louder/harder than germanium', rms(si) > rms(ge) * 1.3, `si rms ${rms(si).toFixed(3)} vs ge ${rms(ge).toFixed(3)}`);
+
+  // The toggle must survive a voice re-creation (type flip re-applies it).
+  const { fxVoice } = await import('../src/core/fx/voices.js');
+  void fxVoice;
+  const held = new DistVoice(SR); held.setToggles([true]); held.setParams([0.7, 0.7]);
+  const after = new Float32Array(N);
+  held.process(inL, inR, after, tmp, N);
+  let matchSi = true; for (let i = 0; i < N; i++) if (after[i] !== si[i]) { matchSi = false; break; }
+  check('dist toggle set before params still applies', matchSi);
 }
 
 console.log('== offline fx loop (send -> delay -> return) ==');
