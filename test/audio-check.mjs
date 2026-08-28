@@ -426,6 +426,54 @@ console.log('== fx echo (analog PT2399 delay) ==');
   check('echo Osc self-oscillates (sustains vs decays)', run(true) > run(false) * 2, `osc ${run(true).toFixed(3)} vs ${run(false).toFixed(4)}`);
 }
 
+console.log('== fx reverb ==');
+{
+  const { ReverbVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000, N = 1024;
+  const burst = (il, blk, on) => { for (let i = 0; i < N; i++) il[i] = blk < on ? Math.sin(2 * Math.PI * 220 * (blk * N + i) / SR) * 0.5 : 0; };
+
+  // Prime with a short burst, then silence: the reverb rings a decaying stereo
+  // tail, bounded and finite.
+  {
+    const v = new ReverbVoice(SR); v.setParams([0.7, 0.5, 0.1, 0.2, 0.8, 1.0]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+    let tail = 0, peak = 0, stereo = 0, nan = false;
+    for (let blk = 0; blk < 200; blk++) {
+      burst(il, blk, 10);
+      v.process(il, il, oL, oR, N);
+      for (let i = 0; i < N; i++) { if (Number.isNaN(oL[i])) nan = true; peak = Math.max(peak, Math.abs(oL[i])); if (blk >= 40) { tail += oL[i] * oL[i]; stereo += Math.abs(oL[i] - oR[i]); } }
+    }
+    check('reverb rings a tail after input stops', Math.sqrt(tail) > 0.1, `tail ${Math.sqrt(tail).toFixed(2)}`);
+    check('reverb is stereo (L != R)', stereo > 1, `L/R diff ${stereo.toFixed(0)}`);
+    check('reverb is finite and bounded', !nan && peak <= 1.0, `peak ${peak.toFixed(3)}`);
+  }
+
+  // Deterministic.
+  const once = () => { const v = new ReverbVoice(SR); v.setParams([0.6, 0.5, 0.1, 0.2, 0.8, 1.0]); const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N); for (let blk = 0; blk < 60; blk++) { burst(il, blk, 8); v.process(il, il, oL, oR, N); } return oL.slice(); };
+  const a = once(), b = once(); let same = true; for (let i = 0; i < N; i++) if (a[i] !== b[i]) { same = false; break; }
+  check('reverb is deterministic', same);
+
+  // Hold: engage during the tail; it sustains near-infinitely vs decaying.
+  const runHold = (hold) => {
+    const v = new ReverbVoice(SR); v.setParams([0.6, 0.5, 0.1, 0.2, 0.8, 1.0]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+    for (let blk = 0; blk < 20; blk++) { burst(il, blk, 10); if (blk === 12) v.setSecondary(hold); v.process(il, il, oL, oR, N); }
+    const sil = new Float32Array(N); let e = 0;
+    for (let blk = 0; blk < 300; blk++) { v.process(sil, sil, oL, oR, N); for (let i = 0; i < N; i++) e += oL[i] * oL[i]; }
+    return Math.sqrt(e / (300 * N));
+  };
+  check('reverb Hold sustains vs decays', runHold(true) > runHold(false) * 3, `hold ${runHold(true).toFixed(3)} vs ${runHold(false).toFixed(4)}`);
+
+  // Gate: after the input stops the tail is chopped short.
+  const runGate = (gate) => {
+    const v = new ReverbVoice(SR); v.setParams([0.7, 0.5, 0.1, 0.2, 0.8, 1.0]); v.setToggles([gate]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N); let e = 0;
+    for (let blk = 0; blk < 120; blk++) { burst(il, blk, 8); v.process(il, il, oL, oR, N); if (blk >= 20) for (let i = 0; i < N; i++) e += oL[i] * oL[i]; }
+    return Math.sqrt(e);
+  };
+  check('reverb Gate chops the tail', runGate(true) < runGate(false) * 0.7, `gated ${runGate(true).toFixed(2)} vs open ${runGate(false).toFixed(2)}`);
+}
+
 console.log('== fx dimension (chorus) ==');
 {
   const { DimVoice } = await import('../src/core/fx/voices.js');

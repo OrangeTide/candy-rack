@@ -522,6 +522,7 @@ export class EchoVoice {
   _read(buf, d) {
     let rp = this.w - d;
     if (rp < 0) rp += this.max;
+    if (rp >= this.max) rp -= this.max; // guard float rounding to exactly max
     const i0 = rp | 0;
     const fr = rp - i0;
     const a = buf[i0];
@@ -602,6 +603,7 @@ export class DimVoice {
   _read(d) {
     let rp = this.w - d;
     if (rp < 0) rp += this.max;
+    if (rp >= this.max) rp -= this.max; // guard float rounding to exactly max
     const i0 = rp | 0;
     const fr = rp - i0;
     const a = this.buf[i0];
@@ -628,6 +630,124 @@ export class DimVoice {
   }
 }
 
+// Reverb: a Freeverb-style algorithmic reverb (Schroeder-Moorer): eight
+// lowpass-feedback comb filters in parallel into four series allpasses, per
+// stereo channel, the right channel offset for width. Tuned for the lush,
+// dark tails our electronic genres want. Extras: pre-delay, a modulated tail
+// (fractional comb reads) for plate shimmer, a Gate toggle for the 80s
+// gated-snare, and a momentary Hold (secondary footswitch) that freezes the
+// wash into an infinite reverb.
+const RV_COMB = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617]; // @44.1k
+const RV_ALLP = [556, 441, 341, 225];
+const RV_SPREAD = 23;   // right-channel stereo offset
+const RV_MAXMOD = 48;   // comb modulation margin, samples
+
+class RvComb {
+  constructor(size) { this.buf = new Float32Array(size); this.size = size; this.idx = 0; this.store = 0; }
+  // The feedback path uses the fixed integer tap (buf[idx], the standard stable
+  // Freeverb comb); only a separate OUTPUT tap is modulated `mod` samples short
+  // for chorus shimmer, so the loop gain never changes and cannot run away.
+  process(x, fb, damp, mod) {
+    const outInt = this.buf[this.idx];
+    let rp = this.idx + mod; while (rp >= this.size) rp -= this.size;
+    const i0 = rp | 0; const fr = rp - i0;
+    const a = this.buf[i0]; const b = this.buf[i0 + 1 >= this.size ? 0 : i0 + 1];
+    const outMod = a + (b - a) * fr;
+    this.store = outInt * (1 - damp) + this.store * damp;
+    this.buf[this.idx] = x + this.store * fb;
+    this.idx = this.idx + 1 >= this.size ? 0 : this.idx + 1;
+    return outMod;
+  }
+}
+
+class RvAllpass {
+  constructor(size) { this.buf = new Float32Array(size); this.size = size; this.idx = 0; }
+  process(x) {
+    const bufout = this.buf[this.idx];
+    const out = -x + bufout;
+    this.buf[this.idx] = x + bufout * 0.5;
+    this.idx = this.idx + 1 >= this.size ? 0 : this.idx + 1;
+    return out;
+  }
+}
+
+export class ReverbVoice {
+  constructor(sr) {
+    this.sr = sr;
+    const scale = sr / 44100;
+    const cs = (t) => Math.round(t * scale) + RV_MAXMOD;
+    const as = (t) => Math.round(t * scale);
+    this.combL = RV_COMB.map((t) => new RvComb(cs(t)));
+    this.combR = RV_COMB.map((t) => new RvComb(cs(t + RV_SPREAD)));
+    this.apL = RV_ALLP.map((t) => new RvAllpass(as(t)));
+    this.apR = RV_ALLP.map((t) => new RvAllpass(as(t + RV_SPREAD)));
+    this.pre = new Float32Array(Math.ceil(sr * 0.12) + 2); // up to 120 ms pre-delay
+    this.preIdx = 0;
+    this.ph = 0;
+    this.gateEnv = 0; this.gateGain = 1;
+    this.gateOn = false; this.hold = false;
+    this.setParams([0.6, 0.4, 0.1, 0.2, 0.8, 0.4]);
+  }
+
+  // values = [decay, tone, pre, mod, width, mix], each 0..1.
+  setParams(values) {
+    const decay = values[0] || 0, tone = values[1] || 0, pre = values[2] || 0;
+    const mod = values[3] || 0, width = values[4] || 0, mix = values[5] || 0;
+    this.fb = 0.7 + decay * 0.28;          // 0.7..0.98 tail length
+    this.damp = (1 - tone) * 0.4;          // Tone up = brighter tail
+    this.preSamp = Math.min(this.pre.length - 2, pre * 0.1 * this.sr); // 0..100 ms
+    this.modDepth = mod * RV_MAXMOD;
+    this.modInc = 2 * Math.PI * 0.5 / this.sr; // 0.5 Hz plate shimmer
+    this.width = width;
+    this.mix = mix;
+  }
+
+  setToggles(values) { this.gateOn = !!(values && values[0]); }
+  setSecondary(on) { this.hold = !!on; }
+
+  process(inL, inR, outL, outR, n) {
+    const gain = 0.015;
+    const fb = this.hold ? 0.997 : this.fb;   // Hold: near-infinite tail
+    const damp = this.hold ? 0 : this.damp;
+    const inGain = this.hold ? 0 : 1;         // Hold: freeze the current wash
+    const modDepth = this.modDepth, mix = this.mix;
+    const w = this.width, wg1 = w * 0.5 + 0.5, wg2 = (1 - w) * 0.5;
+    const plen = this.pre.length;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5;
+      // pre-delay (fractional)
+      this.pre[this.preIdx] = x;
+      let rp = this.preIdx - this.preSamp; if (rp < 0) rp += plen; if (rp >= plen) rp -= plen;
+      const pi0 = rp | 0; const pfr = rp - pi0;
+      const pa = this.pre[pi0]; const pb = this.pre[pi0 + 1 >= plen ? 0 : pi0 + 1];
+      const inp = (pa + (pb - pa) * pfr) * gain * inGain;
+      this.preIdx = this.preIdx + 1 >= plen ? 0 : this.preIdx + 1;
+      // gate: key an envelope from the dry input; a fast close chops the tail
+      if (this.gateOn) {
+        const a = Math.abs(x);
+        this.gateEnv += (a > this.gateEnv ? 0.3 : 0.003) * (a - this.gateEnv);
+        const target = this.gateEnv > 0.02 ? 1 : 0;
+        this.gateGain += (target > this.gateGain ? 0.5 : 0.05) * (target - this.gateGain);
+      } else {
+        this.gateGain = 1;
+      }
+      this.ph += this.modInc; if (this.ph > 6.2831853) this.ph -= 6.2831853;
+      let wl = 0, wr = 0;
+      for (let c = 0; c < 8; c++) {
+        const m = modDepth * (0.5 + 0.5 * Math.sin(this.ph + c * 0.5));
+        wl += this.combL[c].process(inp, fb, damp, m);
+        wr += this.combR[c].process(inp, fb, damp, m);
+      }
+      for (let a = 0; a < 4; a++) { wl = this.apL[a].process(wl); wr = this.apR[a].process(wr); }
+      wl *= this.gateGain; wr *= this.gateGain;
+      const oL = wl * wg1 + wr * wg2;
+      const oR = wr * wg1 + wl * wg2;
+      outL[i] = inL[i] * (1 - mix) + oL * mix;
+      outR[i] = inR[i] * (1 - mix) + oR * mix;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
@@ -639,5 +759,6 @@ export function fxVoice(type, sr) {
   if (type === 'dist') return new DistVoice(sr);
   if (type === 'echo') return new EchoVoice(sr);
   if (type === 'dim') return new DimVoice(sr);
+  if (type === 'reverb') return new ReverbVoice(sr);
   return new ThruVoice(sr);
 }

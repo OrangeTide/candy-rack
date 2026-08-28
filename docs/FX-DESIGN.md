@@ -318,12 +318,16 @@ Everything else reuses the panel, knob, and selector styles already in
 - Mod matrix into FX params. The matrix could target a pedal knob (delay time,
   drive amount) as a new destination class. Out of scope for v1.
 - Tempo-synced delay time, so Time snaps to note divisions off the transport.
-- More effect types: Reverb is the main one still open (one meta file plus one
-  shared voice class, no new plumbing). Chorus shipped as Dimension (a Roland
-  Dimension D / Boss DC-2 style stereo widener: no rate/depth knobs, just mode
-  buttons I/II/III on the toggles, plus Mix and Width), the chord/pad widener
-  for dub techno, French house, and vaporwave. A brighter general-purpose CH-1
-  style chorus and a Juno-style pad ensemble are possible later additions.
+- Reverb shipped: a Freeverb-style algorithmic reverb (8 lowpass-feedback combs
+  + 4 allpass per channel, stereo) tuned for lush dark tails, with pre-delay, a
+  safely-modulated tail (comb output tap wobbles while the feedback tap stays
+  fixed and stable), a Gate toggle for the 80s gated-snare, and a momentary Hold
+  (secondary footswitch) that freezes the wash into an infinite reverb. The
+  dub-techno chord runs Dimension into this.
+- Chorus shipped as Dimension (a Roland Dimension D / Boss DC-2 style stereo
+  widener: no rate/depth knobs, just mode buttons I/II/III on the toggles, plus
+  Mix and Width). A brighter general-purpose CH-1 style chorus and a Juno-style
+  pad ensemble are possible later additions.
 - Two delays ship: Delay is the clean digital one; Echo is a lo-fi analog
   stereo delay after a PT2399 DIY design (asymmetric silicon/Schottky diode
   input overdrive, a dark bandwidth-losing-with-time delay, analog warble and
