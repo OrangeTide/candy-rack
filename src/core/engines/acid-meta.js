@@ -14,11 +14,14 @@ export const acidMeta = {
     { key: 'reso', label: 'Reso', default: 0.60 },
     { key: 'envmod', label: 'Env Mod', default: 0.50 },
     { key: 'decay', label: 'Decay', default: 0.40 },
-    { key: 'accent', label: 'Accent', default: 0.50 },
+    // Variable slide (Devilfish): portamento time for slide steps, ~10..160 ms.
+    { key: 'slide', label: 'Slide', default: 0.30 },
   ],
-  // One on/off switch: the oscillator waveform (off = saw, on = square).
+  // Waveform (off = saw, on = square) and a sub-octave square (Devilfish sub).
+  // Per-step accent lives on the alt lane at a fixed intensity, not a knob.
   toggles: [
     { key: 'wave', label: 'Square', default: false },
+    { key: 'sub', label: 'Sub', default: false },
   ],
   modOutputs: [],
 };

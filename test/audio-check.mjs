@@ -92,7 +92,7 @@ console.log('== acid (TB-303) engine ==');
 
   const capture = (opts) => {
     const v = new Acid303Voice(SR);
-    v.noteOn({ freq: opts.freq, note: 45, vel: 100, gateSec: opts.gate ?? 0.3, params: P, slide: opts.slide, accent: opts.accent, toggles: [opts.wave ?? false] });
+    v.noteOn({ freq: opts.freq, note: 45, vel: 100, gateSec: opts.gate ?? 0.3, params: opts.params ?? P, slide: opts.slide, accent: opts.accent, toggles: [opts.wave ?? false, opts.sub ?? false] });
     const n = Math.floor(0.3 * SR);
     let peak = 0, energy = 0; const buf = new Float32Array(n);
     for (let i = 0; i < n; i++) { const s = v.render(); buf[i] = s; peak = Math.max(peak, Math.abs(s)); energy += s * s; }
@@ -105,6 +105,24 @@ console.log('== acid (TB-303) engine ==');
   const saw = capture({ freq: 110, wave: false }), sqr = capture({ freq: 110, wave: true });
   let wdiff = 0; for (let i = 0; i < saw.buf.length; i++) wdiff += Math.abs(saw.buf[i] - sqr.buf[i]);
   check('acid waveform toggle changes the sound', wdiff > 1, `saw/sqr Δ ${wdiff.toFixed(0)}`);
+
+  // Sub-octave toggle changes the sound (adds an octave-down square).
+  const noSub = capture({ freq: 55 }), withSub = capture({ freq: 55, sub: true });
+  let sdiff = 0; for (let i = 0; i < noSub.buf.length; i++) sdiff += Math.abs(noSub.buf[i] - withSub.buf[i]);
+  check('acid sub-octave changes the sound', sdiff > 1, `Δ ${sdiff.toFixed(0)}`);
+
+  // Slide knob varies the glide time: a shorter setting reaches the target
+  // pitch sooner than a longer one.
+  const glideAfter = (slideKnob) => {
+    const pp = [0.4, 0.6, 0.6, 0.4, slideKnob];
+    const v = new Acid303Voice(SR);
+    v.noteOn({ freq: 110, note: 45, vel: 100, gateSec: 0.5, params: pp, toggles: [false, false] });
+    for (let i = 0; i < 500; i++) v.render();
+    v.noteOn({ freq: 220, note: 57, vel: 100, gateSec: 0.5, params: pp, slide: true, toggles: [false, false] });
+    for (let i = 0; i < SR * 0.04; i++) v.render();
+    return v.freq;
+  };
+  check('acid slide time varies with the knob', glideAfter(0.05) > glideAfter(0.9) + 20, `short ${glideAfter(0.05).toFixed(0)} vs long ${glideAfter(0.9).toFixed(0)}`);
 
   // Slide glides the pitch (no retrigger); a normal note jumps.
   const vs = new Acid303Voice(SR);

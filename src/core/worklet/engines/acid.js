@@ -7,10 +7,12 @@
 // give the 303 dynamics. The overdrive that finishes the acid sound lives in
 // the FX rack (RAT / Dist+), the way Hardfloor stacked it.
 //
-// Params (0..1) from acid-meta.js: [cutoff, reso, envmod, decay, accent].
-// Toggle 0 = waveform: 0 saw, 1 square.
+// Params (0..1) from acid-meta.js: [cutoff, reso, envmod, decay, slide].
+// Toggle 0 = waveform (0 saw, 1 square); toggle 1 = sub-octave (Devilfish).
+// Per-step accent is a fixed intensity (the alt lane triggers it); it boosts the
+// note level and sweeps the filter harder.
 
-const GLIDE_SEC = 0.055; // portamento time for slide notes
+const ACCENT = 0.7; // fixed accent intensity (the knob is now Slide)
 
 function polyBlep(t, dt) {
   if (t < dt) { t /= dt; return t + t - t * t - 1; }
@@ -23,11 +25,14 @@ export class Acid303Voice {
     this.sr = sampleRate;
     this.active = false;
     this.phase = 0;
+    this.subPhase = 0;
     this.freq = 110;
     this.freqTarget = 110;
-    this.glideCoef = 1 - Math.exp(-1 / (GLIDE_SEC * sampleRate));
-    this.p = [0.35, 0.6, 0.5, 0.4, 0.5];
+    this.glideCoef = 1 - Math.exp(-1 / (0.055 * sampleRate));
+    this.lastSlide = -1;
+    this.p = [0.35, 0.6, 0.5, 0.4, 0.3];
     this.wave = false;
+    this.sub = false;
     // ladder states
     this.s1 = 0; this.s2 = 0; this.s3 = 0; this.s4 = 0;
     // envelopes
@@ -43,7 +48,7 @@ export class Acid303Voice {
 
   noteOn({ freq, vel, gateSec, params, slide, accent, toggles }) {
     this.p = params;
-    if (toggles) this.wave = !!toggles[0];
+    if (toggles) { this.wave = !!toggles[0]; this.sub = !!toggles[1]; }
     const legato = slide && this.active;
     this.freqTarget = freq;
     const v = (vel ?? 100) / 127;
@@ -56,6 +61,7 @@ export class Acid303Voice {
     if (!legato) {
       this.freq = freq;
       this.phase = 0;
+      this.subPhase = 0;
       this.envF = 1;         // retrigger the filter sweep
       // amp keeps its attack; a fresh note re-opens the gate below
     }
@@ -71,7 +77,13 @@ export class Acid303Voice {
     if (!this.active) return 0;
     const sr = this.sr;
 
-    // glide toward the target pitch (instant for non-slide notes)
+    // Slide knob sets the portamento time (~10..160 ms), recomputed only when it
+    // moves. Non-slide notes set freq == target so the glide is a no-op.
+    const slideKnob = this.p[4];
+    if (slideKnob !== this.lastSlide) {
+      this.lastSlide = slideKnob;
+      this.glideCoef = 1 - Math.exp(-1 / ((0.01 + slideKnob * 0.15) * sr));
+    }
     this.freq += (this.freqTarget - this.freq) * this.glideCoef;
 
     // amp AR envelope: attack to level while gated, release when the gate ends
@@ -85,17 +97,17 @@ export class Acid303Voice {
     this.envF *= this.envDec;
     this.accentV *= this.accentDec;
 
-    const cutoff = this.p[0], reso = this.p[1], envmod = this.p[2], accentAmt = this.p[4];
+    const cutoff = this.p[0], reso = this.p[1], envmod = this.p[2];
 
     // base cutoff ~70 Hz .. ~6 kHz, opened by the envelope (in octaves) and the
     // accent, which sweeps and brightens the note.
     const fcBase = 70 * Math.pow(2, cutoff * 6.4);
-    const openOct = envmod * this.envF * 5.5 + accentAmt * this.accentV * 3.0;
+    const openOct = envmod * this.envF * 5.5 + ACCENT * this.accentV * 3.0;
     let fc = fcBase * Math.pow(2, openOct);
     if (fc > sr * 0.45) fc = sr * 0.45;
     if (fc < 20) fc = 20;
     // accent also pushes resonance a touch, for the accented "meow"
-    const k = Math.min(4.5, reso * 4.2 + accentAmt * this.accentV * 0.6);
+    const k = Math.min(4.5, reso * 4.2 + ACCENT * this.accentV * 0.6);
 
     // oscillator
     const dt = this.freq / sr;
@@ -109,6 +121,16 @@ export class Acid303Voice {
     } else {
       osc = 2 * this.phase - 1;
       osc -= polyBlep(this.phase, dt);
+    }
+    // Sub-oscillator: a square one octave down for weight (Devilfish sub).
+    if (this.sub) {
+      const sdt = dt * 0.5;
+      this.subPhase += sdt; if (this.subPhase >= 1) this.subPhase -= 1;
+      let sub = this.subPhase < 0.5 ? 1 : -1;
+      sub += polyBlep(this.subPhase, sdt);
+      let sp2 = this.subPhase + 0.5; if (sp2 >= 1) sp2 -= 1;
+      sub -= polyBlep(sp2, sdt);
+      osc = osc * 0.85 + sub * 0.7;
     }
 
     // 4-pole ZDF ladder lowpass (Zavalishin), self-oscillates near k = 4
