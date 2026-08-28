@@ -141,7 +141,7 @@
   }
 
   /* Shared sub-panel look (raised molded card) */
-  .head, .rail, .editor, .matrix, .io {
+  .head, .rail, .editor, .matrix, .io, .pedals {
     border-radius: 16px;
   }
 
@@ -272,12 +272,113 @@
   }
 
   /* ---- editor panel ---- */
-  .editor, .matrix, .mixer {
+  .editor, .matrix, .mixer, .pedals {
     margin-top: 16px; padding: 16px;
     background: linear-gradient(180deg, #46278c, #341a6e);
     border: 1px solid var(--plastic-edge);
     box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 8px 18px rgba(0,0,0,.35);
   }
+  /* ---- fx pedal rack ---- */
+  .fx-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .loop-badge {
+    font-family: var(--tech); font-weight: 700; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #04222a; background: linear-gradient(180deg, #7ef0ff, var(--cyan));
+    padding: 3px 9px; border-radius: 7px; box-shadow: 0 2px 0 #178a9c;
+  }
+  .algo-pick { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .algo-cap { font-family: var(--tech); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; }
+  .algo-chip { padding: 5px 8px 4px; border-radius: 10px; text-align: center; background: linear-gradient(180deg, var(--well-2), var(--well)); border: 1px solid #000; box-shadow: 0 2px 5px rgba(0,0,0,.55) inset; }
+  .algo-chip.sel { box-shadow: 0 0 0 2px var(--lime) inset, 0 0 14px rgba(195,255,62,.3); }
+  .algo-svg { display: block; width: 92px; height: 24px; }
+  .algo-svg .box { fill: #3a2168; stroke: var(--grape-hi); stroke-width: 1.4; }
+  .algo-svg .ln { stroke: var(--lime); stroke-width: 1.4; fill: none; }
+  .algo-svg .term { fill: var(--amber); }
+  .algo-svg .bl { font-family: var(--disp); font-weight: 800; font-size: 9px; fill: var(--ink); }
+  .algo-name { font-family: var(--tech); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--lime); margin-top: 2px; font-weight: 600; }
+  .fx-flow { font-family: var(--tech); font-size: 11px; line-height: 1.5; color: var(--ink-dim); background: rgba(0,0,0,.20); border-left: 3px solid var(--cyan); border-radius: 8px; padding: 8px 12px; margin: 4px 0 12px; }
+
+  .fx-board {
+    display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)) auto; gap: 12px; align-items: stretch;
+    padding: 14px 12px; border-radius: 14px;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 2px, transparent 2px 7px), linear-gradient(180deg, #241443, #170c30);
+    border: 1px solid #000; box-shadow: 0 3px 10px rgba(0,0,0,.55) inset;
+  }
+  .rail-end { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 30px; }
+  .rail-lbl { font-family: var(--tech); font-size: 8px; letter-spacing: 1px; color: var(--ink-mute); writing-mode: vertical-rl; text-orientation: mixed; text-transform: uppercase; }
+  .jack {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 34%, #4a4f5c 0%, #23262f 55%, #0a0b10 100%);
+    box-shadow: 0 0 0 3px #15161d, 0 0 0 4px rgba(255,255,255,.05), 0 2px 4px rgba(0,0,0,.6) inset;
+  }
+  .jack.mono { box-shadow: 0 0 0 3px #15161d, 0 0 0 4px rgba(53,232,255,.25), 0 2px 4px rgba(0,0,0,.6) inset; }
+
+  /* a pedal: tall die-cast enclosure ~1 : 1.8 */
+  .pedal {
+    position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0;
+    padding: 12px 8px 14px; border-radius: 12px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 22%),
+      linear-gradient(168deg, #3a4150, #262b36 60%, #171a22 100%);
+    border: 1px solid #0a0b10;
+    box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 -18px 30px rgba(0,0,0,.22) inset, 0 10px 18px rgba(0,0,0,.5), 0 3px 0 #0c0d12;
+  }
+  .slot-letter { position: absolute; top: 7px; left: 9px; font-family: var(--disp); font-weight: 800; font-size: 13px; color: rgba(255,255,255,.3); }
+  /* nameplate = the effect type selector */
+  .plate {
+    width: 100%; margin-top: 4px; padding: 6px 6px; border-radius: 7px; cursor: pointer; text-align: center; text-align-last: center;
+    font-family: var(--disp); font-weight: 800; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;
+    background: linear-gradient(180deg, #0d0f15, #05060a); border: 1px solid #000;
+    box-shadow: 0 2px 5px rgba(0,0,0,.6) inset;
+    color: var(--accent, var(--cyan)); text-shadow: 0 0 8px color-mix(in srgb, var(--accent, var(--cyan)) 45%, transparent);
+    -webkit-appearance: none; appearance: none;
+  }
+  .plate.empty { color: var(--ink-mute); text-shadow: none; border-style: dashed; border-color: #2c2048; }
+  .plate:focus { outline: none; box-shadow: 0 2px 5px rgba(0,0,0,.6) inset, 0 0 0 2px var(--accent, var(--cyan)); }
+
+  .pedal-knobs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; margin: 14px 0 6px; min-height: 56px; }
+  .pedal-knobs .knob { width: 46px; }
+  .pedal-knobs .dial {
+    width: 38px; height: 38px;
+    background: radial-gradient(circle at 36% 30%, #cdd3de 0%, #8a91a1 44%, #464b58 100%);
+    box-shadow: 0 0 0 3px #14151b, 0 0 0 4px rgba(255,255,255,.05), 0 3px 6px rgba(0,0,0,.5), 0 1px 2px rgba(255,255,255,.4) inset;
+  }
+  .pedal-knobs .dial::before { inset: 6px; }
+  .pedal-knobs .ind { top: 4px; height: 13px; transform-origin: 50% 15px; background: var(--accent, var(--cyan)); box-shadow: 0 0 6px var(--accent, var(--cyan)); }
+  .pedal-knobs .knob-label { margin-top: 5px; font-size: 7.5px; letter-spacing: .5px; color: var(--ink-dim); }
+  .pedal-knobs .knob-val { font-size: 8px; }
+  .pedal.empty-slot .pedal-knobs { opacity: .3; }
+  .plate-hint { font-family: var(--tech); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-mute); align-self: center; }
+
+  /* status LED above the footswitch */
+  .led {
+    width: 11px; height: 11px; border-radius: 50%; margin: 6px 0 8px;
+    background: radial-gradient(circle at 36% 30%, #6a2030, #360f18 70%);
+    box-shadow: 0 1px 2px rgba(0,0,0,.6) inset, 0 0 0 2px rgba(0,0,0,.3);
+  }
+  .pedal.on .led {
+    background: radial-gradient(circle at 36% 30%, #eafff4, var(--accent, var(--cyan)) 55%, #12873f 100%);
+    box-shadow: 0 0 12px 1px var(--accent, var(--cyan)), 0 0 4px var(--accent, var(--cyan)), 0 0 0 2px rgba(0,0,0,.25);
+  }
+  /* silver footswitch near the bottom */
+  .stomp {
+    width: 44px; height: 44px; border-radius: 50%; cursor: pointer; position: relative; border: none; padding: 0;
+    background: radial-gradient(circle at 50% 34%, #e8ecf2 0%, #aab2c0 40%, #6d7585 68%, #3a3f4c 100%);
+    box-shadow: 0 0 0 3px #14151b, 0 0 0 5px rgba(255,255,255,.06), 0 5px 9px rgba(0,0,0,.6), 0 2px 3px rgba(255,255,255,.5) inset;
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  }
+  .stomp::before {
+    content: ''; position: absolute; inset: 9px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 36%, #f4f6fa, #9aa2b1 60%, #5b6270 100%);
+    box-shadow: 0 1px 2px rgba(0,0,0,.5) inset, 0 -2px 3px rgba(255,255,255,.4) inset;
+  }
+  .stomp:active { transform: translateY(2px); box-shadow: 0 0 0 3px #14151b, 0 0 0 5px rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.6), 0 2px 3px rgba(255,255,255,.5) inset; }
+  .stomp-lbl { font-family: var(--tech); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-mute); margin-top: 7px; }
+  .pedal.on .stomp-lbl { color: var(--accent, var(--cyan)); }
+
+  @media (max-width: 560px) {
+    .fx-board { grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto; }
+  }
+
   /* Mixer: a row of channel strips (Level/Pan/Send) plus the master strip. */
   .mix-strips { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; margin-top: 8px; }
   .mix-strip {

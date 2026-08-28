@@ -7,8 +7,11 @@
 // pattern-level routes list are the seams left open for full parameter locks
 // and the modulation matrix later, so growing into them is not a migration.
 
+import { fxById, defaultFxParams } from './fx/registry.js';
+
 export const MAX_STEPS = 256;
 export const PAGE = 16;
+export const FX_SLOTS = 4;
 
 export function makeStep() {
   // slide ties this step to the previous note on a monophonic engine: the pitch
@@ -88,6 +91,29 @@ export function makeMaster() {
   return { volume: 0.8, filter: 0.5, resonance: false };
 }
 
+// Effects section, one per pattern. loops[] holds the aux effects loops; there
+// is one now (out1), later out2/out3. A loop is a mono send bus through four
+// pedals (A B C D) into a stereo return. Each pedal picks a type from the FX
+// registry, carries its normalized knob values, and a bypass (footswitch)
+// flag. The Return level and pan are the mix-side controls, surfaced on the
+// master mixer strip. algorithm names the routing topology (see fx/algorithms).
+export function makeFxPedal() {
+  return { type: 'thru', bypass: true, params: [] };
+}
+
+export function makeFxLoop(id = 'loop1') {
+  return {
+    id,
+    algorithm: 'series',
+    return: { level: 1.0, pan: 0 },
+    pedals: Array.from({ length: FX_SLOTS }, makeFxPedal),
+  };
+}
+
+export function makeFx() {
+  return { loops: [makeFxLoop()] };
+}
+
 // A modulation route (pattern-level). src is either a trigger-bus tap on a
 // track lane, or an LFO. dest is a track's output-stage parameter. depth is
 // 0..1, polarity +1 or -1 (invert for ducking), decay is the trigger pulse
@@ -105,7 +131,7 @@ export function makeRoute() {
 
 export function makePattern(tracks, routes = []) {
   // swing 0..1 delays the off-beat 16ths toward a triplet shuffle (0 = straight).
-  return { version: 4, bpm: 120, swing: 0, tracks, routes, master: makeMaster() };
+  return { version: 5, bpm: 120, swing: 0, tracks, routes, master: makeMaster(), fx: makeFx() };
 }
 
 export function serialize(pattern) {
@@ -138,6 +164,24 @@ export function deserialize(text) {
     }
     for (const lane of trackLanes(t)) {
       for (const s of laneSteps(t, lane)) if (typeof s.tie !== 'boolean') s.tie = false;
+    }
+  }
+  // Backfill the effects section added in version 5 so older saved patterns load.
+  if (!p.fx || typeof p.fx !== 'object') p.fx = makeFx();
+  if (!Array.isArray(p.fx.loops) || !p.fx.loops.length) p.fx.loops = [makeFxLoop()];
+  for (const loop of p.fx.loops) {
+    if (typeof loop.algorithm !== 'string') loop.algorithm = 'series';
+    if (!loop.return || typeof loop.return !== 'object') loop.return = { level: 1.0, pan: 0 };
+    if (typeof loop.return.level !== 'number') loop.return.level = 1.0;
+    if (typeof loop.return.pan !== 'number') loop.return.pan = 0;
+    if (!Array.isArray(loop.pedals)) loop.pedals = Array.from({ length: FX_SLOTS }, makeFxPedal);
+    while (loop.pedals.length < FX_SLOTS) loop.pedals.push(makeFxPedal());
+    loop.pedals.length = FX_SLOTS;
+    for (const pd of loop.pedals) {
+      if (typeof pd.type !== 'string') pd.type = 'thru';
+      if (typeof pd.bypass !== 'boolean') pd.bypass = pd.type === 'thru';
+      const want = fxById(pd.type).knobs.length;
+      if (!Array.isArray(pd.params) || pd.params.length !== want) pd.params = defaultFxParams(pd.type);
     }
   }
   return p;

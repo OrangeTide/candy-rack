@@ -15,6 +15,8 @@ import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
 import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
+import { fxTypes, fxById, defaultFxParams } from '../../core/fx/registry.js';
+import { algoById } from '../../core/fx/algorithms.js';
 import { freshPattern, TRACKS } from './starter.js';
 import { AudioHost } from './audio.js';
 import { recordWav } from './record.js';
@@ -82,9 +84,25 @@ async function ensureAudio() {
     return v;
   });
   host.setMaster(pattern.master);
+  applyFx();
   modMatrix.attach(voices);
   modMatrix.rebuild(pattern.routes);
   clock = new Clock(host.ctx);
+}
+
+// Push the whole effects loop to the audio host: each pedal's type, knobs, and
+// footswitch, then the routing graph and the return controls. Cheap; also used
+// to re-sync after edits.
+function applyFx() {
+  if (!host.ctx) return;
+  const loop = pattern.fx.loops[0];
+  loop.pedals.forEach((pd, i) => {
+    host.setFxType(i, pd.type);
+    host.setFxParams(i, pd.params);
+    host.setFxBypass(i, pd.bypass);
+  });
+  host.buildFxGraph(algoById(loop.algorithm));
+  host.setReturn(loop.return);
 }
 
 // A track is audible if not muted and, when any track is soloed, it is soloed.
@@ -392,6 +410,12 @@ function render() {
   app.append(matrix);
   renderMatrix();
 
+  // FX pedal rack (bottom row)
+  const pedals = el('div', 'pedals');
+  pedals.id = 'pedals';
+  app.append(pedals);
+  renderPedals();
+
   // Recorder
   const rec = el('div', 'io');
   rec.append(el('div', 'panel-tag', 'Record WAV'));
@@ -503,6 +527,15 @@ function renderMixer() {
   master.append(makeKnob('Filter', m.filter, (v) => {
     m.filter = v; if (host.ctx) host.setMaster({ filter: v }); save();
   }));
+  // FX loop return: Level and Pan, the mix side of the effects loop (the send
+  // side is the per-channel Send knobs above). Edits loop1's return.
+  const loop = pattern.fx.loops[0];
+  master.append(makeKnob('Return', loop.return.level, (v) => {
+    loop.return.level = v; if (host.ctx) host.setReturn({ level: v }); save();
+  }));
+  master.append(makeKnob('Ret Pan', (loop.return.pan + 1) / 2, (v) => {
+    loop.return.pan = v * 2 - 1; if (host.ctx) host.setReturn({ pan: loop.return.pan }); save();
+  }));
   // Resonance toggle: sweep filter Q 1.0 <-> 2.2.
   const resWrap = el('div', 'mix-reso');
   const res = el('button', 'mute' + (m.resonance ? ' on' : ''), m.resonance ? 'RES' : 'res');
@@ -518,6 +551,125 @@ function renderMixer() {
   strips.append(master);
 
   box.append(strips);
+}
+
+// ---- fx pedal rack ---------------------------------------------------------
+
+const FX_LETTERS = ['A', 'B', 'C', 'D'];
+
+// Series routing icon (out1 <- A <- B <- C <- D <- in1), drawn from the same
+// FM-algorithm metaphor: boxes and arrows between the in and out terminals.
+function seriesIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 96 26');
+  svg.setAttribute('class', 'algo-svg');
+  svg.innerHTML =
+    '<circle class="term" cx="4" cy="13" r="2.4"/>' +
+    '<path class="ln" d="M6.4 13 H12 M30 13 H36 M54 13 H60 M78 13 H90"/>' +
+    '<circle class="term" cx="92" cy="13" r="2.4"/>' +
+    '<rect class="box" x="12" y="6" width="18" height="14" rx="3"/>' +
+    '<rect class="box" x="36" y="6" width="18" height="14" rx="3"/>' +
+    '<rect class="box" x="60" y="6" width="18" height="14" rx="3"/>' +
+    '<text class="bl" x="21" y="16" text-anchor="middle">A</text>' +
+    '<text class="bl" x="45" y="16" text-anchor="middle">B</text>' +
+    '<text class="bl" x="69" y="16" text-anchor="middle">C</text>';
+  return svg;
+}
+
+function setPedalType(i, type) {
+  const pd = pattern.fx.loops[0].pedals[i];
+  pd.type = type;
+  pd.params = defaultFxParams(type);
+  // Engage a real effect when it is loaded; the empty Thru stays bypassed.
+  pd.bypass = type === 'thru';
+  if (host.ctx) {
+    host.setFxType(i, type);
+    host.setFxParams(i, pd.params);
+    host.setFxBypass(i, pd.bypass);
+  }
+  save();
+  renderPedals();
+}
+
+function togglePedal(i) {
+  const pd = pattern.fx.loops[0].pedals[i];
+  pd.bypass = !pd.bypass;
+  if (host.ctx) host.setFxBypass(i, pd.bypass);
+  save();
+  renderPedals();
+}
+
+function renderPedals() {
+  const box = document.getElementById('pedals');
+  if (!box) return;
+  box.innerHTML = '';
+  const loop = pattern.fx.loops[0];
+
+  const head = el('div', 'fx-head');
+  head.append(el('span', 'matrix-title', 'FX Loop'));
+  head.append(el('span', 'loop-badge', 'OUT1'));
+  const algo = el('div', 'algo-pick');
+  algo.append(el('span', 'algo-cap', 'Routing'));
+  const chip = el('div', 'algo-chip sel');
+  chip.append(seriesIcon(), el('div', 'algo-name', 'Series'));
+  chip.title = 'out1 <- A <- B <- C <- D <- in1';
+  algo.append(chip);
+  head.append(algo);
+  box.append(head);
+
+  box.append(el('div', 'fx-flow', 'Signal flows right to left: each channel Send feeds IN1; Return (on the master strip) brings OUT1 back. Send is mono, return is stereo.'));
+
+  const board = el('div', 'fx-board');
+  board.append(fxRail('OUT1', false));
+
+  loop.pedals.forEach((pd, i) => {
+    const meta = fxById(pd.type);
+    const isThru = pd.type === 'thru';
+    const engaged = !pd.bypass && !isThru;
+    const pedal = el('div', 'pedal' + (engaged ? ' on' : '') + (isThru ? ' empty-slot' : ''));
+    pedal.style.setProperty('--accent', meta.color);
+    pedal.append(el('span', 'slot-letter', FX_LETTERS[i]));
+
+    const sel = el('select', 'plate' + (isThru ? ' empty' : ''));
+    fxTypes.forEach((f) => {
+      const o = el('option', null, f.label); o.value = f.id;
+      if (f.id === pd.type) o.selected = true;
+      sel.append(o);
+    });
+    sel.onchange = () => setPedalType(i, sel.value);
+    pedal.append(sel);
+
+    const knobs = el('div', 'pedal-knobs');
+    if (meta.knobs.length) {
+      meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], (v) => {
+        pd.params[ki] = v;
+        if (host.ctx) host.setFxParams(i, pd.params);
+        save();
+      })));
+    } else {
+      knobs.append(el('div', 'plate-hint', 'pick an effect above'));
+    }
+    pedal.append(knobs);
+
+    pedal.append(el('div', 'led'));
+    const stomp = el('button', 'stomp');
+    stomp.title = engaged ? 'Bypass' : 'Engage';
+    stomp.onclick = () => togglePedal(i);
+    pedal.append(stomp);
+    pedal.append(el('div', 'stomp-lbl', isThru ? 'Empty' : (engaged ? 'On' : 'Bypass')));
+    board.append(pedal);
+  });
+
+  board.append(fxRail('IN1', true));
+  box.append(board);
+}
+
+// A jack rail at either end of the loop (out1 on the left, in1 on the right).
+function fxRail(label, mono) {
+  const rail = el('div', 'rail-end');
+  rail.append(el('span', 'rail-lbl', label));
+  rail.append(el('div', 'jack' + (mono ? ' mono' : '')));
+  return rail;
 }
 
 function selectTrack(t) {

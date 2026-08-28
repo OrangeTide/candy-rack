@@ -12,6 +12,8 @@
 //            mixed back onto the start, so the WAV repeats seamlessly.
 
 import { kitPartVoice } from './worklet/registry.js';
+import { fxVoice } from './fx/voices.js';
+import { algoById, chainOrder } from './fx/algorithms.js';
 
 const POLY = 8;
 const TWO_PI = Math.PI * 2;
@@ -165,6 +167,10 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   // cleanly; the master soft clip is applied once at the end.
   const rawL = new Float32Array(cap);
   const rawR = new Float32Array(cap);
+  // Mono aux send bus: the post-pan channel signal times each channel's send,
+  // summed and downmixed to mono, mirroring the realtime sendBus. Fed through
+  // the effects loop after the main pass.
+  const sendBuf = new Float32Array(cap);
   const modCut = new Array(nodes.length).fill(0);
   const modVca = new Array(nodes.length).fill(0);
   const modParam = nodes.map(() => [0, 0, 0, 0, 0]);
@@ -205,6 +211,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
 
     let mixL = 0;
     let mixR = 0;
+    let sendMono = 0;
     let anyActive = false;
     for (let n = 0; n < nodes.length; n++) {
       const node = nodes[n];
@@ -245,13 +252,52 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       const pan = node.track.output.pan || 0;
       const gL = pan > 0 ? 1 - pan : 1;
       const gR = pan < 0 ? 1 + pan : 1;
-      mixL += Math.tanh(bpL * 1.2) * vca * gL;
-      mixR += Math.tanh(bpR * 1.2) * vca * gR;
+      const outCL = Math.tanh(bpL * 1.2) * vca * gL;
+      const outCR = Math.tanh(bpR * 1.2) * vca * gR;
+      mixL += outCL;
+      mixR += outCR;
+      // Post-pan send tap, downmixed to mono, matching panner -> send -> sendBus.
+      const send = node.track.output.send || 0;
+      if (send > 0) sendMono += (outCL + outCR) * 0.5 * send;
     }
     rawL[i] = mixL;
     rawR[i] = mixR;
+    sendBuf[i] = sendMono;
 
     if (i >= loopSamples && !anyActive) { rawLen = i + 1; break; }
+  }
+
+  // Effects loop: run the mono send through the pedal chain into a stereo
+  // return, then mix the return into the raw stream before the master filter,
+  // matching returnBus -> returnPan -> returnGain -> master. Pedals are the
+  // shared fx voices, so this tracks the realtime graph. Bypassed pedals pass
+  // dry; a bypassed delay's tail is not modelled here (it would ring past the
+  // send). Delay repeats past rawLen are truncated, as in the realtime cut.
+  const fxLoop = pattern.fx && pattern.fx.loops && pattern.fx.loops[0];
+  if (fxLoop) {
+    let chL = new Float32Array(rawLen);
+    let chR = new Float32Array(rawLen);
+    for (let i = 0; i < rawLen; i++) { chL[i] = sendBuf[i]; chR[i] = sendBuf[i]; }
+    const order = chainOrder(algoById(fxLoop.algorithm));
+    for (const si of order) {
+      const pd = fxLoop.pedals[si];
+      if (!pd || pd.bypass) continue; // bypassed and empty slots pass dry
+      const voice = fxVoice(pd.type, SR);
+      voice.setParams(pd.params);
+      const oL = new Float32Array(rawLen);
+      const oR = new Float32Array(rawLen);
+      voice.process(chL, chR, oL, oR, rawLen);
+      chL = oL; chR = oR;
+    }
+    const ret = fxLoop.return || { level: 1, pan: 0 };
+    const level = typeof ret.level === 'number' ? ret.level : 1;
+    const pan = typeof ret.pan === 'number' ? ret.pan : 0;
+    const rgL = pan > 0 ? 1 - pan : 1;
+    const rgR = pan < 0 ? 1 + pan : 1;
+    for (let i = 0; i < rawLen; i++) {
+      rawL[i] += chL[i] * level * rgL;
+      rawR[i] += chR[i] * level * rgR;
+    }
   }
 
   // Master section: DJ sweep filter then volume, matching the realtime chain

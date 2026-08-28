@@ -101,17 +101,74 @@ export class AudioHost {
       this.djFilter.connect(this.masterVol);
       this.masterVol.connect(limiter);
       limiter.connect(this.ctx.destination);
-      // Reserved aux send bus: channels tap into it post-pan. It is deliberately
-      // left unconnected for now, so raising a send is inert (the signal goes
-      // nowhere) until a future FX is inserted as sendBus -> FX -> master.
+      // Aux send bus: channels tap into it post-pan. Forced mono (channelCount
+      // 1, explicit) so the whole pedal chain runs on one send, matching the
+      // hardware model. It feeds the effects loop, built once the worklet loads.
       this.sendBus = this.ctx.createGain();
       this.sendBus.gain.value = 1;
+      this.sendBus.channelCount = 1;
+      this.sendBus.channelCountMode = 'explicit';
+      this.sendBus.channelInterpretation = 'speakers';
+      // Stereo return: the pedal chain sums into returnBus, through a pan then a
+      // level into the master sum. Both live on the master mixer strip.
+      //   returnBus -> returnPan -> returnGain -> master
+      this.returnBus = this.ctx.createGain();
+      this.returnBus.gain.value = 1;
+      this.returnPan = this.ctx.createStereoPanner();
+      this.returnGain = this.ctx.createGain();
+      this.returnGain.gain.value = 1;
+      this.returnBus.connect(this.returnPan);
+      this.returnPan.connect(this.returnGain);
+      this.returnGain.connect(this.master);
       this.channels = [];
       const url = workletUrlFromPage();
       await this.ctx.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
+      // One fx-processor node per pedal slot (A B C D). Created straight-through;
+      // the pattern's pedals set type/params/bypass and buildFxGraph wires them.
+      this.fxNodes = [0, 1, 2, 3].map(() => new AudioWorkletNode(this.ctx, 'fx-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { fx: 'thru' },
+      }));
     })();
     return this.ready;
+  }
+
+  // Wire the send bus through the four pedals into the return, per the routing
+  // algorithm's edges. `in` = sendBus, a letter = a slot's node, `out` collects
+  // into returnBus. Torn down and rebuilt cheaply on any routing change; bypass
+  // is internal to each node, so it never needs a rebuild.
+  buildFxGraph(algorithm) {
+    if (!this.fxNodes) return;
+    try { this.sendBus.disconnect(); } catch (_) {}
+    this.fxNodes.forEach((n) => { try { n.disconnect(); } catch (_) {} });
+    const idx = { A: 0, B: 1, C: 2, D: 3 };
+    const nodeFor = (key) => (key === 'in' ? this.sendBus : this.fxNodes[idx[key]]);
+    const edges = algorithm.edges || {};
+    for (const slot of ['A', 'B', 'C', 'D']) {
+      for (const from of edges[slot] || []) nodeFor(from).connect(this.fxNodes[idx[slot]]);
+    }
+    for (const from of edges.out || []) nodeFor(from).connect(this.returnBus);
+  }
+
+  setFxType(slot, type) {
+    if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxtype', fx: type });
+  }
+
+  setFxParams(slot, values) {
+    if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxparams', values });
+  }
+
+  setFxBypass(slot, bypass) {
+    if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxbypass', bypass });
+  }
+
+  // Return Level and Return Pan, the mix-side controls for the loop.
+  setReturn({ level, pan } = {}) {
+    if (typeof level === 'number') this.returnGain.gain.value = Math.max(0, Math.min(2, level));
+    if (typeof pan === 'number') this.returnPan.pan.value = Math.max(-1, Math.min(1, pan));
   }
 
   // Per-track mixer channel strip, created once and reused across engine flips.

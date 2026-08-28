@@ -96,6 +96,33 @@ if (!existsSync('build/rack.html')) {
   };
   new Function(src)();
   check('bundle registers voice-processor', !!registered['voice-processor']);
+  check('bundle registers fx-processor', !!registered['fx-processor']);
+
+  // The delay pedal, driven through the fx-processor: an impulse in, then
+  // silence, should come back as a wet echo tail once the footswitch (ramped
+  // from bypassed to engaged) has settled.
+  {
+    const Fx = registered['fx-processor'];
+    const fp = new Fx({ processorOptions: { fx: 'delay' } });
+    fp.port.onmessage({ data: { type: 'fxparams', values: [0.2, 0.6, 0.7, 1.0] } });
+    fp.port.onmessage({ data: { type: 'fxbypass', bypass: false } });
+    // inputs are nested [input][channel]; one mono input, one channel.
+    const fin = [[new Float32Array(128)]];
+    const fout = [new Float32Array(128), new Float32Array(128)];
+    let tail = 0;
+    let stereo = 0;
+    for (let blk = 0; blk < 220; blk++) {
+      fin[0][0].fill(0);
+      if (blk === 0) fin[0][0][0] = 1; // one impulse, then quiet
+      fp.process(fin, [fout]);
+      if (blk > 8) for (let i = 0; i < 128; i++) {
+        tail = Math.max(tail, Math.abs(fout[0][i]), Math.abs(fout[1][i]));
+        stereo += Math.abs(fout[0][i] - fout[1][i]);
+      }
+    }
+    check('fx-processor delay returns a wet tail', tail > 0.01, `tail peak ${tail.toFixed(3)}`);
+    check('ping-pong delay tail is stereo', stereo > 0.05, `L/R diff ${stereo.toFixed(3)}`);
+  }
 
   // a-rate AudioParams come in as Float32Arrays. Length 1 means constant.
   const paramsOpen = { cutoff: new Float32Array([1]), hp: new Float32Array([0]), vca: new Float32Array([1]) };
@@ -216,6 +243,38 @@ console.log('== offline render (WAV recorder) ==');
   let peak = 0;
   for (let i = 0; i < tails.length; i++) peak = Math.max(peak, Math.abs(tails.left[i]), Math.abs(tails.right[i]));
   check('render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
+}
+
+console.log('== offline fx loop (send -> delay -> return) ==');
+{
+  const { renderPattern } = await import('../src/core/offline-render.js');
+  const { engines } = await import('../src/core/worklet/registry.js');
+  const { freshPattern } = await import('../src/programs/rack/starter.js');
+  const { defaultFxParams } = await import('../src/core/fx/registry.js');
+
+  const dry = freshPattern(); // sends 0, all pedals thru: loop is silent
+  const wet = freshPattern();
+  wet.tracks[1].output.send = 0.9;                    // bass into the loop
+  wet.fx.loops[0].pedals[0] = { type: 'delay', bypass: false, params: defaultFxParams('delay') };
+  const byp = freshPattern();
+  byp.tracks[1].output.send = 0.9;
+  byp.fx.loops[0].pedals[0] = { type: 'delay', bypass: true, params: defaultFxParams('delay') };
+
+  const a = renderPattern(dry, { engines, mode: 'oneshot', sampleRate: SR });
+  const b = renderPattern(wet, { engines, mode: 'oneshot', sampleRate: SR });
+  const c = renderPattern(byp, { engines, mode: 'oneshot', sampleRate: SR });
+
+  let onDiff = 0;
+  for (let i = 0; i < a.length; i++) onDiff += Math.abs(b.left[i] - a.left[i]) + Math.abs(b.right[i] - a.right[i]);
+  check('engaged delay changes the mix', onDiff > 1, `sum |Δ| ${onDiff.toFixed(0)}`);
+
+  let echo = 0;
+  for (let i = 0; i < b.length; i++) echo += Math.abs(b.left[i] - c.left[i]);
+  check('delay echoes only when engaged (not bypassed)', echo > 1, `Δ vs bypass ${echo.toFixed(0)}`);
+
+  let peak = 0;
+  for (let i = 0; i < b.length; i++) peak = Math.max(peak, Math.abs(b.left[i]), Math.abs(b.right[i]));
+  check('fx render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
 }
 
 console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);
