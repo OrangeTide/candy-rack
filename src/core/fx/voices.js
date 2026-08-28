@@ -473,6 +473,90 @@ export class DistVoice {
   }
 }
 
+// Echo: a lo-fi analog stereo delay after a PT2399-based DIY pedal, the dirty
+// counterpart to the clean digital Delay. The signature is an asymmetric diode
+// overdrive on the input (two 1N4148 in series, Vf ~1.4 V, against a BAT41
+// Schottky, Vf ~0.4 V) that adds even-order harmonics and soft-clips hot input;
+// then a dark, bandwidth-limited delay that loses top end as the time grows
+// (the PT2399 character), a slow modulation for analog width/warble, companding
+// soft-saturation in the loop that lets the feedback settle into a musical
+// self-oscillation, and a dry/wet mix. Two lines for stereo.
+//
+//   Time  Repeats  Drive(asym diode)  Tone(dark)  Mod(warble/width)  Mix
+//   toggle: Ping (ping-pong)          sw2: Osc (momentary self-oscillation)
+export class EchoVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.max = Math.ceil(sr * 0.7) + 2; // up to ~700 ms
+    this.bufL = new Float32Array(this.max);
+    this.bufR = new Float32Array(this.max);
+    this.w = 0;
+    this.lpL = 0; this.lpR = 0;   // dark feedback tone one-poles
+    this.idcX = 0; this.idcY = 0; // input DC blocker (removes the drive offset)
+    this.modPh = 0;
+    this.ping = false;
+    this.osc = false;
+    this.setParams([0.4, 0.45, 0.3, 0.45, 0.25, 0.5]);
+  }
+
+  // values = [time, repeats, drive, tone, mod, mix], each 0..1.
+  setParams(values) {
+    const time = values[0] || 0, repeats = values[1] || 0, drive = values[2] || 0;
+    const tone = values[3] || 0, mod = values[4] || 0, mix = values[5] || 0;
+    const ms = 40 + time * 560;     // 40..600 ms
+    this.delaySamp = Math.max(2, Math.min(this.max - 3, ms * 0.001 * this.sr));
+    this.fb = Math.min(1.02, repeats * 1.02);
+    this.driveGain = 1 + drive * 7;
+    // Feedback low-pass: Tone sets brightness, and a longer time darkens it
+    // further, the way a PT2399 loses bandwidth as the delay grows.
+    this.toneA = (0.06 + tone * tone * 0.7) * (1 - time * 0.5);
+    this.mix = mix;
+    this.modInc = 2 * Math.PI * 0.4 / this.sr;  // ~0.4 Hz warble
+    this.modDepth = mod * 0.004 * this.sr;      // up to ~4 ms
+  }
+
+  setToggles(values) { this.ping = !!(values && values[0]); }
+  setSecondary(on) { this.osc = !!on; }
+
+  // Fractional read `d` samples behind the write head (linear interpolation).
+  _read(buf, d) {
+    let rp = this.w - d;
+    if (rp < 0) rp += this.max;
+    const i0 = rp | 0;
+    const fr = rp - i0;
+    const a = buf[i0];
+    const b = buf[i0 + 1 >= this.max ? 0 : i0 + 1];
+    return a + (b - a) * fr;
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const fb = this.osc ? Math.max(this.fb, 1.06) : this.fb; // Osc: self-oscillate
+    const dg = this.driveGain, toneA = this.toneA, mix = this.mix;
+    const depth = this.modDepth, ping = this.ping, base = this.delaySamp;
+    const tPos = 1.4, tNeg = 0.42; // the silicon / Schottky diode thresholds
+    for (let i = 0; i < n; i++) {
+      // asymmetric diode overdrive, then block its DC offset
+      let x = clipCubicT((inL[i] + inR[i]) * 0.5 * dg, tPos, tNeg);
+      const dcy = x - this.idcX + 0.9995 * this.idcY; this.idcX = x; this.idcY = dcy; x = dcy;
+      // quadrature modulation gives the two lines a stereo image
+      this.modPh += this.modInc; if (this.modPh > 6.2831853) this.modPh -= 6.2831853;
+      const dL = this._read(this.bufL, base + Math.sin(this.modPh) * depth);
+      const dR = this._read(this.bufR, base + Math.cos(this.modPh) * depth);
+      // dark PT2399-style feedback tone
+      this.lpL += (dL - this.lpL) * toneA;
+      this.lpR += (dR - this.lpR) * toneA;
+      // write with feedback; companding tanh keeps self-oscillation musical
+      const wl = ping ? x + this.lpR * fb : x + this.lpL * fb;
+      const wr = ping ? this.lpL * fb : x + this.lpR * fb;
+      this.bufL[this.w] = Math.tanh(wl);
+      this.bufR[this.w] = Math.tanh(wr);
+      this.w = this.w + 1 >= this.max ? 0 : this.w + 1;
+      outL[i] = inL[i] * (1 - mix) + dL * mix;
+      outR[i] = inR[i] * (1 - mix) + dR * mix;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
@@ -482,5 +566,6 @@ export function fxVoice(type, sr) {
   if (type === 'muff') return new MuffVoice(sr);
   if (type === 'rat') return new RatVoice(sr);
   if (type === 'dist') return new DistVoice(sr);
+  if (type === 'echo') return new EchoVoice(sr);
   return new ThruVoice(sr);
 }

@@ -320,6 +320,13 @@ Everything else reuses the panel, knob, and selector styles already in
 - Tempo-synced delay time, so Time snaps to note divisions off the transport.
 - More effect types: Reverb and Chorus. Each is one meta file plus one shared
   voice class, no new plumbing (Delay and Fuzz already follow this shape).
+- Two delays ship: Delay is the clean digital one; Echo is a lo-fi analog
+  stereo delay after a PT2399 DIY design (asymmetric silicon/Schottky diode
+  input overdrive, a dark bandwidth-losing-with-time delay, analog warble and
+  stereo width, companding self-oscillation on the Osc footswitch, Ping toggle).
+  Echo is the first pedal to use the full control block: 6 knobs, a toggle, and
+  a secondary footswitch. Its hardware-only details (power rails, decoupling,
+  split ground planes) are noise discipline for the DIY build, not modelled.
 - Drive lineage (Hardfloor / Prodigy / Daft Punk). Shipped: Fuzz (the "dooom"
   heart, 2x clip core + Green Ringer octave + RAT tone), Octave (Green Ringer
   split out), Muff (two-stage cubic + in-stage rolloff + Muff tone + sag), and

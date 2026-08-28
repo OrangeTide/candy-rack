@@ -388,6 +388,44 @@ console.log('== fx delay freeze (sw2 hold) ==');
   check('delay hold sustains longer than free feedback', frozen > free * 3, `frozen ${frozen.toFixed(3)} vs free ${free.toFixed(4)}`);
 }
 
+console.log('== fx echo (analog PT2399 delay) ==');
+{
+  const { EchoVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000, N = 16384, f0 = 220;
+  // Short delay time so several echoes return inside the window; measure after
+  // the first echo has come back.
+  const S0 = 4096;
+  const inL = new Float32Array(N), inR = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.5 * Math.sin(2 * Math.PI * f0 * i / SR);
+  const mag = (buf, f) => { let re = 0, im = 0; const w = 2 * Math.PI * f / SR; for (let i = S0; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); } return Math.sqrt(re * re + im * im) / (N - S0); };
+
+  const v = new EchoVoice(SR);
+  v.setParams([0.06, 0.35, 0.8, 0.6, 0.5, 1.0]); // short time, driven, wet, mod on
+  v.process(inL, inR, oL, oR, N);
+  let peak = 0, nan = false, stereo = 0;
+  for (let i = S0; i < N; i++) { if (Number.isNaN(oL[i])) nan = true; peak = Math.max(peak, Math.abs(oL[i])); stereo += Math.abs(oL[i] - oR[i]); }
+  check('echo output is finite and bounded', !nan && peak > 0.02 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('echo asymmetric drive adds even harmonics', mag(oL, 2 * f0) > 0.01, `h2 ${mag(oL, 2 * f0).toFixed(3)}`);
+  check('echo is stereo (mod decorrelates L/R)', stereo > 1, `L/R diff ${stereo.toFixed(1)}`);
+
+  const v2 = new EchoVoice(SR); v2.setParams([0.06, 0.35, 0.8, 0.6, 0.5, 1.0]);
+  const o2 = new Float32Array(N); v2.process(inL, inR, o2, new Float32Array(N), N);
+  let same = true; for (let i = 0; i < N; i++) if (o2[i] !== oL[i]) { same = false; break; }
+  check('echo is deterministic', same);
+
+  // Osc (sw2): prime with a burst, then run silence. Engaged it self-oscillates
+  // and sustains; released the feedback decays.
+  const run = (osc) => {
+    const e = new EchoVoice(SR); e.setParams([0.25, 0.6, 0.3, 0.6, 0.0, 1.0]);
+    const a = new Float32Array(N), b = new Float32Array(N), il = new Float32Array(N);
+    for (let blk = 0; blk < 30; blk++) { for (let i = 0; i < N; i++) il[i] = blk < 6 ? 0.5 * Math.sin(2 * Math.PI * f0 * i / SR) : 0; if (blk === 8) e.setSecondary(osc); e.process(il, il, a, b, N); }
+    const sil = new Float32Array(N); let en = 0;
+    for (let blk = 0; blk < 20; blk++) { e.process(sil, sil, a, b, N); for (let i = 0; i < N; i++) en += a[i] * a[i]; }
+    return Math.sqrt(en / (20 * N));
+  };
+  check('echo Osc self-oscillates (sustains vs decays)', run(true) > run(false) * 2, `osc ${run(true).toFixed(3)} vs ${run(false).toFixed(4)}`);
+}
+
 console.log('== fx octave (Green Ringer) ==');
 {
   const { OctaveVoice } = await import('../src/core/fx/voices.js');
