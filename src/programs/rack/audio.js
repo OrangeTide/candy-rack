@@ -169,6 +169,11 @@ export class AudioHost {
     if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxtoggles', values });
   }
 
+  // Secondary footswitch state (momentary or latching, per the pedal type).
+  setFxSw2(slot, value) {
+    if (this.fxNodes) this.fxNodes[slot].port.postMessage({ type: 'fxsw2', value });
+  }
+
   // Return Level and Return Pan, the mix-side controls for the loop.
   setReturn({ level, pan } = {}) {
     if (typeof level === 'number') this.returnGain.gain.value = Math.max(0, Math.min(2, level));

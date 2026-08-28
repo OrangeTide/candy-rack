@@ -351,8 +351,10 @@
   .plate.empty { color: var(--ink-mute); text-shadow: none; border-style: dashed; border-color: #2c2048; }
   .plate:focus { outline: none; box-shadow: 0 2px 5px rgba(0,0,0,.6) inset, 0 0 0 2px var(--accent, var(--cyan)); }
 
-  .pedal-knobs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; margin: 14px 0 6px; min-height: 56px; }
-  .pedal-knobs .knob { width: 46px; }
+  /* Up to 2 rows of 3, --kcols set per pedal. Generous gaps so the controls
+     breathe on the pedal face. */
+  .pedal-knobs { display: grid; grid-template-columns: repeat(var(--kcols, 3), 1fr); gap: 18px 14px; justify-items: center; align-content: start; margin: 14px 0 8px; min-height: 52px; }
+  .pedal-knobs .knob { width: auto; }
   .pedal-knobs .dial {
     width: 38px; height: 38px;
     background: radial-gradient(circle at 36% 30%, #cdd3de 0%, #8a91a1 44%, #464b58 100%);
@@ -371,10 +373,29 @@
     background: radial-gradient(circle at 36% 30%, #6a2030, #360f18 70%);
     box-shadow: 0 1px 2px rgba(0,0,0,.6) inset, 0 0 0 2px rgba(0,0,0,.3);
   }
-  .pedal.on .led {
+  /* The bypass LED lights when engaged; the secondary LED (sw2-led) is driven
+     by its own .lit2 state, not the bypass, so it is excluded here. */
+  .pedal.on .led:not(.sw2-led) {
     background: radial-gradient(circle at 36% 30%, #eafff4, var(--accent, var(--cyan)) 55%, #12873f 100%);
     box-shadow: 0 0 12px 1px var(--accent, var(--cyan)), 0 0 4px var(--accent, var(--cyan)), 0 0 0 2px rgba(0,0,0,.25);
   }
+  .led.lit2 {
+    background: radial-gradient(circle at 36% 30%, #eafff4, var(--accent, var(--cyan)) 55%, #12873f 100%);
+    box-shadow: 0 0 12px 1px var(--accent, var(--cyan)), 0 0 4px var(--accent, var(--cyan)), 0 0 0 2px rgba(0,0,0,.25);
+  }
+
+  /* Footswitch zone: the safe rectangle at the bottom of the pedal, set apart
+     from the knobs. margin-top:auto pins it to the base of the stretched pedal;
+     .two lays out the bypass and secondary footswitches side by side. */
+  .pedal-footzone {
+    margin-top: auto; align-self: stretch;
+    display: flex; justify-content: center; gap: 16px;
+    padding: 12px 8px 8px; border-radius: 11px;
+    background: rgba(0,0,0,.24);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.4) inset, 0 1px 0 rgba(255,255,255,.05) inset;
+  }
+  .pedal-footzone .foot { display: flex; flex-direction: column; align-items: center; }
+
   /* silver footswitch near the bottom */
   .stomp {
     width: 44px; height: 44px; border-radius: 50%; cursor: pointer; position: relative; border: none; padding: 0;

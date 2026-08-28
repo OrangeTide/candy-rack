@@ -22,6 +22,7 @@ class FxProcessor extends AudioWorkletProcessor {
     const type = (options.processorOptions && options.processorOptions.fx) || 'thru';
     this.voice = fxVoice(type, sampleRate);
     this.toggles = []; // pedal on/off switches, re-applied across a type change
+    this.sw2 = false;  // secondary footswitch (momentary or latching)
     this.wetL = new Float32Array(QUANTUM);
     this.wetR = new Float32Array(QUANTUM);
     this.silence = new Float32Array(QUANTUM);
@@ -36,8 +37,9 @@ class FxProcessor extends AudioWorkletProcessor {
       switch (m.type) {
         case 'fxtype':
           this.voice = fxVoice(m.fx, sampleRate);
-          // A new voice starts at defaults; re-apply the held toggle state.
+          // A new voice starts at defaults; re-apply the held switch state.
           if (this.voice.setToggles && this.toggles.length) this.voice.setToggles(this.toggles);
+          if (this.voice.setSecondary) this.voice.setSecondary(this.sw2);
           break;
         case 'fxparams':
           this.voice.setParams(m.values);
@@ -45,6 +47,10 @@ class FxProcessor extends AudioWorkletProcessor {
         case 'fxtoggles':
           this.toggles = m.values ? m.values.slice() : [];
           if (this.voice.setToggles) this.voice.setToggles(this.toggles);
+          break;
+        case 'fxsw2':
+          this.sw2 = !!m.value;
+          if (this.voice.setSecondary) this.voice.setSecondary(this.sw2);
           break;
         case 'fxbypass':
           this.bypassTarget = m.bypass ? 1 : 0;

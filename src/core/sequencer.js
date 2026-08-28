@@ -7,7 +7,7 @@
 // pattern-level routes list are the seams left open for full parameter locks
 // and the modulation matrix later, so growing into them is not a migration.
 
-import { fxById, defaultFxParams, defaultFxToggles } from './fx/registry.js';
+import { fxById, defaultFxParams, defaultFxToggles, FX_KNOBS, FX_TOGGLES } from './fx/registry.js';
 
 export const MAX_STEPS = 256;
 export const PAGE = 16;
@@ -94,11 +94,19 @@ export function makeMaster() {
 // Effects section, one per pattern. loops[] holds the aux effects loops; there
 // is one now (out1), later out2/out3. A loop is a mono send bus through four
 // pedals (A B C D) into a stereo return. Each pedal picks a type from the FX
-// registry, carries its normalized knob values, and a bypass (footswitch)
-// flag. The Return level and pan are the mix-side controls, surfaced on the
-// master mixer strip. algorithm names the routing topology (see fx/algorithms).
+// registry and carries a fixed-size control block: FX_KNOBS knob values,
+// FX_TOGGLES on/off switches, a bypass footswitch, and a secondary footswitch
+// (sw2, momentary or latching per the type). The block is one size for every
+// pedal; a type uses as many slots as it declares. The Return level and pan are
+// mix-side controls on the master strip. algorithm names the routing topology.
 export function makeFxPedal() {
-  return { type: 'thru', bypass: true, params: [], toggles: [] };
+  return {
+    type: 'thru',
+    bypass: true,
+    params: new Array(FX_KNOBS).fill(0),
+    toggles: new Array(FX_TOGGLES).fill(false),
+    sw2: false,
+  };
 }
 
 export function makeFxLoop(id = 'loop1') {
@@ -180,12 +188,16 @@ export function deserialize(text) {
     for (const pd of loop.pedals) {
       if (typeof pd.type !== 'string') pd.type = 'thru';
       if (typeof pd.bypass !== 'boolean') pd.bypass = pd.type === 'thru';
-      const want = fxById(pd.type).knobs.length;
-      if (!Array.isArray(pd.params) || pd.params.length !== want) pd.params = defaultFxParams(pd.type);
-      // Pedal on/off switches added with the fx-toggle contract; size to the type.
-      const wantT = (fxById(pd.type).toggles || []).length;
-      if (!Array.isArray(pd.toggles) || pd.toggles.length !== wantT) pd.toggles = defaultFxToggles(pd.type);
-      else pd.toggles = pd.toggles.map((b) => !!b);
+      // Fixed-size control block (FX_KNOBS params, FX_TOGGLES toggles). Start
+      // from the type's defaults, then copy over any saved slot values, so both
+      // fresh patterns and the earlier variable-length format migrate cleanly.
+      const dp = defaultFxParams(pd.type);
+      if (Array.isArray(pd.params)) for (let i = 0; i < FX_KNOBS; i++) if (typeof pd.params[i] === 'number') dp[i] = pd.params[i];
+      pd.params = dp;
+      const dt = defaultFxToggles(pd.type);
+      if (Array.isArray(pd.toggles)) for (let i = 0; i < FX_TOGGLES; i++) if (typeof pd.toggles[i] === 'boolean') dt[i] = pd.toggles[i];
+      pd.toggles = dt;
+      if (typeof pd.sw2 !== 'boolean') pd.sw2 = false;
     }
   }
   return p;

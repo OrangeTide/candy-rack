@@ -17,16 +17,30 @@ export const thruMeta = { id: 'thru', label: 'Thru', color: '#7d68ad', stereo: f
 // meta + voice land; no other wiring changes.
 export const fxTypes = [thruMeta, delayMeta, fuzzMeta, octaveMeta, muffMeta, ratMeta, distMeta];
 
+// Every pedal stores a fixed-size control block regardless of how many its type
+// actually uses, so the data model, persistence, and worklet messages pass the
+// same shape for every pedal (the way engines always store 5 params + 3
+// toggles). A type's meta.knobs/meta.toggles label only the slots it uses; the
+// rest stay at their idle value and the DSP ignores them.
+export const FX_KNOBS = 6;    // 2 rows of 3, the max pedal-face layout
+export const FX_TOGGLES = 3;
+
 export function fxById(id) {
   return fxTypes.find((f) => f.id === id) || thruMeta;
 }
 
 export function defaultFxParams(id) {
-  return fxById(id).knobs.map((k) => k.default);
+  const knobs = fxById(id).knobs || [];
+  const out = new Array(FX_KNOBS).fill(0);
+  for (let i = 0; i < knobs.length && i < FX_KNOBS; i++) out[i] = knobs[i].default;
+  return out;
 }
 
-// A pedal's on/off switches, mirroring the engine meta.toggles scheme. Most
-// pedals define none; the array length matches the type's meta.toggles.
+// A pedal's on/off switches, mirroring the engine meta.toggles scheme. Always
+// FX_TOGGLES booleans; a type's meta.toggles labels only the ones it uses.
 export function defaultFxToggles(id) {
-  return (fxById(id).toggles || []).map((t) => !!t.default);
+  const defs = fxById(id).toggles || [];
+  const out = new Array(FX_TOGGLES).fill(false);
+  for (let i = 0; i < defs.length && i < FX_TOGGLES; i++) out[i] = !!defs[i].default;
+  return out;
 }

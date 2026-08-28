@@ -412,6 +412,31 @@ console.log('== fx rat (distortion) ==');
   check('stacking two rats adds harmonics', twoH5 > oneH5, `2x h5 ${twoH5.toFixed(3)} vs 1x ${oneH5.toFixed(3)}`);
 }
 
+console.log('== fx pedal control block (fixed size) ==');
+{
+  const { makeFxPedal } = await import('../src/core/sequencer.js');
+  const { FX_KNOBS, FX_TOGGLES, defaultFxParams } = await import('../src/core/fx/registry.js');
+  const { deserialize, serialize, makePattern, makeTrack } = await import('../src/core/sequencer.js');
+
+  const pd = makeFxPedal();
+  check('fresh pedal has FX_KNOBS params', Array.isArray(pd.params) && pd.params.length === FX_KNOBS, `${pd.params.length}`);
+  check('fresh pedal has FX_TOGGLES toggles', Array.isArray(pd.toggles) && pd.toggles.length === FX_TOGGLES, `${pd.toggles.length}`);
+  check('fresh pedal has a secondary switch field', typeof pd.sw2 === 'boolean');
+  check('defaultFxParams returns a full block', defaultFxParams('delay').length === FX_KNOBS);
+
+  // An old variable-length pedal (2 params, 1 toggle, no sw2) migrates: the
+  // saved slots are preserved and the block is padded to the fixed size.
+  const t = makeTrack('fmbass', [0, 0, 0, 0, 0]);
+  const p = makePattern([t, t, t, t, t, t]);
+  p.fx.loops[0].pedals[0] = { type: 'dist', bypass: false, params: [0.8, 0.6], toggles: [true] };
+  const back = deserialize(serialize(p));
+  const mp = back.fx.loops[0].pedals[0];
+  check('migrated pedal params padded to FX_KNOBS', mp.params.length === FX_KNOBS, `${mp.params.length}`);
+  check('migrated pedal keeps its saved knob values', mp.params[0] === 0.8 && mp.params[1] === 0.6);
+  check('migrated pedal toggles padded to FX_TOGGLES', mp.toggles.length === FX_TOGGLES && mp.toggles[0] === true);
+  check('migrated pedal gains sw2 = false', mp.sw2 === false);
+}
+
 console.log('== fx dist (Distortion+ / DOD 250) ==');
 {
   const { DistVoice } = await import('../src/core/fx/voices.js');

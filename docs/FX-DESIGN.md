@@ -59,7 +59,18 @@ loop. The data model (section 5) is already a list of loops so this is additive.
 ## 2. The pedal contract
 
 Mirrors the engine contract so the registry, the flip UI, and the offline
-renderer all reuse existing shapes.
+renderer all reuse existing shapes. Every pedal stores and passes a fixed-size
+control block regardless of how many its type uses, so persistence and the
+worklet messages are one shape for all pedals (the way engines always carry 5
+params + 3 toggles):
+
+- `FX_KNOBS` = 6 knob values (the max pedal face is 2 rows of 3)
+- `FX_TOGGLES` = 3 on/off switches
+- a bypass footswitch
+- a secondary footswitch `sw2` (momentary or latching, per the type)
+
+A type's meta labels only the slots it uses; unused knobs/toggles stay at their
+idle value and the DSP ignores them (`values[i] || 0`).
 
 Main-thread meta (one per effect type, in `src/core/fx/<id>-meta.js`):
 
@@ -67,13 +78,16 @@ Main-thread meta (one per effect type, in `src/core/fx/<id>-meta.js`):
 export const delayMeta = {
   id: 'delay',
   label: 'Delay',
-  color: '#35e8ff',                 // pedal enclosure accent
-  knobs: [                          // up to 4 normalized 0..1 controls
+  color: '#35e8ff',                 // pedal enclosure accent (painted onto it)
+  // colors: ['#f4c430', '#5bbf5b'], // optional split enclosure; accent follows toggle[0]
+  knobs: [                          // 0..6 labelled controls; the rest idle
     { key: 'time',     label: 'Time',     default: 0.4 },
     { key: 'feedback', label: 'Repeats',  default: 0.45 },
     { key: 'tone',     label: 'Tone',     default: 0.6 },
     { key: 'mix',      label: 'Mix',      default: 0.5 },
   ],
+  toggles: [ /* 0..3 { key, label, default } */ ],
+  // sw2: { label: 'Hold', mode: 'momentary' },  // optional secondary footswitch
   stereo: true,                     // writes outL/outR separately
   Voice: DelayVoice,                // the DSP class (shared, section 4)
 };
@@ -84,11 +98,12 @@ Worklet/offline DSP class (in `src/core/fx/voice/<id>.js`, shared code):
 ```js
 class DelayVoice {
   constructor(sr) { ... }
-  setParams(values) { ... }         // full 0..1 array, read live
-  setBypass(on) { ... }             // footswitch, ramped internally
+  setParams(values) { ... }         // full 6-slot array, read live
+  setToggles(values) { ... }        // optional; 3-slot booleans
+  setSecondary(on) { ... }          // optional; the sw2 footswitch state
   // Block process. inL/inR are the (mono) input; a mono effect ignores inR.
-  // Writes outL/outR. Bypass is a smoothed dry/wet inside here so a stomp
-  // during playback does not click and the graph is never rewired.
+  // Writes outL/outR. Bypass is a smoothed dry/wet in the fx-processor, not the
+  // voice, so a stomp during playback does not click and the graph is not rewired.
   process(inL, inR, outL, outR, n) { ... }
 }
 ```
@@ -271,13 +286,21 @@ upright rounded rectangle, roughly 1 : 1.8):
 
 - A type nameplate at the top that opens the FX registry list (like the engine
   selector). Empty slots read `thru`.
-- Up to four small knobs, reusing the existing `.dial` knob style at a reduced
-  size.
-- A silver footswitch near the bottom: a brushed-metal circle with a status LED
-  above it. The LED is lit when the effect is engaged (`bypass: false`) and dark
-  when bypassed. Clicking the footswitch toggles bypass and sends one message.
-- The enclosure accent color comes from the effect meta `color`, so the row is
-  visually its own band and each loaded pedal is recognizable at a glance.
+- Knobs, reusing the `.dial` style at a reduced size, laid out up to two rows of
+  three (the `--kcols` grid: 1..3 in one row, 4..6 across two balanced rows),
+  with generous spacing so they are easy to grab.
+- Any on/off switches (up to three) as small toggles on the face.
+- A footswitch zone at the bottom: a darker inset "safe rectangle" holding the
+  bypass footswitch and its LED, set apart from the knobs so they are not kicked.
+  When the type declares `sw2` a second footswitch sits beside it in the same
+  zone (momentary = press-and-hold, latching = toggle). The LED lights when
+  engaged; the footswitch toggles bypass and sends one message.
+- The enclosure is painted with the effect's accent color over the cast metal;
+  a pedal with `meta.colors` gets a diagonal two-tone split whose live accent
+  follows its first switch (the Dist+/DOD 250 goes mustard to green).
+- Pedals are free to place their controls wherever fits the face; the default
+  auto-layout above is what the current pedals use. Per-pedal absolute placement
+  is a later option if a pedal wants it.
 
 The pedal knob style, footswitch, and algorithm icon set are the main new CSS.
 Everything else reuses the panel, knob, and selector styles already in

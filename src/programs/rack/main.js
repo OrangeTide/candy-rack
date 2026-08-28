@@ -100,6 +100,7 @@ function applyFx() {
     host.setFxType(i, pd.type);
     host.setFxParams(i, pd.params);
     host.setFxToggles(i, pd.toggles);
+    host.setFxSw2(i, pd.sw2);
     host.setFxBypass(i, pd.bypass);
   });
   host.buildFxGraph(algoById(loop.algorithm));
@@ -582,12 +583,14 @@ function setPedalType(i, type) {
   pd.type = type;
   pd.params = defaultFxParams(type);
   pd.toggles = defaultFxToggles(type);
+  pd.sw2 = false;
   // Engage a real effect when it is loaded; the empty Thru stays bypassed.
   pd.bypass = type === 'thru';
   if (host.ctx) {
     host.setFxType(i, type);
     host.setFxParams(i, pd.params);
     host.setFxToggles(i, pd.toggles);
+    host.setFxSw2(i, pd.sw2);
     host.setFxBypass(i, pd.bypass);
   }
   save();
@@ -651,7 +654,11 @@ function renderPedals() {
     pedal.append(sel);
 
     const knobs = el('div', 'pedal-knobs');
-    if (meta.knobs.length) {
+    const nk = meta.knobs.length;
+    // Up to 2 rows of 3: 1..3 knobs share one row, 4..6 split across two
+    // balanced rows. More gap between knobs than a stompbox strictly needs.
+    knobs.style.setProperty('--kcols', String(nk <= 3 ? Math.max(1, nk) : Math.ceil(nk / 2)));
+    if (nk) {
       meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], (v) => {
         pd.params[ki] = v;
         if (host.ctx) host.setFxParams(i, pd.params);
@@ -662,8 +669,8 @@ function renderPedals() {
     }
     pedal.append(knobs);
 
-    // Pedal on/off switches (e.g. the Dist+ germanium/silicon diode). The first
-    // switch also flips the live accent on a split-color pedal.
+    // Pedal on/off switches (up to 3). The first switch also flips the live
+    // accent on a split-color pedal.
     const toggleDefs = meta.toggles || [];
     if (toggleDefs.length) {
       const sw = el('div', 'pedal-switches');
@@ -678,17 +685,51 @@ function renderPedals() {
       pedal.append(sw);
     }
 
-    pedal.append(el('div', 'led'));
-    const stomp = el('button', 'stomp');
-    stomp.title = engaged ? 'Bypass' : 'Engage';
-    stomp.onclick = () => togglePedal(i);
-    pedal.append(stomp);
-    pedal.append(el('div', 'stomp-lbl', isThru ? 'Empty' : (engaged ? 'On' : 'Bypass')));
+    // Footswitch zone: a "safe rectangle" at the bottom for the stomp(s), set
+    // off from the knobs so they are not kicked. Holds the bypass footswitch and
+    // its LED, plus a secondary footswitch when the type declares meta.sw2.
+    const foot = el('div', 'pedal-footzone' + (meta.sw2 ? ' two' : ''));
+    foot.append(footswitch('led', engaged ? 'On' : (isThru ? 'Empty' : 'Bypass'),
+      engaged ? 'Bypass' : 'Engage', () => togglePedal(i)));
+    if (meta.sw2) foot.append(secondaryFootswitch(i, pd, meta.sw2));
+    pedal.append(foot);
     board.append(pedal);
   });
 
   board.append(fxRail('IN1', true));
   box.append(board);
+}
+
+// One footswitch column: status LED, the silver stomp, and its label.
+function footswitch(ledCls, label, title, onClick) {
+  const f = el('div', 'foot');
+  f.append(el('div', ledCls));
+  const s = el('button', 'stomp');
+  s.title = title;
+  s.onclick = onClick;
+  f.append(s, el('div', 'stomp-lbl', label));
+  return f;
+}
+
+// The secondary footswitch, momentary or latching per the pedal type. Momentary
+// is press-and-hold (transient, not saved); latching toggles and persists.
+function secondaryFootswitch(i, pd, sw2) {
+  const f = el('div', 'foot');
+  const led = el('div', 'led sw2-led' + (sw2.mode === 'toggle' && pd.sw2 ? ' lit2' : ''));
+  const s = el('button', 'stomp stomp-2');
+  s.title = sw2.label || 'Secondary';
+  if (sw2.mode === 'momentary') {
+    const down = (e) => { e.preventDefault(); pd.sw2 = true; if (host.ctx) host.setFxSw2(i, true); led.classList.add('lit2'); };
+    const up = () => { if (!pd.sw2) return; pd.sw2 = false; if (host.ctx) host.setFxSw2(i, false); led.classList.remove('lit2'); };
+    s.addEventListener('pointerdown', down);
+    s.addEventListener('pointerup', up);
+    s.addEventListener('pointercancel', up);
+    s.addEventListener('pointerleave', up);
+  } else {
+    s.onclick = () => { pd.sw2 = !pd.sw2; if (host.ctx) host.setFxSw2(i, pd.sw2); led.classList.toggle('lit2', pd.sw2); save(); };
+  }
+  f.append(led, s, el('div', 'stomp-lbl', sw2.label || ''));
+  return f;
 }
 
 // A jack rail at either end of the loop (out1 on the left, in1 on the right).

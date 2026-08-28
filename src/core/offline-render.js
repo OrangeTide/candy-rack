@@ -284,6 +284,8 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       if (!pd || pd.bypass) continue; // bypassed and empty slots pass dry
       const voice = fxVoice(pd.type, SR);
       voice.setParams(pd.params);
+      if (voice.setToggles && pd.toggles) voice.setToggles(pd.toggles);
+      if (voice.setSecondary && typeof pd.sw2 === 'boolean') voice.setSecondary(pd.sw2);
       const oL = new Float32Array(rawLen);
       const oR = new Float32Array(rawLen);
       voice.process(chL, chR, oL, oR, rawLen);
