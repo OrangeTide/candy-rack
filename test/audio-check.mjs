@@ -285,6 +285,42 @@ console.log('== fx fuzz (DooomFuzzz port) ==');
   check('fuzz is deterministic', same);
 }
 
+console.log('== fx octave (Green Ringer) ==');
+{
+  const { OctaveVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000;
+  const f0 = 220;
+  const N = 8192;
+  const inL = new Float32Array(N), inR = new Float32Array(N);
+  const outL = new Float32Array(N), outR = new Float32Array(N);
+  for (let i = 0; i < N; i++) inL[i] = inR[i] = 0.5 * Math.sin(2 * Math.PI * f0 * i / SR);
+
+  // Full octave up, pure (null 0), some drive: the octave (2*f0) should be the
+  // dominant tone, well above the fundamental.
+  const v = new OctaveVoice(SR);
+  v.setParams([1.0, 0.0, 0.5, 0.6]);
+  v.process(inL, inR, outL, outR, N);
+  const mag = (buf, f) => {
+    let re = 0, im = 0; const w = 2 * Math.PI * f / SR;
+    // skip the settling head so the DC blocker and filters have converged
+    for (let i = 1024; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); }
+    return Math.sqrt(re * re + im * im) / (N - 1024);
+  };
+  let nan = false, peak = 0, mono = true;
+  for (let i = 0; i < N; i++) { if (Number.isNaN(outL[i])) nan = true; if (outL[i] !== outR[i]) mono = false; peak = Math.max(peak, Math.abs(outL[i])); }
+  const fund = mag(outL, f0), oct = mag(outL, 2 * f0);
+  check('octave output is finite and bounded', !nan && peak > 0.02 && peak <= 1.2, `peak ${peak.toFixed(3)}`);
+  check('octave is mono (L == R)', mono);
+  check('full octave up dominates the fundamental', oct > fund * 1.5, `oct ${oct.toFixed(3)} vs fund ${fund.toFixed(3)}`);
+
+  // Blend at 0 passes the dry signal: the fundamental should return.
+  const dryV = new OctaveVoice(SR);
+  dryV.setParams([0.0, 0.0, 0.5, 0.6]);
+  dryV.process(inL, inR, outL, outR, N);
+  const fund2 = mag(outL, f0), oct2 = mag(outL, 2 * f0);
+  check('blend 0 keeps the dry fundamental', fund2 > oct2, `fund ${fund2.toFixed(3)} vs oct ${oct2.toFixed(3)}`);
+}
+
 console.log('== offline fx loop (send -> delay -> return) ==');
 {
   const { renderPattern } = await import('../src/core/offline-render.js');

@@ -88,6 +88,34 @@ export class DelayVoice {
 const OSHB_A = [0.089698028, 0.577350269]; // even-phase allpass cascade
 const OSHB_B = [0.310919387, 0.850669771]; // odd-phase allpass cascade
 
+// 2x polyphase IIR halfband oversampler (osamp.h, R=4). up() splits one
+// base-rate sample into an even and an odd 2x subsample (in this.ev/this.od);
+// process both, then down() folds them back to one base-rate sample. Separate
+// allpass states for the up and down passes, one-multiply sections.
+class Oversampler2x {
+  constructor() {
+    this.uaX = [0, 0]; this.uaY = [0, 0]; this.ubX = [0, 0]; this.ubY = [0, 0];
+    this.daX = [0, 0]; this.daY = [0, 0]; this.dbX = [0, 0]; this.dbY = [0, 0];
+    this.ev = 0; this.od = 0;
+  }
+  up(x) {
+    let ev = x, od = x, o;
+    o = OSHB_A[0] * (ev - this.uaY[0]) + this.uaX[0]; this.uaX[0] = ev; this.uaY[0] = o; ev = o;
+    o = OSHB_A[1] * (ev - this.uaY[1]) + this.uaX[1]; this.uaX[1] = ev; this.uaY[1] = o; ev = o;
+    o = OSHB_B[0] * (od - this.ubY[0]) + this.ubX[0]; this.ubX[0] = od; this.ubY[0] = o; od = o;
+    o = OSHB_B[1] * (od - this.ubY[1]) + this.ubX[1]; this.ubX[1] = od; this.ubY[1] = o; od = o;
+    this.ev = ev; this.od = od;
+  }
+  down(ev, od) {
+    let o;
+    o = OSHB_A[0] * (ev - this.daY[0]) + this.daX[0]; this.daX[0] = ev; this.daY[0] = o; ev = o;
+    o = OSHB_A[1] * (ev - this.daY[1]) + this.daX[1]; this.daX[1] = ev; this.daY[1] = o; ev = o;
+    o = OSHB_B[0] * (od - this.dbY[0]) + this.dbX[0]; this.dbX[0] = od; this.dbY[0] = o; od = o;
+    o = OSHB_B[1] * (od - this.dbY[1]) + this.dbX[1]; this.dbX[1] = od; this.dbY[1] = o; od = o;
+    return 0.5 * (ev + od);
+  }
+}
+
 export class FuzzVoice {
   constructor(sr) {
     this.sr = sr;
@@ -96,9 +124,7 @@ export class FuzzVoice {
     // blocker pole, both init-time constants (ringer.h, util.h).
     this.ringerHpCoef = 1 - Math.exp(-2 * Math.PI * 200 / this.fs2);
     this.dcR = 1 - 2 * Math.PI * 5 / sr;
-    // Oversampler allpass states: x/y per section, separate up and down sets.
-    this.uaX = [0, 0]; this.uaY = [0, 0]; this.ubX = [0, 0]; this.ubY = [0, 0];
-    this.daX = [0, 0]; this.daY = [0, 0]; this.dbX = [0, 0]; this.dbY = [0, 0];
+    this.os = new Oversampler2x();
     this.rhp = 0;      // ringer high-pass state
     this.dcx = 0; this.dcy = 0;
     this.ratS = 0;     // RAT tone one-pole state
@@ -146,32 +172,81 @@ export class FuzzVoice {
   }
 
   process(inL, inR, outL, outR, n) {
-    const A0 = OSHB_A[0], A1 = OSHB_A[1], B0 = OSHB_B[0], B1 = OSHB_B[1];
     const drive = this.drive, bias = this.bias, oct = this.oct;
     const ratG = this.ratG, level = this.level, hpc = this.ringerHpCoef, R = this.dcR;
-    const uaX = this.uaX, uaY = this.uaY, ubX = this.ubX, ubY = this.ubY;
-    const daX = this.daX, daY = this.daY, dbX = this.dbX, dbY = this.dbY;
-    let o;
+    const os = this.os;
     for (let i = 0; i < n; i++) {
       const x = (inL[i] + inR[i]) * 0.5 + 1e-20; // mono send, anti-denorm
-      // upsample 2x: even phase through the A cascade, odd through B
-      let ev = x, od = x;
-      o = A0 * (ev - uaY[0]) + uaX[0]; uaX[0] = ev; uaY[0] = o; ev = o;
-      o = A1 * (ev - uaY[1]) + uaX[1]; uaX[1] = ev; uaY[1] = o; ev = o;
-      o = B0 * (od - ubY[0]) + ubX[0]; ubX[0] = od; ubY[0] = o; od = o;
-      o = B1 * (od - ubY[1]) + ubX[1]; ubX[1] = od; ubY[1] = o; od = o;
-      ev = this._stage(ev, drive, bias, oct, hpc);
-      od = this._stage(od, drive, bias, oct, hpc);
-      // downsample 2x back to one base-rate sample
-      o = A0 * (ev - daY[0]) + daX[0]; daX[0] = ev; daY[0] = o; ev = o;
-      o = A1 * (ev - daY[1]) + daX[1]; daX[1] = ev; daY[1] = o; ev = o;
-      o = B0 * (od - dbY[0]) + dbX[0]; dbX[0] = od; dbY[0] = o; od = o;
-      o = B1 * (od - dbY[1]) + dbX[1]; dbX[1] = od; dbY[1] = o; od = o;
-      let wet = 0.5 * (ev + od);
+      os.up(x);
+      const ev = this._stage(os.ev, drive, bias, oct, hpc);
+      const od = this._stage(os.od, drive, bias, oct, hpc);
+      let wet = os.down(ev, od);
       // DC blocker
       const dc = wet - this.dcx + R * this.dcy; this.dcx = wet; this.dcy = dc; wet = dc;
       // RAT variable low-pass tone (TPT one-pole)
       const v = (wet - this.ratS) * ratG; const lp = v + this.ratS; this.ratS = lp + v; wet = lp;
+      wet *= level;
+      outL[i] = wet; outR[i] = wet;
+    }
+  }
+}
+
+// Octave-up / ring, ported from the DooomFuzzz Green Ringer (ringer.h) plus its
+// blend and null controls (dooomfuzzz.c octave section). Full-wave rectifying a
+// note doubles its frequency (octave up); balanced branches cancel the
+// fundamental for a pure octave, and the Null knob bleeds it back for the
+// ring-mod clang. Runs in the 2x region so the rectifier corners do not alias.
+//
+//   Blend: dry .. full octave     Null: pure octave .. fundamental bleed
+//   Drive: pre-gain into the rectifier (how hard/clean the octave tracks)
+//   Level: output
+export class OctaveVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.fs2 = 2 * sr;
+    this.ringerHpCoef = 1 - Math.exp(-2 * Math.PI * 200 / this.fs2);
+    this.dcR = 1 - 2 * Math.PI * 5 / sr;
+    this.os = new Oversampler2x();
+    this.rhp = 0;
+    this.dcx = 0; this.dcy = 0;
+    this.setParams([0.5, 0.3, 0.4, 0.5]);
+  }
+
+  // values = [blend, null, drive, level], each 0..1.
+  setParams(values) {
+    this.blend = values[0] || 0;
+    this.nul = values[1] || 0;
+    this.pre = 1 + 5 * (values[2] || 0); // 1x..6x pre-gain into the rectifier
+    this.level = (values[3] || 0) * 1.2;
+  }
+
+  // Green Ringer at one 2x subsample: input high-pass, full-wave rectify with a
+  // diode drop per branch, the Null knob unbalancing the negative branch.
+  _ring(x) {
+    this.rhp += this.ringerHpCoef * (x - this.rhp);
+    const xx = (x - this.rhp) * this.pre;
+    const vf = 0.25;
+    const pos = xx > vf ? xx - vf : 0.0;
+    const neg = -xx > vf ? -xx - vf : 0.0;
+    return (pos + neg * (1.0 - 0.3 * this.nul)) * 1.8;
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const blend = this.blend, level = this.level, R = this.dcR;
+    const os = this.os;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5 + 1e-20;
+      os.up(x);
+      let ev = os.ev, od = os.od;
+      // rectify each subsample (shared high-pass state, even then odd in time
+      // order) and blend against the dry 2x signal
+      ev = (1 - blend) * ev + blend * this._ring(ev);
+      od = (1 - blend) * od + blend * this._ring(od);
+      // soft-limit the blended octave so hot rectification stays musical
+      ev = Math.tanh(ev);
+      od = Math.tanh(od);
+      let wet = os.down(ev, od);
+      const dc = wet - this.dcx + R * this.dcy; this.dcx = wet; this.dcy = dc; wet = dc;
       wet *= level;
       outL[i] = wet; outR[i] = wet;
     }
@@ -183,5 +258,6 @@ export class FuzzVoice {
 export function fxVoice(type, sr) {
   if (type === 'delay') return new DelayVoice(sr);
   if (type === 'fuzz') return new FuzzVoice(sr);
+  if (type === 'octave') return new OctaveVoice(sr);
   return new ThruVoice(sr);
 }
