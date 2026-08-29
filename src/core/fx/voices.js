@@ -748,9 +748,123 @@ export class ReverbVoice {
   }
 }
 
+// VaporCloud: a one-knob vaporwave tape-wash, after an RP2040 single-knob
+// ambient-delay design (fixed-point on the hardware; plain float here). Two
+// short modulated delay lines with mismatched base offsets are read in
+// anti-phase for a wide, swimming stereo cloud, not a rhythmic echo. A 1-pole
+// low-pass sits INSIDE the feedback path so each repeat is darker than the last,
+// the recursive darkening of an over-biased tape head, and a fixed ~120 Hz high-
+// pass on the recirculated copy stops a bass note's fundamental piling up into
+// mud (the dry and first repeats keep full body). The Wash macro morphs the
+// three zones at once: feedback tail (0..~0.85), LFO wow/flutter depth, and the
+// feedback low-pass, so one knob takes it from dry-dominant slap through tape
+// wobble to an infinite muffled wash.
+//
+//   Wash(macro: feedback+wow+darken)  Time(base tap 1x..8x)  Tone(darken bias)
+//   Mod(LFO trim)  Width(mono..anti-phase)  Mix
+//   toggle: Dream (fade dry out as Wash rises)   sw2: Hold (freeze the buffer)
+export class VaporVoice {
+  constructor(sr) {
+    this.sr = sr;
+    this.max = Math.ceil(sr * 0.9) + 4; // room for the longest tap + modulation
+    this.bufL = new Float32Array(this.max);
+    this.bufR = new Float32Array(this.max);
+    this.w = 0;
+    this.lpL = 0; this.lpR = 0; // feedback low-pass state, one per line (darkening)
+    this.hpL = 0; this.hpR = 0; // feedback high-pass state (keeps sub from piling up)
+    this.fbHpG = 1 - Math.exp(-2 * Math.PI * 120 / sr); // ~120 Hz loop high-pass
+    this.phL = 0; this.phR = 0;
+    // Mismatched base taps (~78 ms / ~94 ms), the prime-like spacing that keeps
+    // the two lines decorrelated even before the anti-phase modulation.
+    this.baseL = 0.0784 * sr;
+    this.baseR = 0.0936 * sr;
+    this.dream = false;
+    this.hold = false;
+    this.setParams([0.5, 0.3, 0.5, 0.55, 0.75, 0.55]);
+  }
+
+  // values = [wash, time, tone, mod, width, mix], each 0..1.
+  setParams(values) {
+    this.wash = values[0] || 0;
+    const time = values[1] || 0, tone = values[2] || 0, mod = values[3] || 0;
+    this.width = values[4] || 0;
+    this.mix = values[5] || 0;
+    this.timeScale = 1 + time * 7;                // 1x..8x base tap
+    this.toneBias = (tone - 0.5) * 0.6;           // shift the feedback LP bright/dark
+    this.modInc = 2 * Math.PI * (0.45 + mod * 0.4) / this.sr; // ~0.45..~0.85 Hz
+    this.modDepth = (0.5 + mod) * 0.005 * this.sr; // up to ~7.5 ms of wow/flutter
+  }
+
+  setToggles(values) { this.dream = !!(values && values[0]); }
+  setSecondary(on) { this.hold = !!on; }
+
+  // Fractional read `d` samples behind the write head (linear interpolation).
+  _read(buf, d) {
+    let rp = this.w - d;
+    if (rp < 0) rp += this.max;
+    if (rp >= this.max) rp -= this.max; // guard float rounding to exactly max
+    const i0 = rp | 0;
+    const fr = rp - i0;
+    const a = buf[i0];
+    const b = buf[i0 + 1 >= this.max ? 0 : i0 + 1];
+    return a + (b - a) * fr;
+  }
+
+  process(inL, inR, outL, outR, n) {
+    const wash = this.wash, mix = this.mix, width = this.width;
+    // Wash macro: feedback 0..~0.85, wow depth scales in, and the feedback
+    // low-pass darkens (alpha 0.90 bright -> 0.15 dark), Tone biasing it.
+    let alpha = 0.90 - 0.75 * wash + this.toneBias;
+    if (alpha > 0.95) alpha = 0.95; else if (alpha < 0.05) alpha = 0.05;
+    // A small feedback floor keeps a repeat or two even low on the knob, and the
+    // ceiling climbs near self-oscillation at the top for the infinite wash.
+    const fb = this.hold ? 0.998 : 0.12 + 0.8 * wash;
+    const inG = this.hold ? 0 : 1;
+    const depth = this.modDepth * (0.35 + 0.65 * wash);
+    const baseL = this.baseL * this.timeScale, baseR = this.baseR * this.timeScale;
+    const maxD = this.max - 3;
+    // Dream fades the dry signal out as Wash pushes past ~0.6, leaving a pure
+    // wash at the ceiling; without it the dry follows the Mix knob as usual.
+    let dryFade = 1;
+    if (this.dream) { dryFade = 1 - (wash - 0.6) / 0.4; if (dryFade < 0) dryFade = 0; else if (dryFade > 1) dryFade = 1; }
+    const dryG = (1 - mix) * dryFade;
+    const modInc = this.modInc;
+    for (let i = 0; i < n; i++) {
+      const x = (inL[i] + inR[i]) * 0.5 * inG + 1e-20;
+      this.phL += modInc; if (this.phL > 6.2831853) this.phL -= 6.2831853;
+      this.phR += modInc; if (this.phR > 6.2831853) this.phR -= 6.2831853;
+      const lfo = Math.sin(this.phL);
+      const lfoR = lfo * (1 - 2 * width); // Width: 0 correlated, 1 anti-phase
+      let dL = baseL + lfo * depth; if (dL > maxD) dL = maxD; else if (dL < 1) dL = 1;
+      let dR = baseR + lfoR * depth; if (dR > maxD) dR = maxD; else if (dR < 1) dR = 1;
+      const wetL = this._read(this.bufL, dL);
+      const wetR = this._read(this.bufR, dR);
+      // 1-pole low-pass in the feedback: each pass loses more top end.
+      this.lpL += alpha * (wetL - this.lpL);
+      this.lpR += alpha * (wetR - this.lpR);
+      // 1-pole high-pass on only the recirculated copy (loop signal), so the
+      // fundamental of a bass note does not pile up into mud as it feeds back.
+      // The dry and the wet output tap keep full body; just the tail thins.
+      // Hold bypasses it: a frozen drone must recirculate losslessly, not decay.
+      this.hpL += this.fbHpG * (this.lpL - this.hpL);
+      this.hpR += this.fbHpG * (this.lpR - this.hpR);
+      const fbL = this.hold ? this.lpL : this.lpL - this.hpL;
+      const fbR = this.hold ? this.lpR : this.lpR - this.hpR;
+      // write input + darkened, sub-trimmed feedback; tanh keeps a hot wash
+      // bounded and musical.
+      this.bufL[this.w] = Math.tanh(x + fbL * fb);
+      this.bufR[this.w] = Math.tanh(x + fbR * fb);
+      this.w = this.w + 1 >= this.max ? 0 : this.w + 1;
+      outL[i] = inL[i] * dryG + this.lpL * mix;
+      outR[i] = inR[i] * dryG + this.lpR * mix;
+    }
+  }
+}
+
 // Factory keyed by pedal type id, mirroring kitPartVoice(). Unknown ids fall
 // back to Thru so an empty or future slot is a safe passthrough.
 export function fxVoice(type, sr) {
+  if (type === 'vapor') return new VaporVoice(sr);
   if (type === 'delay') return new DelayVoice(sr);
   if (type === 'fuzz') return new FuzzVoice(sr);
   if (type === 'octave') return new OctaveVoice(sr);

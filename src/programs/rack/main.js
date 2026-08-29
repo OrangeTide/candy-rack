@@ -687,15 +687,28 @@ function renderPedals() {
 
     const knobs = el('div', 'pedal-knobs');
     const nk = meta.knobs.length;
-    // Up to 2 rows of 3: 1..3 knobs share one row, 4..6 split across two
-    // balanced rows. More gap between knobs than a stompbox strictly needs.
-    knobs.style.setProperty('--kcols', String(nk <= 3 ? Math.max(1, nk) : Math.ceil(nk / 2)));
-    if (nk) {
-      meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], (v) => {
-        pd.params[ki] = v;
-        if (host.ctx) host.setFxParams(i, pd.params);
-        save();
-      })));
+    const onKnob = (ki) => (v) => {
+      pd.params[ki] = v;
+      if (host.ctx) host.setFxParams(i, pd.params);
+      save();
+    };
+    // A pedal can name one hero knob (meta.hero). It renders big while the rest
+    // shrink to micro trim pots clustered beside it, for a one-knob face that
+    // still exposes the fine controls.
+    const heroIdx = meta.hero ? meta.knobs.findIndex((k) => k.key === meta.hero) : -1;
+    if (heroIdx >= 0) {
+      knobs.classList.add('hero-layout');
+      knobs.append(makeKnob(meta.knobs[heroIdx].label, pd.params[heroIdx], onKnob(heroIdx), 'knob-hero'));
+      const micros = el('div', 'pedal-micros');
+      const rest = meta.knobs.filter((_, ki) => ki !== heroIdx);
+      micros.style.setProperty('--kcols', String(rest.length <= 3 ? Math.max(1, rest.length) : Math.ceil(rest.length / 2)));
+      meta.knobs.forEach((k, ki) => { if (ki !== heroIdx) micros.append(makeKnob(k.label, pd.params[ki], onKnob(ki), 'knob-micro')); });
+      knobs.append(micros);
+    } else if (nk) {
+      // Up to 2 rows of 3: 1..3 knobs share one row, 4..6 split across two
+      // balanced rows. More gap between knobs than a stompbox strictly needs.
+      knobs.style.setProperty('--kcols', String(nk <= 3 ? Math.max(1, nk) : Math.ceil(nk / 2)));
+      meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], onKnob(ki))));
     } else {
       knobs.append(el('div', 'plate-hint', 'pick an effect above'));
     }
@@ -1318,8 +1331,8 @@ function flipEngine(t, id) {
   if (t === selected) renderGrid(); // lane count changes with kit/melodic
 }
 
-function makeKnob(label, value, onChange) {
-  const wrap = el('div', 'knob');
+function makeKnob(label, value, onChange, extraClass) {
+  const wrap = el('div', 'knob' + (extraClass ? ' ' + extraClass : ''));
   const dial = el('div', 'dial');
   const ind = el('div', 'ind');
   dial.append(ind);

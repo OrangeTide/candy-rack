@@ -767,6 +767,57 @@ console.log('== fx dimension (chorus) ==');
   check('dimension is deterministic', same);
 }
 
+console.log('== fx vaporcloud (tape wash) ==');
+{
+  const { VaporVoice } = await import('../src/core/fx/voices.js');
+  const SR = 48000, N = 8192, f0 = 220;
+  // Prime with a short burst then silence: a high Wash should ring on well past
+  // the input (the long feedback tail), a low Wash should die away quickly.
+  const runWash = (wash, blocks) => {
+    const v = new VaporVoice(SR); v.setParams([wash, 0.2, 0.5, 0.5, 0.7, 1.0]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+    let last = 0, nan = false, peak = 0, stereo = 0;
+    for (let blk = 0; blk < blocks; blk++) {
+      for (let i = 0; i < N; i++) il[i] = blk === 0 ? 0.5 * Math.sin(2 * Math.PI * f0 * i / SR) : 0;
+      v.process(il, il, oL, oR, N);
+      for (let i = 0; i < N; i++) { if (Number.isNaN(oL[i])) nan = true; peak = Math.max(peak, Math.abs(oL[i]), Math.abs(oR[i])); stereo += Math.abs(oL[i] - oR[i]); }
+      last = 0; for (let i = 0; i < N; i++) last += oL[i] * oL[i]; last = Math.sqrt(last / N);
+    }
+    return { last, nan, peak, stereo };
+  };
+  const hi = runWash(0.9, 20);
+  const lo = runWash(0.15, 20);
+  check('vapor high Wash sustains a long tail', hi.last > lo.last * 3, `hi ${hi.last.toFixed(4)} vs lo ${lo.last.toFixed(4)}`);
+  check('vapor is finite and bounded', !hi.nan && hi.peak <= 1.05, `peak ${hi.peak.toFixed(3)}`);
+  check('vapor spreads a wide stereo image', hi.stereo > 1, `L/R diff ${hi.stereo.toFixed(0)}`);
+
+  // Hold (sw2) freezes the buffer: the wash sustains even with the knob low.
+  const runHold = (hold) => {
+    const v = new VaporVoice(SR); v.setParams([0.4, 0.2, 0.5, 0.5, 0.7, 1.0]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+    for (let i = 0; i < N; i++) il[i] = 0.5 * Math.sin(2 * Math.PI * f0 * i / SR);
+    v.process(il, il, oL, oR, N);          // prime
+    v.setSecondary(hold);
+    let e = 0; for (let blk = 0; blk < 30; blk++) { il.fill(0); v.process(il, il, oL, oR, N); }
+    for (let i = 0; i < N; i++) e += oL[i] * oL[i]; return Math.sqrt(e / N);
+  };
+  check('vapor Hold freezes the buffer', runHold(true) > runHold(false) * 3, `hold ${runHold(true).toFixed(4)} vs free ${runHold(false).toFixed(4)}`);
+
+  // Dream fades the dry out at high Wash: the immediate output has less dry
+  // energy in the first block than with Dream off.
+  const firstBlock = (dream) => {
+    const v = new VaporVoice(SR); v.setParams([1.0, 0.2, 0.5, 0.5, 0.7, 0.0]); v.setToggles([dream]);
+    const il = new Float32Array(N), oL = new Float32Array(N), oR = new Float32Array(N);
+    for (let i = 0; i < N; i++) il[i] = 0.5 * Math.sin(2 * Math.PI * f0 * i / SR);
+    v.process(il, il, oL, oR, N);
+    let e = 0; for (let i = 0; i < N; i++) e += oL[i] * oL[i]; return Math.sqrt(e / N);
+  };
+  check('vapor Dream fades the dry at high Wash', firstBlock(true) < firstBlock(false) * 0.5, `dream ${firstBlock(true).toFixed(3)} vs ${firstBlock(false).toFixed(3)}`);
+
+  let same = true; const a = runWash(0.9, 20), b = runWash(0.9, 20);
+  check('vapor is deterministic', a.last === b.last);
+}
+
 console.log('== fx octave (Green Ringer) ==');
 {
   const { OctaveVoice } = await import('../src/core/fx/voices.js');
