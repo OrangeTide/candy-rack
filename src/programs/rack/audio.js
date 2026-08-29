@@ -200,11 +200,13 @@ export class AudioHost {
   createVoice(engineId, t = 0) {
     const node = new AudioWorkletNode(this.ctx, 'voice-processor', {
       numberOfInputs: 0,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
+      // Output 0: stereo audio. Output 1: a mono mod signal (amp-envelope
+      // follower) the mod matrix can tap as an Env source for this track.
+      numberOfOutputs: 2,
+      outputChannelCount: [2, 1],
       processorOptions: { engine: engineId },
     });
-    node.connect(this.channel(t).panner);
+    node.connect(this.channel(t).panner); // output 0 -> panner (audio)
     return new Voice(this.ctx, node);
   }
 

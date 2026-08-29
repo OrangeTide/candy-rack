@@ -55,7 +55,14 @@ export class ModMatrix {
     gain.gain.value = (route.polarity < 0 ? -1 : 1) * route.depth;
     gain.connect(param);
 
-    if (route.src.type === 'lfo') {
+    if (route.src.type === 'env') {
+      // Engine mod output: tap the source track's voice node output 1 (the
+      // amp-envelope follower). A gate-aware, engine-agnostic mod source.
+      const src = this.voices[route.src.track];
+      if (!src || !src.node) { try { gain.disconnect(); } catch (_) {} return; }
+      src.node.connect(gain, 1);
+      this.nodes.push({ route, gain, envNode: src.node });
+    } else if (route.src.type === 'lfo') {
       const osc = ctx.createOscillator();
       osc.type = SHAPES[route.src.shape] || 'sine';
       osc.frequency.value = route.src.rateHz || 2;
@@ -95,6 +102,7 @@ export class ModMatrix {
       try { if (n.cs) n.cs.stop(); } catch (_) {}
       try { if (n.osc) n.osc.disconnect(); } catch (_) {}
       try { if (n.cs) n.cs.disconnect(); } catch (_) {}
+      try { if (n.envNode) n.envNode.disconnect(n.gain); } catch (_) {}
       try { n.gain.disconnect(); } catch (_) {}
     }
     this.nodes = [];

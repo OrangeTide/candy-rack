@@ -65,6 +65,15 @@ class VoiceProcessor extends AudioWorkletProcessor {
     this.hpL = 0;
     this.hpR = 0;
 
+    // Engine mod output: an amplitude-envelope follower on the raw (pre-filter)
+    // voice sum, emitted on output 1 so the mod matrix can use this track as a
+    // source (Env). Pre-filter, so routing Env -> this track's cutoff does not
+    // form a feedback loop. Gate-aware: it sustains for held notes and decays on
+    // release, following whatever the engine's own amp envelope is doing.
+    this.modEnv = 0;
+    this.modEnvAtk = 1 - Math.exp(-1 / (0.002 * sampleRate));
+    this.modEnvRel = 1 - Math.exp(-1 / (0.04 * sampleRate));
+
     this.port.onmessage = (e) => {
       const m = e.data;
       switch (m.type) {
@@ -125,6 +134,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
     const out = outputs[0];
     const ch0 = out[0];
     const chR = out.length > 1 ? out[1] : null;
+    const modOut = outputs.length > 1 && outputs[1] ? outputs[1][0] : null;
     const n = ch0.length;
     const blockStart = currentFrame / sampleRate;
 
@@ -172,6 +182,11 @@ class VoiceProcessor extends AudioWorkletProcessor {
       }
       sL *= 0.6;
       sR *= 0.6;
+
+      // Mod output: amp-envelope follower on the raw voice sum.
+      const amp = (Math.abs(sL) + Math.abs(sR)) * 0.5;
+      this.modEnv += (amp - this.modEnv) * (amp > this.modEnv ? this.modEnvAtk : this.modEnvRel);
+      if (modOut) modOut[i] = this.modEnv;
 
       let cut = cutConst ? cutoffArr[0] : cutoffArr[i];
       cut = cut < 0 ? 0 : cut > 1 ? 1 : cut;

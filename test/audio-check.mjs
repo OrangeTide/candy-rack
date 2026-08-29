@@ -380,6 +380,21 @@ if (!existsSync('build/rack.html')) {
   }
   check('bundle renders the sh101 engine', shPeak > 0.05 && shPeak <= 1.001, `peak ${shPeak.toFixed(3)}`);
 
+  // Voice node output 1 carries the amp-envelope mod signal (engine mod output
+  // -> matrix source). Trigger a note and confirm the mod output rises.
+  const pmo = new Proc({ processorOptions: { engine: 'fm2' } });
+  pmo.port.onmessage({ data: { type: 'params', values: [0.5, 0.6, 0.2, 0.5, 0.2] } });
+  pmo.port.onmessage({ data: { type: 'trigger', time: 0, note: 60, velocity: 110, gateSec: 0.3 } });
+  const aOut = [new Float32Array(128), new Float32Array(128)];
+  const mOut = [new Float32Array(128)];
+  let modPeak = 0;
+  for (let blk = 0; blk < 40; blk++) {
+    globalThis.currentFrame = blk * 128;
+    pmo.process([], [aOut, mOut], paramsOpen);
+    for (let i = 0; i < 128; i++) modPeak = Math.max(modPeak, mOut[0][i]);
+  }
+  check('voice node emits an Env mod output', modPeak > 0.02, `mod peak ${modPeak.toFixed(3)}`);
+
   // Channel drive (mixer overdrive) is read as an a-rate param and changes the
   // output-stage clip; drive 0 is the clean baseline. Deterministic engine.
   const renderNote = (drive) => {
@@ -412,7 +427,7 @@ console.log('== mod matrix graph ==');
     createOscillator: () => ({ type: '', frequency: makeParam(), connect() {}, start() {}, stop() {}, disconnect() {} }),
     createConstantSource: () => ({ offset: makeParam(), connect() {}, start() {}, stop() {}, disconnect() {} }),
   };
-  const voices = Array.from({ length: 6 }, () => ({ _p: {}, param(n) { return (this._p[n] ||= makeParam()); } }));
+  const voices = Array.from({ length: 6 }, () => ({ _p: {}, node: { conns: [], connect(dst) { this.conns.push(dst); }, disconnect() {} }, param(n) { return (this._p[n] ||= makeParam()); } }));
 
   const pattern = freshPattern();
   const mm = new ModMatrix({ ctx });
@@ -441,6 +456,14 @@ console.log('== mod matrix graph ==');
   mmm.attach(voices);
   mmm.rebuild([{ src: { type: 'lfo', shape: 'sine', rateHz: 5 }, dest: { track: -1, param: 'volume' }, depth: 0.5, polarity: 1, decay: 0.16 }]);
   check('master volume is a mod destination', mmm.nodes.length === 1 && mmm.destParam(mmm.routes[0]) === mmHost.masterVol.gain);
+
+  // Engine mod output as a source: an Env route taps the source track's voice
+  // node (output 1) into the route gain.
+  const mme = new ModMatrix({ ctx });
+  mme.attach(voices);
+  mme.rebuild([{ src: { type: 'env', track: 2 }, dest: { track: 4, param: 'cutoff' }, depth: 0.6, polarity: 1, decay: 0.16 }]);
+  check('engine Env is a mod source', mme.nodes.length === 1 && mme.nodes[0].envNode === voices[2].node);
+  check('Env route connects the voice node output 1', voices[2].node.conns.includes(mme.nodes[0].gain));
 }
 
 console.log('== offline render (WAV recorder) ==');
@@ -492,6 +515,15 @@ console.log('== offline render (WAV recorder) ==');
   let mvd = 0; const mvN = Math.min(rm.length, one.length);
   for (let i = 0; i < mvN; i++) mvd += Math.abs(rm.left[i] - one.left[i]);
   check('master volume mod changes the offline mix', mvd > 1, `Δ ${mvd.toFixed(0)}`);
+
+  // Engine Env as a mod source (offline): the bass envelope drives its own
+  // cutoff (an envelope filter), changing the mix.
+  const enved = freshPattern();
+  enved.routes.push({ src: { type: 'env', track: 1 }, dest: { track: 1, param: 'cutoff' }, depth: 0.7, polarity: 1, decay: 0.16 });
+  const re = renderPattern(enved, { engines, mode: 'oneshot', sampleRate: SR });
+  let ed = 0; const eN = Math.min(re.length, one.length);
+  for (let i = 0; i < eN; i++) ed += Math.abs(re.left[i] - one.left[i]);
+  check('engine Env source changes the offline mix', ed > 1, `Δ ${ed.toFixed(0)}`);
 }
 
 console.log('== fx fuzz (DooomFuzzz port) ==');

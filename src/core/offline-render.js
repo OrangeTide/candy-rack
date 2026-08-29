@@ -86,11 +86,15 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       params: track.params.slice(),
       toggles: (track.toggles || [false, false, false]).slice(),
       pool, rr: 0, lpL: 0, lpR: 0, hpL: 0, hpR: 0,
+      envFollow: 0,   // amp-envelope follower, the track's Env mod source
       stereo: typeof pool[0].renderStereo === 'function',
       stepDur: q / track.ratio,
       cursor: { step: 0, nextTime: 0 },
     };
   });
+  // Mod-output follower coefficients, matching the worklet runtime.
+  const envAtk = 1 - Math.exp(-1 / (0.002 * SR));
+  const envRel = 1 - Math.exp(-1 / (0.04 * SR));
 
   // A track is audible if it is not muted and, when any track is soloed, it is
   // one of the soloed tracks.
@@ -201,6 +205,9 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       if (r.src.type === 'lfo') {
         val = lfoShape(r.src.shape, r._phase);
         r._phase += (TWO_PI * (r.src.rateHz || 2)) / SR;
+      } else if (r.src.type === 'env') {
+        const sn = nodes[r.src.track];
+        val = sn ? sn.envFollow : 0; // last sample's follower (1-sample delay)
       } else {
         val = r._env;
         r._env *= r._decayCoef;
@@ -239,6 +246,9 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       }
       sL *= 0.6;
       sR *= 0.6;
+      // Update this track's Env mod source from the raw (pre-filter) sum.
+      const amp = (Math.abs(sL) + Math.abs(sR)) * 0.5;
+      node.envFollow += (amp - node.envFollow) * (amp > node.envFollow ? envAtk : envRel);
       let cut = node.track.output.cutoff + modCut[n];
       cut = cut < 0 ? 0 : cut > 1 ? 1 : cut;
       const a = Math.max(0.0006, cut * cut);

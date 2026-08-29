@@ -1176,8 +1176,8 @@ function renderMatrix() {
   pattern.routes.forEach((r, idx) => {
     const row = el('div', 'route');
 
-    // Source
-    row.append(pick([['trig', 'Trig'], ['lfo', 'LFO']], r.src.type, (v) => { r.src.type = v; applyRoutes(); renderMatrix(); }));
+    // Source. Env taps a track's engine mod output (its amp-envelope follower).
+    row.append(pick([['trig', 'Trig'], ['lfo', 'LFO'], ['env', 'Env']], r.src.type, (v) => { r.src.type = v; applyRoutes(); renderMatrix(); }));
     if (r.src.type === 'trig') {
       row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); renderMatrix(); }));
       // A kit source track taps a part row; a melodic one taps main/alt.
@@ -1185,6 +1185,8 @@ function renderMatrix() {
         ? [['part0', 'P1'], ['part1', 'P2'], ['part2', 'P3'], ['part3', 'P4'], ['both', 'all']]
         : [['main', 'main'], ['alt', 'alt'], ['both', 'both']];
       row.append(pick(laneOpts, r.src.lane, (v) => { r.src.lane = v; applyRoutes(); }));
+    } else if (r.src.type === 'env') {
+      row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); }));
     } else {
       row.append(pick([['sine', 'sine'], ['tri', 'tri'], ['saw', 'saw'], ['square', 'sqr']], r.src.shape, (v) => { r.src.shape = v; applyRoutes(); }));
       const rate = el('input', 'mini');
