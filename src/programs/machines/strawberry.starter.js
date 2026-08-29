@@ -40,8 +40,9 @@ export function freshPattern() {
   paintKit(t0, 2, [0, 2, 4, 6, 8, 10, 12, 14], 60);            // closed hats every 8th
   paintKit(t0, 3, [2, 6, 10, 14], 88);                          // open hats on the offbeats (rave)
 
-  // --- bass: a rubbery octave-bouncing A line, bright and springy, with slides ---
-  const t1 = makeTrack('acid', [0.40, 0.60, 0.5, 0.35, 0.20]); // cutoff, reso, env, decay, slide
+  // --- bass: the DX100 "Lately Bass", a rubbery octave-bouncing A line ---
+  const t1 = makeTrack('dx100', [0.20, 0.60, 0.35, 0.35, 0.25]); // harmonic, timbre, feedback, decay, drive
+  t1.toggles = [false, true, false];                             // Bright on for the house edge
   const bass = [33, 45, 33, 45, 40, 45, 33, 45, 33, 45, 38, 45, 40, 45, 52, 45];
   for (let i = 0; i < 16; i++) { const s = t1.main[i]; s.on = true; s.note = bass[i]; s.gateLen = 0.5; s.velocity = 100; }
   [4, 10, 14].forEach((i) => { t1.main[i].slide = true; });     // rubbery glides
