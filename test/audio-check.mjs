@@ -992,6 +992,19 @@ console.log('== tie and slide scheduling ==');
   check('slide holds the previous note into the glide',
     rms(boundary(sl)) > 0.02 && rms(boundary(noSl)) < 0.005,
     `slide ${rms(boundary(sl)).toFixed(3)} vs none ${rms(boundary(noSl)).toFixed(3)}`);
+
+  // Slide must still fire when the step is ALSO marked tie (slide overrides tie):
+  // a note followed by a tie+slide step glides just as it does with slide alone,
+  // rather than being absorbed and silenced by the tie.
+  const tieSlide = makePattern([makeTrack('dx100', [0.2, 0.6, 0.35, 0.4, 0.25])]);
+  {
+    const L = tieSlide.tracks[0].main;
+    L[0].on = true; L[0].note = 33; L[0].gateLen = 0.4;
+    L[1].on = true; L[1].note = 45; L[1].gateLen = 0.9; L[1].slide = true; L[1].tie = true;
+  }
+  const ts = renderPattern(tieSlide, { engines, mode: 'oneshot', sampleRate: SR });
+  check('slide overrides tie (tie+slide step still glides)',
+    rms(boundary(ts)) > 0.02, `boundary rms ${rms(boundary(ts)).toFixed(3)}`);
 }
 
 console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);

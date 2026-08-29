@@ -158,37 +158,41 @@ function scheduleTrackStep(t, absStep, time) {
 }
 
 // Whether an on-step starts a note (triggers) rather than being absorbed as a
-// tie into the note before it. A non-tie on-step always starts. A tie step is
-// absorbed only if a real trigger reaches it through an unbroken backward run of
-// on-steps; if a gap (off-step) comes first there is nothing to tie into, so it
-// starts. When the whole lane is on+tie (a ring with no trigger), the first
-// on-step anchors it, so all-tied plays one held note instead of silence.
+// tie into the note before it. A trigger is any on-step that is not a plain tie:
+// a non-tie step, or a slide step (slide overrides tie, since a slide glides to
+// a new pitch and must fire). A plain tie (tie without slide) is absorbed only
+// if a trigger reaches it through an unbroken backward run of on-steps; if a gap
+// (off-step) comes first there is nothing to tie into, so it starts. When the
+// whole lane is plain tie (a ring with no trigger), the first on-step anchors
+// it, so all-tied plays one held note instead of silence.
 function startsNote(track, lane, pos) {
   const L = track[lane];
-  if (!L[pos].on) return false;
-  if (!L[pos].tie) return true;
+  const s = L[pos];
+  if (!s.on) return false;
+  if (!s.tie || s.slide) return true;             // a trigger: non-tie, or slide wins over tie
   for (let i = 1; i < track.length; i++) {
     const prev = L[(pos - i + track.length) % track.length];
-    if (!prev.on) return true;    // gap upstream: nothing to tie into
-    if (!prev.tie) return false;  // a real trigger upstream absorbs us
+    if (!prev.on) return true;                    // gap upstream: nothing to tie into
+    if (!prev.tie || prev.slide) return false;    // a trigger upstream absorbs us
   }
   let first = 0;
   while (first < track.length && !L[first].on) first += 1;
   return pos === first;
 }
 
-// Gate for a step, extended across any tied steps that follow it on the lane so
-// the note holds as one sustained note (a tie step does not retrigger; it is
-// absorbed here into the preceding note's gate). If the next sounding step
-// glides (slide), the gate also reaches that onset so the mono voice is still
-// alive to glide from; the slide step then re-arms the gate on arrival.
+// Gate for a step, extended across any plain-tie steps that follow it on the
+// lane so the note holds as one sustained note (a plain tie does not retrigger;
+// it is absorbed here into the preceding note's gate). A following slide step is
+// a trigger, not a tie, so it ends the span; the gate then reaches that onset so
+// the mono voice is still alive to glide from, and the slide step re-arms the
+// gate on arrival.
 function tiedGate(track, lane, pos, stepDur) {
   const L = track[lane];
   let span = 1;
   let p = pos;
   for (let i = 0; i < track.length; i++) {
     p = (p + 1) % track.length;
-    if (L[p].on && L[p].tie) span += 1; else break;
+    if (L[p].on && L[p].tie && !L[p].slide) span += 1; else break;
   }
   let steps = span - 1 + L[pos].gateLen;
   const nxt = L[(pos + span) % track.length];

@@ -17,16 +17,18 @@ import { algoById, chainOrder } from './fx/algorithms.js';
 
 const POLY = 8;
 
-// Whether an on-step starts a note (triggers) or is absorbed as a tie into the
-// note before it. Mirrors startsNote() in src/programs/rack/main.js.
+// Whether an on-step starts a note (triggers) or is absorbed as a plain tie into
+// the note before it. Slide overrides tie. Mirrors startsNote() in
+// src/programs/rack/main.js.
 function startsNote(track, lane, pos) {
   const L = track[lane];
-  if (!L[pos].on) return false;
-  if (!L[pos].tie) return true;
+  const s = L[pos];
+  if (!s.on) return false;
+  if (!s.tie || s.slide) return true;
   for (let i = 1; i < track.length; i++) {
     const prev = L[(pos - i + track.length) % track.length];
     if (!prev.on) return true;
-    if (!prev.tie) return false;
+    if (!prev.tie || prev.slide) return false;
   }
   let first = 0;
   while (first < track.length && !L[first].on) first += 1;
@@ -164,7 +166,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       for (let i = 0; i < track.length; i++) {
         p = (p + 1) % track.length;
         const nx = track[lane][p];
-        if (nx.on && nx.tie) span += 1; else break;
+        if (nx.on && nx.tie && !nx.slide) span += 1; else break;
       }
       let gsteps = span - 1 + step.gateLen;
       const nxt = track[lane][(pos + span) % track.length];
