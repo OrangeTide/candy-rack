@@ -31,7 +31,13 @@ lookahead scheduler that hands the worklets sample-accurate trigger times.
 
 ## Build and run
 
-The build needs Node and installs esbuild on first run.
+Prerequisites:
+
+- Node.js with npm. The first `make` installs esbuild locally through npm. This
+  is all you need to build, run, and check the programs.
+- ImageMagick (`convert`) and optipng, optional. These are used only by
+  `make icons`, which regenerates the favicon set from the icon masters. A normal
+  build does not need them.
 
 ```sh
 make            # builds build/index.html (landing) and build/rack.html
