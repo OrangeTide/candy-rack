@@ -24,6 +24,16 @@ Ranked by impact toward that record.
 
 ## Sequencer
 
+- [ ] Cross-loop hold (tie/slide continuity) for POLY engines. tie=gate /
+      slide=pitch and the wrap-around drone now work for the MONO engines
+      (acid, dx100, fmbass): the voice regates instead of re-attacking across
+      the loop. Poly engines (sh101, supersaw, chord, epiano) still allocate a
+      fresh voice per trigger, so a held/drone note re-attacks every bar. Needs
+      the poly path (runtime.fire + offline-render) to find the voice already
+      playing a tied note and regate it (hold), and glide it on slide, rather
+      than allocating a new one. Also: the offline 'loop' render is one cold
+      pass, so a recorded drone still attacks at the tile start even for mono;
+      a warm-up pass would fix the WAV.
 - [ ] Polyphonic chord rows on poly engines. The kit's 4-lane machinery
       (laneSteps/trackLanes, N-row grid, per-lane scheduling) generalizes: a poly
       engine could use N note-rows, one voice per row, to play an N-note chord per
