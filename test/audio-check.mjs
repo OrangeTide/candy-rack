@@ -142,6 +142,32 @@ console.log('== acid (TB-303) engine ==');
   check('acid non-slide jumps pitch', Math.abs(vj.freq - 220) < 2, `freq ${vj.freq.toFixed(0)}`);
 }
 
+console.log('== 909 drum voices ==');
+{
+  const { KickVoice, SnareVoice, HatVoice } = await import('../src/core/worklet/engines/percussion.js');
+  const { kitPartVoice } = await import('../src/core/worklet/registry.js');
+
+  const k = new KickVoice(SR);
+  const rk = measure(k, [0.3, 0.8, 0.4, 0.5, 0.3], { note: 36, gate: 0.1, seconds: 2 });
+  check('909 kick audible and bounded', rk.peak > 0.1 && rk.peak <= 1.001, `peak ${rk.peak.toFixed(3)} tail ${rk.tailMs}ms`);
+  check('909 kick rings past 300 ms', rk.tailMs > 300, `tail ${rk.tailMs}ms`);
+  check('909 kick is one-shot (frees)', !k.active);
+
+  const s = new SnareVoice(SR);
+  const rs = measure(s, [0.4, 0.4, 0.6, 0.5, 0.3], { note: 38, gate: 0.1, seconds: 1.5 });
+  check('909 snare audible and bounded', rs.peak > 0.1 && rs.peak <= 1.001, `peak ${rs.peak.toFixed(3)}`);
+  check('909 snare is one-shot (frees)', !s.active);
+
+  const closed = measure(new HatVoice(SR), [0.5, 0.05, 0.5, 0.5, 0.2], { note: 42, gate: 0.1, seconds: 1.5 });
+  const openV = new HatVoice(SR);
+  const open = measure(openV, [0.5, 0.9, 0.5, 0.5, 0.2], { note: 42, gate: 0.1, seconds: 1.5 });
+  check('909 hat audible and bounded', open.peak > 0.05 && open.peak <= 1.001, `peak ${open.peak.toFixed(3)}`);
+  check('909 hat open decays longer than closed', open.tailMs > closed.tailMs * 2, `open ${open.tailMs}ms vs closed ${closed.tailMs}ms`);
+  check('909 hat is one-shot (frees)', !openV.active);
+
+  check('kitPartVoice maps kick/snare/hat', kitPartVoice('kick', SR) instanceof KickVoice && kitPartVoice('snare', SR) instanceof SnareVoice && kitPartVoice('hat', SR) instanceof HatVoice);
+}
+
 console.log('== sh101 engine ==');
 {
   const { SH101Voice } = await import('../src/core/worklet/engines/sh101.js');

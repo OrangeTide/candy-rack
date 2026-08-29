@@ -787,7 +787,7 @@ function renderEditor() {
     // side, with room before the knobs.
     const kitHead = el('div', 'kit-head');
     kitHead.append(labeled('Part', tabs));
-    kitHead.append(labeled('Type', pick([['drum', 'Drum'], ['clap', '808 Clap'], ['cowbell', '808 Cowbell']], part.type, (v) => {
+    kitHead.append(labeled('Type', pick([['drum', 'Drum'], ['kick', '909 Kick'], ['snare', '909 Snare'], ['hat', '909 Hat'], ['clap', '808 Clap'], ['cowbell', '808 Cowbell']], part.type, (v) => {
       part.type = v;
       if (voices[selected]) voices[selected].setPartType(selectedPart, v);
       save();

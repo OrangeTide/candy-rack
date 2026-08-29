@@ -15,7 +15,7 @@ import { VowelVoice } from './engines/vowel.js';
 import { DtmfVoice } from './engines/dtmf.js';
 import { Acid303Voice } from './engines/acid.js';
 import { SH101Voice } from './engines/sh101.js';
-import { ClapVoice, CowbellVoice } from './engines/percussion.js';
+import { ClapVoice, CowbellVoice, KickVoice, SnareVoice, HatVoice } from './engines/percussion.js';
 
 const mono = () => [0];
 
@@ -23,6 +23,9 @@ const mono = () => [0];
 export function kitPartVoice(type, sampleRate) {
   if (type === 'clap') return new ClapVoice(sampleRate);
   if (type === 'cowbell') return new CowbellVoice(sampleRate);
+  if (type === 'kick') return new KickVoice(sampleRate);
+  if (type === 'snare') return new SnareVoice(sampleRate);
+  if (type === 'hat') return new HatVoice(sampleRate);
   return new DrumVoice(sampleRate);
 }
 

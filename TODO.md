@@ -10,9 +10,12 @@ Ranked by impact toward that record.
       Cowbell). Remaining:
   - [x] 808 handclap: multi-burst noise + tail. Done (percussion.js ClapVoice).
   - [x] 808 cowbell: two detuned squares through a bandpass. Done (CowbellVoice).
-  - [ ] 808 kick boom: the drum voice decay caps at ~0.3s; needs ~0.5-1s of
-        tuned sub with a click attack. Add a 'kick' part type (or extend drum).
-  - [ ] 808 snare: two-tone body (~180/330 Hz) + noise, as a 'snare' part type.
+  - [x] Kick: 909-style 'kick' part type (percussion.js KickVoice): sine body
+        with a deep pitch sweep, a beater click, ~0.2-0.9s decay, saturation.
+  - [x] Snare: 909-style 'snare' part type (SnareVoice): two-tone body
+        (185/330 Hz) + high-passed noise, Tone = snappy amount.
+  - [x] Hats: 909-style 'hat' part type (HatVoice): six inharmonic squares
+        through a bandpass; Decay spans closed to open.
 - [ ] Reverb + delay send FX on the mixer aux bus. The send bus is built and
       reserved but has no effect wired. Electro is drenched in plate/gated reverb
       (snare/clap) and tape-delay throws. Same FX section dub techno wants.
@@ -46,9 +49,11 @@ Ranked by impact toward that record.
 ## Future genre programs
 
 Each program is a standalone fruit-branded machine. Grouped by build cost.
-Existing backlog: Bubblegum rave (cheap, next), acid squelch (the ACID/TB-303
-engine and the RAT/Dist+ drive pedals now exist, so this is content-ready: a
-fruit-branded program with an acid line into the RAT stack), sunshine breaks
+Existing backlog: Bubblegum rave (cheap, next), acid squelch (Lemon; the
+ACID/TB-303 engine, the RAT/Dist+ drive pedals, and the 909 kick/snare/hat kit
+now exist, so this is content-ready: a fruit-branded program with an acid line
+into the RAT stack over a 909 beat. Reference groove: Pump Panel's "Confusion"
+Reconstruction Mix), sunshine breaks
 (gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
 gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
 a Rings-style engine).
