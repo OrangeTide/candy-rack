@@ -6,18 +6,19 @@
 // line. Uses the shared offline renderer (src/core/offline-render.js) so it
 // matches the in-browser WAV recorder exactly.
 //
-// Run:   node test/render-mix.mjs [seconds] [outfile]
+// Run:   MACHINE=grape node test/render-mix.mjs [seconds] [outfile]
 //        make mix
 // Then:  ffplay -autoexit build/preview-mix.wav
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { engines } from '../src/core/worklet/registry.js';
-import { freshPattern } from '../src/programs/rack/starter.js';
 import { renderPattern } from '../src/core/offline-render.js';
 
 const SR = 48000;
+const machine = process.env.MACHINE || 'grape';
 const seconds = Number(process.argv[2]) || 4;
-const out = process.argv[3] || 'build/preview-mix.wav';
+const out = process.argv[3] || `build/preview-${machine}.wav`;
+const { freshPattern } = await import(`../src/programs/machines/${machine}.js`);
 
 const pattern = freshPattern();
 // One seamless loop, then tiled to fill the requested preview length.

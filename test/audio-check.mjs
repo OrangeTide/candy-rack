@@ -2,7 +2,7 @@
 // This test script has no copyright. See https://creativecommons.org/publicdomain/zero/1.0/
 //
 // Headless audio checks for web-rack. Runs the engine DSP directly and also
-// exercises the actual worklet bundle decoded from build/rack.html. Browser-only
+// exercises the actual worklet bundle decoded from build/grape.html. Browser-only
 // glue (AudioContext, addModule, DOM) is not covered here; this verifies the DSP
 // math, the message handling, polyphonic allocation, and chord clustering.
 //
@@ -239,11 +239,11 @@ console.log('== fm6 oversampling (epiano / fmbass) ==');
   check('epiano high note: harmonics dominate inter-harmonic energy', harm > inter * 3, `harm ${harm.toFixed(3)} inter ${inter.toFixed(3)}`);
 }
 
-console.log('== worklet bundle (build/rack.html) ==');
-if (!existsSync('build/rack.html')) {
-  console.log('SKIP  build/rack.html missing, run `make` first');
+console.log('== worklet bundle (build/grape.html) ==');
+if (!existsSync('build/grape.html')) {
+  console.log('SKIP  build/grape.html missing, run `make` first');
 } else {
-  const html = readFileSync('build/rack.html', 'utf8');
+  const html = readFileSync('build/grape.html', 'utf8');
   const m = html.match(/<script id="worklet-src"[^>]*>([\s\S]*?)<\/script>/);
   const src = Buffer.from(m[1].trim(), 'base64').toString('utf8');
 

@@ -69,7 +69,7 @@ Cheapest (content + existing engines):
 
 One small engine:
 
-- [ ] Peppermint: chiptune / bitpop (mint green/white, an oddball candy not a
+- [ ] Peppermint: chiptune / bitpop (red/white, an oddball candy not a
       fruit). Bit-crushed pulses (SUPERSAW Decimate already exists), needs a
       pulse/duty engine + arpeggiator.
 
@@ -95,3 +95,4 @@ Gated on FX-send (reverb/delay):
   - [x] current Swing slider does not have a slot/groove in the UI, or percentage indicator, so it's not clear to user what it is set to. 
   - [x] put the swing control next to the page next/prev control above the step sequencer.
 - [x] move the speed and length controls to be above the step sequencer as well.
+- [x] peppermint should be red+white, not green+white

@@ -17,12 +17,12 @@ import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
 import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
-import { freshPattern, TRACKS } from './starter.js';
+// The machine (brand, starter pattern, storage key) is injected per build via an
+// esbuild alias, so this one app powers Grape, Lemon, and every other machine.
+import { freshPattern, TRACKS, STORE_KEY } from 'machine-config';
 import { AudioHost } from './audio.js';
 import { recordWav } from './record.js';
 import { ModMatrix } from './modmatrix.js';
-
-const STORE_KEY = 'web-rack:rack:v2';
 
 function loadPattern() {
   try {
