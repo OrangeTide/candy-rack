@@ -29,6 +29,20 @@ Ranked by impact toward that record.
       a pitched note into one shared engine rather than a separate drum voice) and
       a row-count control.
 
+## Future engines
+
+- [ ] DX100 / 4-op FM: a subset of the fm6 core (new FM6Voice subclass + a 4-op
+      algorithm table, like epiano/fmbass). The iconic "Lately Bass" FM bass.
+      Cheap, on-genre for acid/rave/house. Now inherits the FM 2x oversampling.
+- [ ] MS-20 Sallen-Key filter monosynth: a distinct SECOND filter character (a
+      2-pole screaming-resonance Sallen-Key). Every subtractive engine (acid,
+      sh101, csaw) currently uses the same Moog-style ladder, so this adds real
+      timbral variety. Aggressive acid/techno/industrial leads. Could also do
+      the miniKORG 700 "Traveler" (series LP+HP sweepable bandpass) variant.
+- [ ] PPG Wave / wavetable engine: a wavetable oscillator with a scannable wave
+      position (a good mod-matrix destination). Bigger (wavetable data +
+      interpolation). Not needed for acid house; good for the pad/lead genres.
+
 ## Future genre programs
 
 Each program is a standalone fruit-branded machine. Grouped by build cost.
