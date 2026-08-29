@@ -14,6 +14,7 @@ import { EpianoVoice, FmbassVoice } from './engines/fm6.js';
 import { VowelVoice } from './engines/vowel.js';
 import { DtmfVoice } from './engines/dtmf.js';
 import { Acid303Voice } from './engines/acid.js';
+import { SH101Voice } from './engines/sh101.js';
 import { ClapVoice, CowbellVoice } from './engines/percussion.js';
 
 const mono = () => [0];
@@ -38,4 +39,5 @@ export const engines = {
   vowel: { Voice: VowelVoice, notesFor: mono, defaults: [0.30, 0.50, 0.55, 0.50, 0.25] },
   dtmf: { Voice: DtmfVoice, notesFor: mono, defaults: [0.50, 0.50, 0.30, 0.40, 0.35] },
   acid: { Voice: Acid303Voice, notesFor: mono, defaults: [0.35, 0.60, 0.50, 0.40, 0.30], mono: true, altMode: 'accent' },
+  sh101: { Voice: SH101Voice, notesFor: mono, defaults: [0.45, 0.35, 0.50, 0.40, 0.50] },
 };

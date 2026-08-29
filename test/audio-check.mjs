@@ -142,6 +142,45 @@ console.log('== acid (TB-303) engine ==');
   check('acid non-slide jumps pitch', Math.abs(vj.freq - 220) < 2, `freq ${vj.freq.toFixed(0)}`);
 }
 
+console.log('== sh101 engine ==');
+{
+  const { SH101Voice } = await import('../src/core/worklet/engines/sh101.js');
+  const P = [0.5, 0.4, 0.5, 0.5, 0.5];
+  const r = measure(new SH101Voice(SR), P, { freq: 110, gate: 0.3, seconds: 1 });
+  check('sh101 audible and not clipping', r.peak > 0.05 && r.peak <= 1.001, `peak ${r.peak.toFixed(3)}`);
+  const rv = new SH101Voice(SR); measure(rv, P, { freq: 110, gate: 0.1, seconds: 1.5 });
+  check('sh101 releases after gate', !rv.active);
+
+  const cap = (opts) => {
+    const v = new SH101Voice(SR);
+    v.noteOn({ freq: opts.freq ?? 110, note: 45, vel: 100, gateSec: opts.gate ?? 0.3, params: opts.params ?? P, toggles: [opts.pulse ?? false, opts.sub ?? false, opts.slow ?? false] });
+    const n = Math.floor((opts.sec ?? 0.3) * SR); const buf = new Float32Array(n);
+    for (let i = 0; i < n; i++) buf[i] = v.render();
+    return { v, buf };
+  };
+
+  // The ADSR sustains while gated (mid-note has real level), unlike the acid blip.
+  const long = cap({ gate: 0.4, sec: 0.4 });
+  let midE = 0, mc = 0; for (let i = Math.floor(0.22 * SR); i < Math.floor(0.35 * SR); i++) { midE += long.buf[i] * long.buf[i]; mc++; }
+  check('sh101 sustains while gated', Math.sqrt(midE / mc) > 0.02, `mid rms ${Math.sqrt(midE / mc).toFixed(3)}`);
+
+  const saw = cap({ pulse: false }), pulse = cap({ pulse: true });
+  let wd = 0; for (let i = 0; i < saw.buf.length; i++) wd += Math.abs(saw.buf[i] - pulse.buf[i]);
+  check('sh101 saw vs pulse differ', wd > 1, `Δ ${wd.toFixed(0)}`);
+
+  const pw1 = cap({ pulse: true, params: [0.5, 0.4, 0.5, 0.5, 0.5] }), pw2 = cap({ pulse: true, params: [0.5, 0.4, 0.5, 0.5, 0.15] });
+  let pd = 0; for (let i = 0; i < pw1.buf.length; i++) pd += Math.abs(pw1.buf[i] - pw2.buf[i]);
+  check('sh101 PWM changes the pulse', pd > 1, `Δ ${pd.toFixed(0)}`);
+
+  const noSub = cap({ freq: 55 }), withSub = cap({ freq: 55, sub: true });
+  let sd = 0; for (let i = 0; i < noSub.buf.length; i++) sd += Math.abs(noSub.buf[i] - withSub.buf[i]);
+  check('sh101 sub changes the sound', sd > 1, `Δ ${sd.toFixed(0)}`);
+
+  const early = (b) => { let e = 0; const n = Math.floor(0.02 * SR); for (let i = 0; i < n; i++) e += b.buf[i] * b.buf[i]; return Math.sqrt(e / n); };
+  const fast = cap({ slow: false, sec: 0.1 }), slow = cap({ slow: true, sec: 0.1 });
+  check('sh101 slow attack ramps in', early(fast) > early(slow) * 2, `fast ${early(fast).toFixed(3)} slow ${early(slow).toFixed(4)}`);
+}
+
 console.log('== fm6 oversampling (epiano / fmbass) ==');
 {
   const { EpianoVoice, FmbassVoice } = await import('../src/core/worklet/engines/fm6.js');
@@ -327,6 +366,19 @@ if (!existsSync('build/rack.html')) {
     for (let i = 0; i < 128; i++) acidPeak = Math.max(acidPeak, Math.abs(out[0][i]));
   }
   check('bundle renders the acid engine', acidPeak > 0.05 && acidPeak <= 1.001, `peak ${acidPeak.toFixed(3)}`);
+
+  // SH-101 engine through the bundle (polyphonic subtractive voice).
+  const psh = new Proc({ processorOptions: { engine: 'sh101' } });
+  psh.port.onmessage({ data: { type: 'params', values: [0.5, 0.4, 0.5, 0.5, 0.5] } });
+  psh.port.onmessage({ data: { type: 'toggles', values: [true, true, false] } });
+  psh.port.onmessage({ data: { type: 'trigger', time: 0, note: 45, velocity: 110, gateSec: 0.3 } });
+  let shPeak = 0;
+  for (let blk = 0; blk < 80; blk++) {
+    globalThis.currentFrame = blk * 128;
+    psh.process([], [out], paramsOpen);
+    for (let i = 0; i < 128; i++) shPeak = Math.max(shPeak, Math.abs(out[0][i]));
+  }
+  check('bundle renders the sh101 engine', shPeak > 0.05 && shPeak <= 1.001, `peak ${shPeak.toFixed(3)}`);
 
   // Channel drive (mixer overdrive) is read as an a-rate param and changes the
   // output-stage clip; drive 0 is the clean baseline. Deterministic engine.
