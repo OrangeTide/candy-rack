@@ -51,7 +51,7 @@ export function freshPattern() {
 
   // --- the reconstruction stab: a big dissonant Em7 hit, ground through the
   // RAT and drowned in dark reverb; sparse and lurching (beat 1 + the & of 3) ---
-  const t2 = makeTrack('chord', [0.42, 0.55, 0.35, 0.45, 0.7]); // min7, detuned, driven
+  const t2 = makeTrack('chord', [0.59, 0.55, 0.35, 0.45, 0.7]); // min7 (idx 9/16), detuned, driven
   paint(t2, 'main', [0], { note: 40, gate: 0.5, vel: 104 });
   paint(t2, 'main', [10], { note: 40, gate: 0.35, vel: 92 });
   t2.output.cutoff = 0.45;   // dark grind

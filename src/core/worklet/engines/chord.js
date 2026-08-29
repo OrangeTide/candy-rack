@@ -9,15 +9,34 @@ import { Env } from '../env.js';
 
 const TWO_PI = Math.PI * 2;
 
+// Interval sets, chosen by the Type knob (params[0]) and ordered simple to lush
+// so sweeping the knob moves from triads through sevenths into extended jazz
+// voicings. Index 0 must stay major: starters select a chord by the knob value
+// (floor(type * CHORDS.length)), and changing the order or count re-maps those
+// values. When you add or reorder entries, re-check the starters that set a
+// chord Type (currently lemon = min7).
+//
+//   0 major        4 power+8ve   8 major7      12 dominant9
+//   1 minor        5 major6      9 minor7      13 major9
+//   2 sus2         6 minor6     10 minor7 b5   14 minor9
+//   3 sus4         7 dominant7  11 dim7        15 six-nine
 const CHORDS = [
-  [0, 4, 7],       // major
-  [0, 3, 7],       // minor
-  [0, 4, 7, 11],   // major 7
-  [0, 3, 7, 10],   // minor 7
-  [0, 5, 7],       // sus4
-  [0, 4, 7, 10],   // dominant 7
-  [0, 3, 6],       // diminished
-  [0, 7, 12],      // power + octave
+  [0, 4, 7],           // major
+  [0, 3, 7],           // minor
+  [0, 2, 7],           // sus2
+  [0, 5, 7],           // sus4
+  [0, 7, 12],          // power + octave
+  [0, 4, 7, 9],        // major 6
+  [0, 3, 7, 9],        // minor 6
+  [0, 4, 7, 10],       // dominant 7
+  [0, 4, 7, 11],       // major 7
+  [0, 3, 7, 10],       // minor 7
+  [0, 3, 6, 10],       // minor 7 b5 (half-diminished)
+  [0, 3, 6, 9],        // diminished 7
+  [0, 4, 7, 10, 14],   // dominant 9
+  [0, 4, 7, 11, 14],   // major 9
+  [0, 3, 7, 10, 14],   // minor 9
+  [0, 4, 7, 9, 14],    // six-nine
 ];
 
 // Returns fractional semitone offsets from the played note. Detune pushes the

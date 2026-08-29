@@ -67,8 +67,11 @@ for (const [id, Ctor, params] of [
 }
 
 console.log('== chord clustering ==');
-const cluster = chordNotes(60, [0.30, 0.20, 0.30, 0.55, 0.20]); // maj7 region
+const cluster = chordNotes(60, [0.50, 0.20, 0.30, 0.55, 0.20]); // a triad+ region
 check('chord returns multiple notes', cluster.length > 1, `notes ${cluster.map((x) => x.toFixed(2)).join(', ')}`);
+// An extended voicing high on the Type knob sounds a 5-note chord (9ths, six-nine).
+const ext = chordNotes(60, [0.80, 0.0, 0.30, 0.55, 0.20]); // dominant 9 region
+check('extended chord Type sounds five notes', ext.length === 5, `notes ${ext.length}`);
 
 console.log('== supersaw stereo spread ==');
 {
