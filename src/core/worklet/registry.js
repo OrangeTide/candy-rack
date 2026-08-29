@@ -10,7 +10,7 @@ import { FM2Voice } from './engines/fm2.js';
 import { ChordVoice, chordNotes } from './engines/chord.js';
 import { CsawVoice } from './engines/csaw.js';
 import { SupersawVoice } from './engines/supersaw.js';
-import { EpianoVoice, FmbassVoice } from './engines/fm6.js';
+import { EpianoVoice, FmbassVoice, DX100Voice } from './engines/fm6.js';
 import { VowelVoice } from './engines/vowel.js';
 import { DtmfVoice } from './engines/dtmf.js';
 import { Acid303Voice } from './engines/acid.js';
@@ -39,6 +39,7 @@ export const engines = {
   supersaw: { Voice: SupersawVoice, notesFor: mono, defaults: [0.35, 0.70, 0.70, 0.00, 0.15] },
   epiano: { Voice: EpianoVoice, notesFor: mono, defaults: [0.55, 0.45, 0.15, 0.55, 0.15] },
   fmbass: { Voice: FmbassVoice, notesFor: mono, defaults: [0.00, 0.50, 0.45, 0.40, 0.20], mono: true, altMode: 'accent' },
+  dx100: { Voice: DX100Voice, notesFor: mono, defaults: [0.20, 0.55, 0.35, 0.40, 0.20], mono: true, altMode: 'accent' },
   vowel: { Voice: VowelVoice, notesFor: mono, defaults: [0.30, 0.50, 0.55, 0.50, 0.25] },
   dtmf: { Voice: DtmfVoice, notesFor: mono, defaults: [0.50, 0.50, 0.30, 0.40, 0.35] },
   acid: { Voice: Acid303Voice, notesFor: mono, defaults: [0.35, 0.60, 0.50, 0.40, 0.30], mono: true, altMode: 'accent' },

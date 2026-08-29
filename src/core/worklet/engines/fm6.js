@@ -162,6 +162,7 @@ export class FM6Voice {
     this.vel = 1;
     this.gateSec = 0.2;
     this.p = [0.5, 0.5, 0.5, 0.5, 0.2];
+    this.tog = [false, false, false];
     this.freqTarget = 220;
     this.accentIndex = 1;
     // Per-sample glide coefficient: exponential approach to the target pitch.
@@ -192,8 +193,9 @@ export class FM6Voice {
     this.ops = cfg.ops;
   }
 
-  noteOn({ freq, vel, gateSec, params, slide, accent }) {
+  noteOn({ freq, vel, gateSec, params, slide, accent, toggles }) {
     this.p = params;
+    if (toggles) this.tog = toggles; // read by subclasses that use switches (DX100)
     // Accent (a coincident alt-lane trigger) makes the note louder and, via a
     // higher modulation index, brighter, standing in for a 303 accent opening
     // the filter. Engines that never send accent get the plain note.
@@ -408,5 +410,60 @@ export class FmbassVoice extends FM6Voice {
       });
     }
     return { ops, drive: this.p[4], indexScale: tone };
+  }
+}
+
+// --- DX100 engine (4-op FM) -------------------------------------------------
+// The Yamaha DX100 / TX81Z four-operator voice, our subset of the six-operator
+// core: it uses ops 1-4 and parks 5 and 6 idle. Two 2-op stacks (op2->op1,
+// op4->op3) with the two carriers slightly detuned give the fat, chorused
+// "Lately Bass" that ran through late-80s and early-90s house. Op2 carries the
+// feedback growl. Params: [Harmonic, Timbre, Feedback, Decay, Drive]; toggles
+// Sub (op3 drops an octave for a deep sub) and Bright (extra modulation index).
+
+// Musical modulator ratios the Harmonic knob steps through. Higher = brighter,
+// more metallic; 1 is the round fundamental bass.
+const DX100_HARM = [1, 2, 3, 4, 5, 6, 7];
+
+// Fixed carrier and modulator output levels + envelopes (DX 0..99). Carriers
+// sustain like a bass; modulators pluck (peak, then decay to a low sustain) so
+// the tone is bright on the attack and rounder on the hold.
+const DX100 = [
+  null,
+  { out: 99, env: eg([99, 70, 66, 60], [99, 92, 88, 0]) }, // op1 carrier
+  { out: 86, env: eg([99, 52, 28, 62], [99, 55, 20, 0]) }, // op2 modulator -> op1 (feedback)
+  { out: 92, env: eg([99, 70, 66, 60], [99, 92, 88, 0]) }, // op3 carrier (detuned or sub)
+  { out: 80, env: eg([99, 50, 24, 62], [99, 52, 16, 0]) }, // op4 modulator -> op3
+];
+// A parked operator: level 0, no routing, and an envelope that finishes at once
+// so it never keeps the voice alive.
+const DX100_IDLE = { ratio: 1, level: 0, modIndex: 0, mods: [], fb: 0, carrier: false, env: eg([99, 99, 99, 99], [0, 0, 0, 0]) };
+
+export class DX100Voice extends FM6Voice {
+  decScale() { return 0.4 + this.p[3] * 2.0; }
+  // Rebuild a held note only when a structural control (harmonic step, toggle,
+  // feedback, or timbre) actually moves.
+  structureKey() {
+    return `${Math.floor(this.p[0] * DX100_HARM.length)}:${this.tog[0] ? 1 : 0}:${this.tog[1] ? 1 : 0}:${Math.round(this.p[2] * 6)}:${Math.round(this.p[1] * 6)}`;
+  }
+
+  buildOps() {
+    const harm = DX100_HARM[Math.min(DX100_HARM.length - 1, Math.floor(this.p[0] * DX100_HARM.length))];
+    const sub = !!this.tog[0];
+    const bright = !!this.tog[1];
+    const fb = this.p[2] * 0.9;                       // op2 feedback growl
+    const c3ratio = sub ? 0.5 : 1.007;               // sub octave, or a subtle detune for width
+    const timbre = (0.45 + this.p[1] * 1.25) * (bright ? 1.35 : 1);
+    const mk = (ratio, src, mods, fbAmt, carrier) => ({
+      ratio, level: src.out, modIndex: ol2mod(src.out), mods, fb: fbAmt, carrier, env: src.env,
+    });
+    const ops = [null,
+      mk(1.0, DX100[1], [2], 0, true),
+      mk(harm, DX100[2], [], fb, false),
+      mk(c3ratio, DX100[3], [4], 0, true),
+      mk(harm, DX100[4], [], 0, false),
+      DX100_IDLE, DX100_IDLE,
+    ];
+    return { ops, drive: this.p[4], indexScale: timbre, trim: 0.7 };
   }
 }

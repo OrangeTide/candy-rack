@@ -34,9 +34,10 @@ Ranked by impact toward that record.
 
 ## Future engines
 
-- [ ] DX100 / 4-op FM: a subset of the fm6 core (new FM6Voice subclass + a 4-op
-      algorithm table, like epiano/fmbass). The iconic "Lately Bass" FM bass.
-      Cheap, on-genre for acid/rave/house. Now inherits the FM 2x oversampling.
+- [x] DX100 / 4-op FM: DONE. DX100Voice subclass of FM6Voice (fm6.js), ops 5-6
+      idle. Two detuned 2-op stacks with op2 feedback = the "Lately Bass" FM bass.
+      Mono with slide + accent; Harmonic/Timbre/Feedback/Decay/Drive + Sub/Bright
+      toggles. Inherits the FM 2x oversampling.
 - [ ] MS-20 Sallen-Key filter monosynth: a distinct SECOND filter character (a
       2-pole screaming-resonance Sallen-Key). Every subtractive engine (acid,
       sh101, csaw) currently uses the same Moog-style ladder, so this adds real

@@ -406,6 +406,26 @@ if (!existsSync('build/grape.html')) {
   }
   check('bundle renders the sh101 engine', shPeak > 0.05 && shPeak <= 1.001, `peak ${shPeak.toFixed(3)}`);
 
+  // DX100 engine through the bundle (4-op FM on the 6-op core, ops 5-6 idle).
+  // Render with Sub on, then confirm the note both sounds and fully frees (the
+  // idle operators must not keep the voice alive).
+  const pdx = new Proc({ processorOptions: { engine: 'dx100' } });
+  pdx.port.onmessage({ data: { type: 'params', values: [0.3, 0.6, 0.4, 0.4, 0.2] } });
+  pdx.port.onmessage({ data: { type: 'toggles', values: [true, false, false] } });
+  pdx.port.onmessage({ data: { type: 'trigger', time: 0, note: 33, velocity: 110, gateSec: 0.2 } });
+  let dxPeak = 0, dxTail = 0;
+  for (let blk = 0; blk < 260; blk++) {
+    globalThis.currentFrame = blk * 128;
+    pdx.process([], [out], paramsOpen);
+    for (let i = 0; i < 128; i++) {
+      const a = Math.abs(out[0][i]);
+      dxPeak = Math.max(dxPeak, a);
+      if (blk >= 240) dxTail = Math.max(dxTail, a); // long after the 0.2s gate
+    }
+  }
+  check('bundle renders the dx100 engine', dxPeak > 0.05 && dxPeak <= 1.001, `peak ${dxPeak.toFixed(3)}`);
+  check('dx100 voice frees after the gate (idle ops do not stick)', dxTail < 1e-3, `tail ${dxTail.toExponential(1)}`);
+
   // Voice node output 1 carries the amp-envelope mod signal (engine mod output
   // -> matrix source). Trigger a note and confirm the mod output rises.
   const pmo = new Proc({ processorOptions: { engine: 'fm2' } });
