@@ -1005,6 +1005,23 @@ console.log('== tie and slide scheduling ==');
   const ts = renderPattern(tieSlide, { engines, mode: 'oneshot', sampleRate: SR });
   check('slide overrides tie (tie+slide step still glides)',
     rms(boundary(ts)) > 0.02, `boundary rms ${rms(boundary(ts)).toFixed(3)}`);
+
+  // tie is the gate: a tie event on an already-sounding voice HOLDS (keeps the
+  // phase and envelope stage, no re-attack) rather than retriggering. This is
+  // what carries a tied note or an all-tied drone across the loop boundary
+  // without a click every bar. A plain note resets phase and re-triggers.
+  const probe = (tie) => {
+    const v = new engines.dx100.Voice(SR);
+    const dp = engines.dx100.defaults.slice();
+    const on = (t) => v.noteOn({ freq: 110, vel: 100, gateSec: 0.5, params: dp, toggles: [false, false, false], slide: false, accent: false, tie: t });
+    on(false);
+    for (let i = 0; i < Math.floor(0.2 * SR); i++) v.render();
+    const seg = v.env[1].seg, ph = v.phase[1];
+    on(tie);
+    return { held: v.env[1].seg === seg && v.phase[1] === ph, reset: v.phase[1] === 0 };
+  };
+  check('tie holds a sounding voice (no re-attack across the loop)', probe(true).held);
+  check('a plain note re-attacks (resets phase/envelope)', probe(false).reset);
 }
 
 console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);

@@ -120,7 +120,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
     if (this.desc.mono) {
       const off = offsets.length ? offsets[0] : 0;
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
-      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, slide: !!ev.slide, accent: !!ev.accent });
+      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, slide: !!ev.slide, accent: !!ev.accent, tie: !!ev.tie });
       return;
     }
     for (const off of offsets) {

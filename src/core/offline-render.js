@@ -178,7 +178,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         // One reused voice so slide steps glide legato, mirroring the runtime.
         const off = offsets.length ? offsets[0] : 0;
         const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
-        node.pool[0].noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent });
+        node.pool[0].noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
       } else {
         for (const off of offsets) {
           const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);

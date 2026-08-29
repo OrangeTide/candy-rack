@@ -145,26 +145,28 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, m.note, m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on);
+    v.trigger(time, m.note, m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, a.note, a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false);
+    v.trigger(time, a.note, a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
   litByTrack[t].push({ pos, time, hit });
 }
 
-// Whether an on-step starts a note (triggers) rather than being absorbed as a
-// tie into the note before it. A trigger is any on-step that is not a plain tie:
-// a non-tie step, or a slide step (slide overrides tie, since a slide glides to
-// a new pitch and must fire). A plain tie (tie without slide) is absorbed only
-// if a trigger reaches it through an unbroken backward run of on-steps; if a gap
-// (off-step) comes first there is nothing to tie into, so it starts. When the
-// whole lane is plain tie (a ring with no trigger), the first on-step anchors
-// it, so all-tied plays one held note instead of silence.
+// Whether an on-step emits a note event this step. tie and slide are gate and
+// pitch respectively; the voice reads them to decide hold vs attack and glide vs
+// jump. This only decides which steps SEND an event: a non-tie step, or a slide
+// step (a slide must fire so the voice can glide to the new pitch). A plain tie
+// (tie without slide) sends nothing and is absorbed into the preceding note's
+// gate, unless a gap (off-step) comes first, in which case there is nothing to
+// tie into and it starts. When the whole lane is plain tie (a ring with no
+// trigger), the first on-step anchors it; because that anchor carries tie, the
+// voice holds it across the loop, so all-tied is one continuous drone, not
+// silence and not a re-attack every bar.
 function startsNote(track, lane, pos) {
   const L = track[lane];
   const s = L[pos];

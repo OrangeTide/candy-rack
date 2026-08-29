@@ -46,10 +46,14 @@ export class Acid303Voice {
     this.ampRel = 1 - Math.exp(-1 / (0.012 * sampleRate));
   }
 
-  noteOn({ freq, vel, gateSec, params, slide, accent, toggles }) {
+  noteOn({ freq, vel, gateSec, params, slide, accent, toggles, tie }) {
     this.p = params;
     if (toggles) { this.wave = !!toggles[0]; this.sub = !!toggles[1]; }
-    const legato = slide && this.active;
+    // tie is the GATE (hold: no retrigger of the filter sweep, so tied runs and
+    // an all-tied drone sustain across the loop). slide is the PITCH (glide) and
+    // is also legato, like the hardware.
+    const glide = slide && this.active;
+    const hold = (slide || tie) && this.active;
     this.freqTarget = freq;
     const v = (vel ?? 100) / 127;
     this.ampLevel = v * (accent ? 1.5 : 1.0);
@@ -58,8 +62,8 @@ export class Acid303Voice {
     this.accentDec = Math.exp(-1 / (0.2 * this.sr));
     const decaySec = 0.06 + (params[3] || 0) * 1.6;
     this.envDec = Math.exp(-1 / (decaySec * this.sr));
-    if (!legato) {
-      this.freq = freq;
+    if (!glide) this.freq = freq;   // jump pitch unless gliding
+    if (!hold) {
       this.phase = 0;
       this.subPhase = 0;
       this.envF = 1;         // retrigger the filter sweep

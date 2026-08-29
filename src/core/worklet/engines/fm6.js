@@ -193,7 +193,7 @@ export class FM6Voice {
     this.ops = cfg.ops;
   }
 
-  noteOn({ freq, vel, gateSec, params, slide, accent, toggles }) {
+  noteOn({ freq, vel, gateSec, params, slide, accent, toggles, tie }) {
     this.p = params;
     if (toggles) this.tog = toggles; // read by subclasses that use switches (DX100)
     // Accent (a coincident alt-lane trigger) makes the note louder and, via a
@@ -204,17 +204,22 @@ export class FM6Voice {
     this.gateSec = gateSec;
     this.dirtyKey = this.structureKey();
 
-    // Slide only ties into a note that is still sounding; otherwise it plays
-    // normally. Legato keeps the oscillator phases and envelope stages running,
-    // glides the pitch, and re-arms the gate. A normal note jumps pitch, resets
-    // phases, and retriggers every operator envelope.
-    const legato = slide && this.active && !this.env[1].done;
+    // tie and slide are independent and only act on a note still sounding. tie is
+    // the GATE: hold keeps the envelopes and phases running and just re-arms the
+    // gate (no new attack), so a held or tied run, an all-tied drone, and a note
+    // carried across the loop boundary all sustain continuously. slide is the
+    // PITCH: glide ramps toward the new pitch instead of jumping. A slide is also
+    // legato (it holds), as on a 303. A fresh note jumps pitch, resets phases,
+    // and retriggers every operator envelope.
+    const sounding = this.active && !this.env[1].done;
+    const glide = slide && sounding;
+    const hold = (slide || tie) && sounding;
     this.freqTarget = freq;
     this.rebuild();
-    if (legato) {
+    if (!glide) this.freq = freq;
+    if (hold) {
       for (let i = 1; i <= 6; i++) this.env[i].regate(gateSec);
     } else {
-      this.freq = freq;
       for (let i = 1; i <= 6; i++) {
         this.phase[i] = 0;
         this.prev[i] = 0;
