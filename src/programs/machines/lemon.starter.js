@@ -27,73 +27,70 @@ function paintKit(kit, part, positions, vel) {
 }
 
 export function freshPattern() {
-  // --- drums: a 909 four-on-the-floor with an offbeat open hat ---
+  // --- drums: a hard, dark 909 four-on-the-floor with a cold backbeat snare ---
   const t0 = makeTrack('kit', [0, 0, 0, 0, 0]);
-  t0.parts[0] = { type: 'kick', mute: false, params: [0.22, 0.5, 0.5, 0.5, 0.35], lane: t0.parts[0].lane };
-  t0.parts[1] = { type: 'clap', mute: false, params: [0.45, 0.35, 0.55, 0.5, 0.25], lane: t0.parts[1].lane };
-  t0.parts[2] = { type: 'hat', mute: false, params: [0.5, 0.06, 0.6, 0.5, 0.2], lane: t0.parts[2].lane };  // closed
-  t0.parts[3] = { type: 'hat', mute: false, params: [0.5, 0.5, 0.6, 0.5, 0.2], lane: t0.parts[3].lane };   // open
-  paintKit(t0, 0, [0, 4, 8, 12], 112);              // kick 4-on-the-floor
-  paintKit(t0, 1, [4, 12], 96);                     // clap on the backbeat
-  paintKit(t0, 2, [0, 2, 4, 6, 8, 10, 12, 14], 62); // closed hat every 8th
-  paintKit(t0, 3, [2, 6, 10, 14], 84);              // open hat on the offbeats
+  t0.parts[0] = { type: 'kick', mute: false, params: [0.18, 0.62, 0.5, 0.5, 0.42], lane: t0.parts[0].lane };  // deep, driven
+  t0.parts[1] = { type: 'snare', mute: false, params: [0.4, 0.28, 0.6, 0.5, 0.3], lane: t0.parts[1].lane };   // tight backbeat crack
+  t0.parts[2] = { type: 'hat', mute: false, params: [0.5, 0.05, 0.6, 0.5, 0.2], lane: t0.parts[2].lane };     // closed
+  t0.parts[3] = { type: 'hat', mute: false, params: [0.5, 0.42, 0.6, 0.5, 0.2], lane: t0.parts[3].lane };     // open
+  paintKit(t0, 0, [0, 4, 8, 12], 118);              // kick 4-on-the-floor
+  paintKit(t0, 1, [4, 12], 92);                     // snare on the backbeat
+  paintKit(t0, 2, [2, 6, 10, 14], 58);              // driving offbeat closed hats
+  paintKit(t0, 3, [14], 72);                        // one open hat before the turnaround
 
-  // --- acid bass: a rolling 303 line, slides + accents, into the RAT ---
-  const t1 = makeTrack('acid', [0.24, 0.72, 0.6, 0.32, 0.18]); // cutoff, reso, env, decay, slide
-  const bass = [33, 33, 45, 33, 36, 33, 45, 40, 33, 33, 45, 33, 38, 45, 33, 45];
-  for (let i = 0; i < 16; i++) { const s = t1.main[i]; s.on = true; s.note = bass[i]; s.gateLen = 0.55; s.velocity = 100; }
-  [2, 5, 10, 13].forEach((i) => { t1.main[i].slide = true; });     // glides
-  [0, 4, 8, 12, 6, 14].forEach((i) => { t1.alt[i].on = true; });   // accents (alt lane)
-  t1.output.send = 0.6;                                            // into the RAT + reverb
+  // --- acid bass: a hypnotic, root-heavy E phrygian riff, menacing, into the RAT ---
+  // Mostly the low E; a few dark jabs (b2 F, b5 Bb) and octave stabs. High
+  // resonance and a deep filter sweep do the work, not the melody.
+  const t1 = makeTrack('acid', [0.16, 0.82, 0.72, 0.42, 0.30]); // cutoff, reso, env, decay, slide
+  const bass = [40, 40, 40, 52, 40, 40, 43, 40, 40, 40, 46, 40, 41, 40, 52, 47];
+  for (let i = 0; i < 16; i++) { const s = t1.main[i]; s.on = true; s.note = bass[i]; s.gateLen = 0.6; s.velocity = 102; }
+  [3, 10, 14].forEach((i) => { t1.main[i].slide = true; });      // liquid glides into the jabs
+  [0, 4, 8, 12, 3, 10].forEach((i) => { t1.alt[i].on = true; }); // accents (alt lane)
+  t1.toggles = [false, true];                                    // saw + sub-octave (weight)
+  t1.output.send = 0.7;                                          // into the RAT + reverb
 
-  // --- reconstruction stab: a chord hit drenched in reverb (and a little RAT) ---
-  const t2 = makeTrack('chord', [0.30, 0.20, 0.30, 0.30, 0.20]);
-  paint(t2, 'main', [0, 8], { note: 45, gate: 0.25, vel: 96 });
-  paint(t2, 'main', [12], { note: 48, gate: 0.25, vel: 96 });
-  t2.output.cutoff = 0.7;
-  t2.output.send = 0.9;
+  // --- the reconstruction stab: a big dissonant Em7 hit, ground through the
+  // RAT and drowned in dark reverb; sparse and lurching (beat 1 + the & of 3) ---
+  const t2 = makeTrack('chord', [0.42, 0.55, 0.35, 0.45, 0.7]); // min7, detuned, driven
+  paint(t2, 'main', [0], { note: 40, gate: 0.5, vel: 104 });
+  paint(t2, 'main', [10], { note: 40, gate: 0.35, vel: 92 });
+  t2.output.cutoff = 0.45;   // dark grind
+  t2.output.send = 0.95;
 
-  // --- sh101 pad drone (slow attack), sits under the groove ---
-  const t3 = makeTrack('sh101', [0.30, 0.30, 0.35, 0.6, 0.5]);
-  t3.toggles = [false, false, true]; // saw + slow attack
-  for (const [start, note] of [[0, 33], [8, 40]]) {
-    for (let i = 0; i < 8; i++) { const s = t3.main[start + i]; s.on = true; s.note = note; s.gateLen = 0.95; s.velocity = 70; if (i > 0) s.tie = true; }
-  }
-  t3.output.cutoff = 0.5;
-  t3.output.vca = 0.5;
+  // --- cold low drone: a single static E (+ sub) under everything, dark filter ---
+  const t3 = makeTrack('sh101', [0.22, 0.25, 0.2, 0.7, 0.0]);
+  t3.toggles = [false, true, true]; // saw + sub + slow attack
+  for (let i = 0; i < 16; i++) { const s = t3.main[i]; s.on = true; s.note = 40; s.gateLen = 0.98; s.velocity = 58; if (i > 0) s.tie = true; }
+  t3.output.cutoff = 0.22;
+  t3.output.vca = 0.4;
 
-  // --- supersaw drone, quiet, for width; starts muted ---
-  const t4 = makeTrack('supersaw', [0.30, 0.55, 0.55, 0.0, 0.10]);
+  // --- spare slots (muted): a high acid counter-line, a supersaw riser ---
+  const t4 = makeTrack('acid', [0.5, 0.8, 0.6, 0.2, 0.12]);
   t4.mute = true;
-  t4.length = 32;
-  for (const [start, note] of [[0, 45], [16, 47]]) {
-    for (let i = 0; i < 16; i++) { const s = t4.main[start + i]; s.on = true; s.note = note; s.gateLen = 0.95; s.velocity = 60; if (i > 0) s.tie = true; }
-  }
-  t4.output.cutoff = 0.4;
-  t4.output.vca = 0.4;
+  paint(t4, 'main', [7, 11, 15], { note: 64, gate: 0.2, vel: 100 }); // E4 stabs
+  t4.output.send = 0.6;
 
-  // --- second acid stab an octave up, sparse; starts muted ---
-  const t5 = makeTrack('acid', [0.5, 0.75, 0.55, 0.2, 0.1]);
+  const t5 = makeTrack('supersaw', [0.3, 0.5, 0.55, 0.0, 0.1]);
   t5.mute = true;
-  paint(t5, 'main', [7, 15], { note: 57, gate: 0.2, vel: 100 });
-  t5.output.send = 0.5;
+  t5.output.cutoff = 0.35;
 
   const routes = [
-    // Kick (kit P1) ducks the acid bass VCA: the four-on-the-floor pump.
+    // Kick (kit P1) ducks the acid bass VCA: the relentless four-on-the-floor pump.
     { src: { type: 'trig', track: 0, lane: 'part0', rateHz: 2, shape: 'sine' },
-      dest: { track: 1, param: 'vca' }, depth: 0.6, polarity: -1, decay: 0.16 },
-    // Slow LFO sweeps the acid cutoff for the classic squelch movement.
-    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.13, shape: 'tri' },
-      dest: { track: 1, param: 'm0' }, depth: 0.3, polarity: 1, decay: 0.16 },
+      dest: { track: 1, param: 'vca' }, depth: 0.55, polarity: -1, decay: 0.16 },
+    // A very slow LFO breathes the acid cutoff open and shut over 4 bars: the
+    // menacing filter sweep that carries the whole track.
+    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.07, shape: 'tri' },
+      dest: { track: 1, param: 'm0' }, depth: 0.38, polarity: 1, decay: 0.16 },
   ];
 
   const p = makePattern([t0, t1, t2, t3, t4, t5], routes);
-  p.bpm = 132;
+  p.bpm = 133;
   p.tracks.forEach((t) => { t.swing = 0; }); // straight, driving
 
-  // FX loop: acid + stab into RAT then Reverb (grit, then space).
-  p.fx.loops[0].pedals[3] = { type: 'rat', bypass: false, params: [0.6, 0.5, 0.5], toggles: [], sw2: false };
-  p.fx.loops[0].pedals[2] = { type: 'reverb', bypass: false, params: [0.72, 0.4, 0.15, 0.2, 0.85, 0.5], toggles: [false], sw2: false };
-  p.fx.loops[0].return = { level: 0.9, pan: 0 };
+  // FX loop: acid + stab into a hard RAT then a big dark Reverb (grind, then dread).
+  p.fx.loops[0].pedals[3] = { type: 'rat', bypass: false, params: [0.8, 0.42, 0.5], toggles: [], sw2: false };
+  p.fx.loops[0].pedals[2] = { type: 'reverb', bypass: false, params: [0.82, 0.3, 0.15, 0.2, 0.85, 0.5], toggles: [false], sw2: false };
+  p.fx.loops[0].return = { level: 0.92, pan: 0 };
   return p;
 }
