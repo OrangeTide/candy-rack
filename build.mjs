@@ -11,9 +11,13 @@
 // script reads to fill the template's brand and palette placeholders.
 
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+// Static favicon assets copied verbatim into build/ so the pages' relative
+// <link rel="icon"> hrefs resolve when the build directory is served.
+const FAVICONS = ['favicon.ico', 'favicon-32.png', 'favicon-16.png', 'apple-touch-icon.png'];
 
 // The machines built from the shared rack app + HTML template.
 const MACHINES = [
@@ -61,6 +65,9 @@ function fillTemplate(html, brand, palette) {
 }
 
 mkdirSync('build', { recursive: true });
+
+// Favicon assets: copy from docs/ into build/ alongside the pages.
+for (const f of FAVICONS) copyFileSync(`docs/${f}`, `build/${f}`);
 
 // Landing page: copy through verbatim.
 writeFileSync(`build/${LANDING.name}.html`, readFileSync(LANDING.html, 'utf8'));
