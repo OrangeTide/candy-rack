@@ -1,13 +1,39 @@
 # TODO
 
-## 80s electro-funk (Warp 9: "Nunk", "Light Years Away")
+## Priority (next up)
+
+Reassessed 2026-08-29. The 80s electro-funk section is COMPLETE (see below), so
+the Grape machine is content-complete. Two dependency shifts changed the ranking:
+the FX send rack now exists (reverb/delay/chorus pedals verified), which UNGATES
+the dub-techno and Coconut/ambient programs; and the poly cross-loop hold gap now
+gates the QUALITY of any poly drone/pad (they re-attack every bar), so it matters
+more than its backlog position suggests.
+
+1. Richer chord Type sets (min7/dom7/dim/9th). Small. Unblocks Blueberry and
+   lifts CHORD everywhere (jazz, dub, ambient). Cheapest high-leverage win.
+2. Tempo-synced LFO in the mod matrix. Small-to-medium. Unblocks Blackberry's
+   tape-wobble, pairs with VaporCloud for vaporwave, useful in every machine.
+3. dub-techno machine. Content-ready now (chord -> Dimension -> Reverb chain
+   exists). A new fruit machine is cheap: config + starter + build entry + card.
+4. Cross-loop hold for POLY engines (see Sequencer). Medium, high leverage: fixes
+   drones/pads re-attacking each loop on ALL poly engines, which gates Coconut and
+   any pad-heavy program's quality. Also warms up the offline loop render.
+5. MS-20 Sallen-Key filter engine. Medium. Breaks the ladder-filter monoculture;
+   industrial/acid/techno leads and timbral variety.
+6. Sampler (SP-404 / MC-303 style). Big, but the single largest unlock: gates
+   Peach, Plum, and sunshine-breaks all at once.
+
+Everything else (PPG wavetable, Peppermint's pulse/arp engine, poly chord rows,
+the remaining genre content) trails these; details in the sections below.
+
+## 80s electro-funk (Warp 9: "Nunk", "Light Years Away") -- COMPLETE
 
 The bass (fmbass + slide), robot vocal (vowel engine), and keys/stabs
-(epiano/chord/csaw) are largely there. The percussion and the space are not.
-Ranked by impact toward that record.
+(epiano/chord/csaw) were already there. Percussion, space, and swing now landed,
+so this record's palette is fully covered by the Grape machine.
 
-- [ ] 808 percussion. Kit parts now pick a voice type (Drum / 808 Clap / 808
-      Cowbell). Remaining:
+- [x] 808 percussion. Kit parts now pick a voice type (Drum / 808 Clap / 808
+      Cowbell / 909 Kick / 909 Snare / 909 Hat). All parts done:
   - [x] 808 handclap: multi-burst noise + tail. Done (percussion.js ClapVoice).
   - [x] 808 cowbell: two detuned squares through a bandpass. Done (CowbellVoice).
   - [x] Kick: 909-style 'kick' part type (percussion.js KickVoice): sine body
@@ -16,11 +42,13 @@ Ranked by impact toward that record.
         (185/330 Hz) + high-passed noise, Tone = snappy amount.
   - [x] Hats: 909-style 'hat' part type (HatVoice): six inharmonic squares
         through a bandpass; Decay spans closed to open.
-- [ ] Reverb + delay send FX on the mixer aux bus. The send bus is built and
-      reserved but has no effect wired. Electro is drenched in plate/gated reverb
-      (snare/clap) and tape-delay throws. Same FX section dub techno wants.
-- [ ] Swing / shuffle in the transport. We run straight 16ths; electro has a
-      slight 16th push. Also helps every groove.
+- [x] Reverb + delay send FX on the mixer aux bus. DONE: the full FX pedal rack
+      landed (4-pedal aux loop, send bus -> pedal chain -> stereo return -> master;
+      10 pedal types incl. Delay, Echo, Reverb, Dimension, VaporCloud). This is
+      also the FX section dub techno and Coconut wanted.
+- [x] Swing / shuffle in the transport. DONE, and made PER-TRACK (sequencer.js
+      track.swing + a groove slider with a percent readout), so the drums can
+      swing while the bass stays straight.
 
 ## Sequencer
 
@@ -90,10 +118,12 @@ Gated on the sampler:
 - [ ] Plum: trip-hop / downtempo (bruised purple-red). FM BASS, dusty EPIANO,
       swing, sidechain; needs chopped breaks.
 
-Gated on FX-send (reverb/delay):
+Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
 
 - [ ] Coconut: ambient (pale bone-white). SUPERSAW + CHORD drones, long ties,
-      slow filter LFOs.
+      slow filter LFOs. The FX send rack now exists, so this is content-ready,
+      but SUPERSAW/CHORD are poly, so the long-tie drones re-attack every loop
+      until the poly cross-loop hold lands. Best built after item 4.
 
 ## Other
 
