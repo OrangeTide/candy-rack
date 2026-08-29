@@ -1197,12 +1197,32 @@ function renderMatrix() {
 
     row.append(el('span', 'arrow', '→'));
 
-    // Destination. Options are the output stage plus the destination engine's
-    // five controls (m0..m4), labelled by that engine.
-    row.append(trackSelect(r.dest.track, (v) => { r.dest.track = v; applyRoutes(); renderMatrix(); }));
-    const destEng = engineById(pattern.tracks[r.dest.track].engine);
-    const destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']]
-      .concat(destEng.params.map((p, i) => ['m' + i, p.label]));
+    // Destination: a track (output stage + its engine's controls) or the master
+    // mixer (MST). Master exposes Volume for whole-mix tremolo / ducking / swells.
+    const destSel = el('select', 'sel sm');
+    const mst = el('option', null, 'MST'); mst.value = '-1'; if (r.dest.track === -1) mst.selected = true;
+    destSel.append(mst);
+    for (let t = 0; t < TRACKS; t++) {
+      const o = el('option', null, 'T' + (t + 1)); o.value = String(t);
+      if (t === r.dest.track) o.selected = true;
+      destSel.append(o);
+    }
+    destSel.onchange = () => {
+      r.dest.track = Number(destSel.value);
+      // Reset to a param valid for the new destination type.
+      r.dest.param = r.dest.track === -1 ? 'volume' : 'cutoff';
+      applyRoutes();
+      renderMatrix();
+    };
+    row.append(destSel);
+    let destOpts;
+    if (r.dest.track === -1) {
+      destOpts = [['volume', 'Volume']];
+    } else {
+      const destEng = engineById(pattern.tracks[r.dest.track].engine);
+      destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']]
+        .concat(destEng.params.map((p, i) => ['m' + i, p.label]));
+    }
     row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; applyRoutes(); }));
 
     // Depth

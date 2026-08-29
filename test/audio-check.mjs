@@ -381,6 +381,14 @@ console.log('== mod matrix graph ==');
   const before = trig.cs.offset.calls.length;
   mm.onSourceTrigger((trig.route.src.track + 1) % 6, trig.route.src.lane, 2.0);
   check('non-matching source is ignored', trig.cs.offset.calls.length === before);
+
+  // Master mixer as a mod destination: dest.track === -1 resolves to the host's
+  // master volume AudioParam and builds a route node.
+  const mmHost = { ctx, masterVol: { gain: makeParam() } };
+  const mmm = new ModMatrix(mmHost);
+  mmm.attach(voices);
+  mmm.rebuild([{ src: { type: 'lfo', shape: 'sine', rateHz: 5 }, dest: { track: -1, param: 'volume' }, depth: 0.5, polarity: 1, decay: 0.16 }]);
+  check('master volume is a mod destination', mmm.nodes.length === 1 && mmm.destParam(mmm.routes[0]) === mmHost.masterVol.gain);
 }
 
 console.log('== offline render (WAV recorder) ==');
@@ -423,6 +431,15 @@ console.log('== offline render (WAV recorder) ==');
   for (let i = 0; i < gN; i++) { gdiff += Math.abs(gr.left[i] - one.left[i]); gpeak = Math.max(gpeak, Math.abs(gr.left[i]), Math.abs(gr.right[i])); }
   check('offline channel drive changes the mix (grit)', gdiff > 1, `Δ ${gdiff.toFixed(0)}`);
   check('offline channel drive stays bounded', gpeak <= 1.0, `peak ${gpeak.toFixed(3)}`);
+
+  // Master volume as a mod-matrix target: an LFO on the master volume changes
+  // the mix versus the same pattern without the route.
+  const modded = freshPattern();
+  modded.routes.push({ src: { type: 'lfo', track: 0, lane: 'main', rateHz: 6, shape: 'sine' }, dest: { track: -1, param: 'volume' }, depth: 0.6, polarity: 1, decay: 0.16 });
+  const rm = renderPattern(modded, { engines, mode: 'oneshot', sampleRate: SR });
+  let mvd = 0; const mvN = Math.min(rm.length, one.length);
+  for (let i = 0; i < mvN; i++) mvd += Math.abs(rm.left[i] - one.left[i]);
+  check('master volume mod changes the offline mix', mvd > 1, `Δ ${mvd.toFixed(0)}`);
 }
 
 console.log('== fx fuzz (DooomFuzzz port) ==');

@@ -67,7 +67,7 @@ Gated on FX-send (reverb/delay):
 
 ## Other
 
-- [ ] add MOD Matrix targets for master mixer
+- [x] add MOD Matrix targets for master mixer (master Volume; filter deferred)
 - [x] oversample the FM core to fix the high-note aliasing
 - [x] the FX Loop section's "Routing" icon spills over the area made for it, cutting off as "C". widen the space for this icon by at least 50%
 - [x] there are nearly identical instructions above and below the step sequencer on how to use it. update the usage instructions, keeping only the bottom position for instructions. that way the area immediately about the step strip has useful controls like page prev/next. 

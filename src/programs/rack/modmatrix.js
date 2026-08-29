@@ -27,6 +27,12 @@ export class ModMatrix {
   }
 
   destParam(route) {
+    // Master targets use dest.track === -1. Master Volume is masterVol.gain, an
+    // AudioParam the mod sums on top of the base volume, like a track's cutoff.
+    if (route.dest.track === -1) {
+      if (route.dest.param === 'volume' && this.host.masterVol) return this.host.masterVol.gain;
+      return null;
+    }
     const v = this.voices[route.dest.track];
     if (!v) return null;
     return v.param(route.dest.param);

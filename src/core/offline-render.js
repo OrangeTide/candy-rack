@@ -171,6 +171,8 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   // summed and downmixed to mono, mirroring the realtime sendBus. Fed through
   // the effects loop after the main pass.
   const sendBuf = new Float32Array(cap);
+  // Per-sample master-volume modulation (mod matrix -> master mixer target).
+  const modMVol = new Float32Array(cap);
   const modCut = new Array(nodes.length).fill(0);
   const modVca = new Array(nodes.length).fill(0);
   const modParam = nodes.map(() => [0, 0, 0, 0, 0]);
@@ -193,6 +195,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     }
 
     for (let n = 0; n < nodes.length; n++) { modCut[n] = 0; modVca[n] = 0; modParam[n].fill(0); }
+    let mMasterVol = 0;
     for (const r of routes) {
       let val;
       if (r.src.type === 'lfo') {
@@ -204,10 +207,13 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       }
       const c = r.depth * r.polarity * val;
       const p = r.dest.param;
-      if (p === 'cutoff') modCut[r.dest.track] += c;
+      if (r.dest.track === -1) {
+        if (p === 'volume') mMasterVol += c;   // master mixer target
+      } else if (p === 'cutoff') modCut[r.dest.track] += c;
       else if (p === 'vca') modVca[r.dest.track] += c;
       else if (p[0] === 'm') modParam[r.dest.track][+p[1]] += c;
     }
+    modMVol[i] = mMasterVol;
 
     let mixL = 0;
     let mixR = 0;
@@ -312,7 +318,11 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   // the loop fold so tails filter consistently.
   const master = pattern.master || { volume: 0.8, filter: 0.5, resonance: false };
   applyMasterFilter(rawL, rawR, rawLen, master, SR);
-  for (let i = 0; i < rawLen; i++) { rawL[i] *= master.volume; rawR[i] *= master.volume; }
+  for (let i = 0; i < rawLen; i++) {
+    const vol = master.volume + modMVol[i];   // mod matrix master-volume target
+    const g = vol < 0 ? 0 : vol;
+    rawL[i] *= g; rawR[i] *= g;
+  }
 
   let outLen;
   let fold = false;
