@@ -12,6 +12,8 @@
 // Width decorrelates the two lines from mono to anti-phase, Mix is dry/wet.
 // Dream fades the dry out as Wash rises for a 100% wash; Hold (secondary
 // footswitch) freezes the buffer into an infinite drone.
+import { fmtMultiplier } from '../format.js';
+
 export const vaporMeta = {
   id: 'vapor',
   label: 'VaporCloud',
@@ -22,7 +24,8 @@ export const vaporMeta = {
   hero: 'wash',
   knobs: [
     { key: 'wash', label: 'Wash', default: 0.50 },
-    { key: 'time', label: 'Time', default: 0.30 },
+    // Time scales the base tap 1x..8x (VaporVoice timeScale = 1 + time * 7).
+    { key: 'time', label: 'Time', default: 0.30, format: (v) => fmtMultiplier(1 + v * 7) },
     { key: 'tone', label: 'Tone', default: 0.50 },
     { key: 'mod', label: 'Mod', default: 0.55 },
     { key: 'width', label: 'Width', default: 0.75 },

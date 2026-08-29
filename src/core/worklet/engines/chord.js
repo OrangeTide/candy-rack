@@ -16,28 +16,28 @@ const TWO_PI = Math.PI * 2;
 // values. When you add or reorder entries, re-check the starters that set a
 // chord Type (currently lemon = min7).
 //
-//   0 major        4 power+8ve   8 major7      12 dominant9
-//   1 minor        5 major6      9 minor7      13 major9
-//   2 sus2         6 minor6     10 minor7 b5   14 minor9
-//   3 sus4         7 dominant7  11 dim7        15 six-nine
-const CHORDS = [
-  [0, 4, 7],           // major
-  [0, 3, 7],           // minor
-  [0, 2, 7],           // sus2
-  [0, 5, 7],           // sus4
-  [0, 7, 12],          // power + octave
-  [0, 4, 7, 9],        // major 6
-  [0, 3, 7, 9],        // minor 6
-  [0, 4, 7, 10],       // dominant 7
-  [0, 4, 7, 11],       // major 7
-  [0, 3, 7, 10],       // minor 7
-  [0, 3, 6, 10],       // minor 7 b5 (half-diminished)
-  [0, 3, 6, 9],        // diminished 7
-  [0, 4, 7, 10, 14],   // dominant 9
-  [0, 4, 7, 11, 14],   // major 9
-  [0, 3, 7, 10, 14],   // minor 9
-  [0, 4, 7, 9, 14],    // six-nine
+// One table is the single source: `iv` feeds chordNotes, `name` is the short
+// label the Type knob shows (chord-meta.js formats it with fmtEnum(CHORD_NAMES)).
+const CHORD_TABLE = [
+  { name: 'maj',  iv: [0, 4, 7] },
+  { name: 'min',  iv: [0, 3, 7] },
+  { name: 'sus2', iv: [0, 2, 7] },
+  { name: 'sus4', iv: [0, 5, 7] },
+  { name: '5',    iv: [0, 7, 12] },        // power + octave
+  { name: 'maj6', iv: [0, 4, 7, 9] },
+  { name: 'min6', iv: [0, 3, 7, 9] },
+  { name: 'dom7', iv: [0, 4, 7, 10] },
+  { name: 'maj7', iv: [0, 4, 7, 11] },
+  { name: 'min7', iv: [0, 3, 7, 10] },
+  { name: 'm7b5', iv: [0, 3, 6, 10] },     // half-diminished
+  { name: 'dim7', iv: [0, 3, 6, 9] },
+  { name: 'dom9', iv: [0, 4, 7, 10, 14] },
+  { name: 'maj9', iv: [0, 4, 7, 11, 14] },
+  { name: 'min9', iv: [0, 3, 7, 10, 14] },
+  { name: '6/9',  iv: [0, 4, 7, 9, 14] },
 ];
+const CHORDS = CHORD_TABLE.map((c) => c.iv);
+export const CHORD_NAMES = CHORD_TABLE.map((c) => c.name);
 
 // Returns fractional semitone offsets from the played note. Detune pushes the
 // outer voices slightly sharp/flat so the chord beats.

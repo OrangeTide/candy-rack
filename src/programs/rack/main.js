@@ -17,6 +17,7 @@ import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
 import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
+import { fmtPan } from '../../core/format.js';
 // The machine (brand, starter pattern, storage key) is injected per build via an
 // esbuild alias, so this one app powers Grape, Lemon, and every other machine.
 import { freshPattern, TRACKS, STORE_KEY, brand } from 'machine-config';
@@ -535,7 +536,7 @@ function renderMixer() {
       track.output.pan = v * 2 - 1;
       if (host.ctx) host.setChannel(t, { pan: track.output.pan });
       save();
-    }));
+    }, { format: fmtPan }));
     strip.append(makeKnob('Send', track.output.send, (v) => {
       track.output.send = v;
       if (host.ctx) host.setChannel(t, { send: v });
@@ -568,7 +569,7 @@ function renderMixer() {
   }));
   master.append(makeKnob('Ret Pan', (loop.return.pan + 1) / 2, (v) => {
     loop.return.pan = v * 2 - 1; if (host.ctx) host.setReturn({ pan: loop.return.pan }); save();
-  }));
+  }, { format: fmtPan }));
   // Resonance toggle: sweep filter Q 1.0 <-> 2.2.
   const resWrap = el('div', 'mix-reso');
   const res = el('button', 'mute' + (m.resonance ? ' on' : ''), m.resonance ? 'RES' : 'res');
@@ -698,17 +699,17 @@ function renderPedals() {
     const heroIdx = meta.hero ? meta.knobs.findIndex((k) => k.key === meta.hero) : -1;
     if (heroIdx >= 0) {
       knobs.classList.add('hero-layout');
-      knobs.append(makeKnob(meta.knobs[heroIdx].label, pd.params[heroIdx], onKnob(heroIdx), 'knob-hero'));
+      knobs.append(makeKnob(meta.knobs[heroIdx].label, pd.params[heroIdx], onKnob(heroIdx), { extraClass: 'knob-hero', format: meta.knobs[heroIdx].format }));
       const micros = el('div', 'pedal-micros');
       const rest = meta.knobs.filter((_, ki) => ki !== heroIdx);
       micros.style.setProperty('--kcols', String(rest.length <= 3 ? Math.max(1, rest.length) : Math.ceil(rest.length / 2)));
-      meta.knobs.forEach((k, ki) => { if (ki !== heroIdx) micros.append(makeKnob(k.label, pd.params[ki], onKnob(ki), 'knob-micro')); });
+      meta.knobs.forEach((k, ki) => { if (ki !== heroIdx) micros.append(makeKnob(k.label, pd.params[ki], onKnob(ki), { extraClass: 'knob-micro', format: k.format })); });
       knobs.append(micros);
     } else if (nk) {
       // Up to 2 rows of 3: 1..3 knobs share one row, 4..6 split across two
       // balanced rows. More gap between knobs than a stompbox strictly needs.
       knobs.style.setProperty('--kcols', String(nk <= 3 ? Math.max(1, nk) : Math.ceil(nk / 2)));
-      meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], onKnob(ki))));
+      meta.knobs.forEach((k, ki) => knobs.append(makeKnob(k.label, pd.params[ki], onKnob(ki), { format: k.format })));
     } else {
       knobs.append(el('div', 'plate-hint', 'pick an effect above'));
     }
@@ -843,7 +844,7 @@ function renderEditor() {
       params[i] = val;
       if (voices[selected]) voices[selected].setPartParams(selectedPart, params);
       save();
-    })));
+    }, { format: p.format })));
     ed.append(knobs);
   } else {
     const knobs = el('div', 'knobs');
@@ -851,7 +852,7 @@ function renderEditor() {
       track.params[i] = val;
       if (voices[selected]) voices[selected].setParam(i, val);
       save();
-    })));
+    }, { format: p.format })));
     ed.append(knobs);
   }
 
@@ -1331,17 +1332,22 @@ function flipEngine(t, id) {
   if (t === selected) renderGrid(); // lane count changes with kit/melodic
 }
 
-function makeKnob(label, value, onChange, extraClass) {
+// opts: { format, extraClass }. format(v) turns the normalized 0..1 value into
+// the readout string (a chord name, a time in ms, a pan position); it defaults
+// to a percentage. extraClass sizes the knob (hero / micro pedal faces).
+function makeKnob(label, value, onChange, opts = {}) {
+  const format = opts.format || pct;
+  const extraClass = opts.extraClass;
   const wrap = el('div', 'knob' + (extraClass ? ' ' + extraClass : ''));
   const dial = el('div', 'dial');
   const ind = el('div', 'ind');
   dial.append(ind);
   wrap.append(dial, el('div', 'knob-label', label));
-  const val = el('div', 'knob-val', pct(value));
+  const val = el('div', 'knob-val', format(value));
   wrap.append(val);
 
   let v = value;
-  const paint = () => { ind.style.transform = `rotate(${-135 + v * 270}deg)`; val.textContent = pct(v); };
+  const paint = () => { ind.style.transform = `rotate(${-135 + v * 270}deg)`; val.textContent = format(v); };
   paint();
 
   let dragging = false, startY = 0, startV = 0;

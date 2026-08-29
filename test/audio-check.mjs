@@ -12,7 +12,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { DrumVoice } from '../src/core/worklet/engines/drum.js';
 import { FM2Voice } from '../src/core/worklet/engines/fm2.js';
-import { ChordVoice, chordNotes } from '../src/core/worklet/engines/chord.js';
+import { ChordVoice, chordNotes, CHORD_NAMES } from '../src/core/worklet/engines/chord.js';
+import { chordMeta } from '../src/core/engines/chord-meta.js';
 import { CsawVoice } from '../src/core/worklet/engines/csaw.js';
 import { SupersawVoice } from '../src/core/worklet/engines/supersaw.js';
 
@@ -72,6 +73,21 @@ check('chord returns multiple notes', cluster.length > 1, `notes ${cluster.map((
 // An extended voicing high on the Type knob sounds a 5-note chord (9ths, six-nine).
 const ext = chordNotes(60, [0.80, 0.0, 0.30, 0.55, 0.20]); // dominant 9 region
 check('extended chord Type sounds five notes', ext.length === 5, `notes ${ext.length}`);
+
+// The Type knob readout must name the chord the DSP actually selects: the meta
+// formatter (fmtEnum over CHORD_NAMES) has to bucket the 0..1 value the same way
+// chordNotes does. Sweep the knob and confirm every bucket agrees, and that the
+// starter values still read their intended chords.
+const typeFmt = chordMeta.params.find((p) => p.key === 'type').format;
+let readoutOk = true;
+for (let i = 0; i < CHORD_NAMES.length; i++) {
+  const v = (i + 0.5) / CHORD_NAMES.length; // centre of bucket i
+  if (typeFmt(v) !== CHORD_NAMES[i]) { readoutOk = false; break; }
+}
+check('chord Type readout matches every bucket', readoutOk);
+check('starter chord Type values read maj/maj/min7',
+  typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
+  `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
 console.log('== supersaw stereo spread ==');
 {

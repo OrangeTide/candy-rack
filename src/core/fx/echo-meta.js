@@ -7,13 +7,16 @@
 // that loses top end with time, analog warble/width, companding self-
 // oscillation, and a dry/wet mix. Ping toggles ping-pong; Osc (secondary
 // footswitch) is a momentary self-oscillation.
+import { fmtDuration } from '../format.js';
+
 export const echoMeta = {
   id: 'echo',
   label: 'Echo',
   color: '#ffa94d',
   stereo: true,
   knobs: [
-    { key: 'time', label: 'Time', default: 0.40 },
+    // Time readout mirrors EchoVoice: 40 + time * 560 ms.
+    { key: 'time', label: 'Time', default: 0.40, format: (v) => fmtDuration((40 + v * 560) / 1000) },
     { key: 'repeats', label: 'Repeats', default: 0.45 },
     { key: 'drive', label: 'Drive', default: 0.30 },
     { key: 'tone', label: 'Tone', default: 0.45 },
