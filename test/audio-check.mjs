@@ -142,6 +142,38 @@ console.log('== acid (TB-303) engine ==');
   check('acid non-slide jumps pitch', Math.abs(vj.freq - 220) < 2, `freq ${vj.freq.toFixed(0)}`);
 }
 
+console.log('== fm6 oversampling (epiano / fmbass) ==');
+{
+  const { EpianoVoice, FmbassVoice } = await import('../src/core/worklet/engines/fm6.js');
+  // Regression: both voices stay audible and bounded at low and high notes now
+  // that the operator core runs 2x oversampled.
+  for (const [name, V, params] of [
+    ['epiano', EpianoVoice, [0.55, 0.45, 0.15, 0.55, 0.15]],
+    ['fmbass', FmbassVoice, [0.0, 0.5, 0.45, 0.4, 0.2]],
+  ]) {
+    for (const [tag, note, freq] of [['low', 45, 110], ['high', 88, 1661]]) {
+      const v = new V(SR);
+      v.noteOn({ freq, note, vel: 110, gateSec: 0.3, params });
+      let peak = 0, nan = false; const n = Math.floor(0.3 * SR);
+      for (let i = 0; i < n; i++) { const s = v.render(); if (Number.isNaN(s)) nan = true; peak = Math.max(peak, Math.abs(s)); }
+      check(`${name} ${tag} note audible and bounded`, !nan && peak > 0.02 && peak <= 1.001, `peak ${peak.toFixed(3)}`);
+    }
+  }
+
+  // Aliasing proxy: on a high note the (integer) harmonics should dominate the
+  // inter-harmonic frequencies, where aliased energy would fold. A naive 1x FM
+  // core piles junk between the harmonics here.
+  const v = new EpianoVoice(SR);
+  const f0 = 1046.5; // C6
+  v.noteOn({ freq: f0, note: 84, vel: 110, gateSec: 0.5, params: [0.55, 0.45, 0.15, 0.9, 0.15] });
+  const N = 8192; const buf = new Float32Array(N);
+  for (let i = 0; i < N; i++) buf[i] = v.render();
+  const mag = (f) => { let re = 0, im = 0; const w = 2 * Math.PI * f / SR; for (let i = 1024; i < N; i++) { re += buf[i] * Math.cos(w * i); im += buf[i] * Math.sin(w * i); } return Math.sqrt(re * re + im * im) / (N - 1024); };
+  const harm = mag(f0) + mag(2 * f0) + mag(3 * f0);
+  const inter = mag(0.5 * f0) + mag(1.5 * f0) + mag(2.5 * f0);
+  check('epiano high note: harmonics dominate inter-harmonic energy', harm > inter * 3, `harm ${harm.toFixed(3)} inter ${inter.toFixed(3)}`);
+}
+
 console.log('== worklet bundle (build/rack.html) ==');
 if (!existsSync('build/rack.html')) {
   console.log('SKIP  build/rack.html missing, run `make` first');

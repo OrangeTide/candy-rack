@@ -98,6 +98,25 @@ class FMEnv {
 
 const TWO_PI = Math.PI * 2;
 
+// 2x polyphase IIR halfband decimator (osamp.h R=4 coefficients). The FM core
+// generates two sub-samples per output at the doubled rate, where the sine
+// operators and the tanh drive alias much less; this folds them back to one
+// base-rate sample. Fed the even sub-sample then the odd; ~65 dB stopband.
+const HB_A = [0.089698028, 0.577350269];
+const HB_B = [0.310919387, 0.850669771];
+
+class Decim2x {
+  constructor() { this.ax = [0, 0]; this.ay = [0, 0]; this.bx = [0, 0]; this.by = [0, 0]; }
+  process(ev, od) {
+    let o;
+    o = HB_A[0] * (ev - this.ay[0]) + this.ax[0]; this.ax[0] = ev; this.ay[0] = o; ev = o;
+    o = HB_A[1] * (ev - this.ay[1]) + this.ax[1]; this.ax[1] = ev; this.ay[1] = o; ev = o;
+    o = HB_B[0] * (od - this.by[0]) + this.bx[0]; this.bx[0] = od; this.by[0] = o; od = o;
+    o = HB_B[1] * (od - this.by[1]) + this.bx[1]; this.bx[1] = od; this.by[1] = o; od = o;
+    return 0.5 * (ev + od);
+  }
+}
+
 // DX7 output level (0..127) to modulation index. This nonlinear curve is what the
 // ROM patch levels are calibrated against: a full-level (99) modulator gives an
 // index of ~2.09, not the 5+ a linear map produces. Using it is what keeps the
@@ -155,6 +174,7 @@ export class FM6Voice {
     for (let i = 0; i < 7; i++) this.env.push(new FMEnv(sampleRate));
     this.ops = null;
     this.dirtyKey = '';
+    this.decim = new Decim2x();
   }
 
   // Overridden by each engine. Returns { ops, drive, index }. ops is a 1-based
@@ -227,46 +247,58 @@ export class FM6Voice {
     // Tone / accent scale the modulation on top of the per-operator index that
     // buildOps already took from the DX curve.
     const idxScale = this.cfg.indexScale * this.accentIndex;
-    let outSum = 0;
-    let carriers = 0;
+    const drive = this.cfg.drive;
+
+    // Envelopes run once per output sample (control rate); their values are held
+    // across the two oversampled sub-samples below.
     let alive = false;
-
-    for (let i = 6; i >= 1; i--) {
-      const op = ops[i];
-      const e = this.env[i].process();
+    for (let i = 1; i <= 6; i++) {
+      this.env[i].process();
       if (!this.env[i].done) alive = true;
-
-      this.phase[i] += (TWO_PI * this.freq * op.ratio) / this.sr;
-      if (this.phase[i] > TWO_PI) this.phase[i] -= TWO_PI;
-
-      let mod = 0;
-      const m = op.mods;
-      for (let k = 0; k < m.length; k++) {
-        const j = m[k];
-        mod += this.out[j] * this.env[j].v * ops[j].modIndex * idxScale;
-      }
-      if (op.fb > 0) {
-        // Feedback amount is the DX 2^(fb-7) ratio; two-sample average tames it.
-        mod += op.fb * (this.prev[i] + this.prev2[i]) * 0.5;
-      }
-
-      const s = Math.sin(this.phase[i] + mod);
-      this.prev2[i] = this.prev[i];
-      this.prev[i] = s;
-      this.out[i] = s;
-
-      if (op.carrier) {
-        outSum += s * (op.level / 99) * e;
-        carriers += 1;
-      }
     }
-
     if (!alive) { this.active = false; return 0; }
 
-    let y = carriers > 1 ? outSum / Math.sqrt(carriers) : outSum;
-    const drive = this.cfg.drive;
-    if (drive > 0) y = Math.tanh(y * (1 + drive * 4));
-    return y * this.vel * 0.7 * (this.cfg.trim ?? 1);
+    // Run the operator math twice at the doubled rate (phase increment halved),
+    // where the sines and the drive alias far less, then decimate. Operator
+    // outputs and feedback update every sub-sample; the envelope values are held.
+    const inc = (TWO_PI * this.freq) / (this.sr * 2);
+    let sub0 = 0, sub1 = 0;
+    for (let s = 0; s < 2; s++) {
+      let outSum = 0;
+      let carriers = 0;
+      for (let i = 6; i >= 1; i--) {
+        const op = ops[i];
+        this.phase[i] += inc * op.ratio;
+        if (this.phase[i] > TWO_PI) this.phase[i] -= TWO_PI;
+
+        let mod = 0;
+        const m = op.mods;
+        for (let k = 0; k < m.length; k++) {
+          const j = m[k];
+          mod += this.out[j] * this.env[j].v * ops[j].modIndex * idxScale;
+        }
+        if (op.fb > 0) {
+          // Feedback amount is the DX 2^(fb-7) ratio; two-sample average tames it.
+          mod += op.fb * (this.prev[i] + this.prev2[i]) * 0.5;
+        }
+
+        const sig = Math.sin(this.phase[i] + mod);
+        this.prev2[i] = this.prev[i];
+        this.prev[i] = sig;
+        this.out[i] = sig;
+
+        if (op.carrier) {
+          outSum += sig * (op.level / 99) * this.env[i].v;
+          carriers += 1;
+        }
+      }
+      let y = carriers > 1 ? outSum / Math.sqrt(carriers) : outSum;
+      if (drive > 0) y = Math.tanh(y * (1 + drive * 4));
+      if (s === 0) sub0 = y; else sub1 = y;
+    }
+
+    const out = this.decim.process(sub0, sub1);
+    return out * this.vel * 0.7 * (this.cfg.trim ?? 1);
   }
 }
 
