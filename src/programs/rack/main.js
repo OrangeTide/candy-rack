@@ -144,12 +144,12 @@ function scheduleTrackStep(t, absStep, time) {
   // second voice, and an alt step with no main step is inert.
   const accent = engineById(track.engine).altMode === 'accent';
 
-  if (m.on && !m.tie) {
+  if (startsNote(track, 'main', pos)) {
     v.trigger(time, m.note, m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
-  if (!accent && a.on && !a.tie) {
+  if (!accent && startsNote(track, 'alt', pos)) {
     v.trigger(time, a.note, a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
@@ -157,18 +157,43 @@ function scheduleTrackStep(t, absStep, time) {
   litByTrack[t].push({ pos, time, hit });
 }
 
+// Whether an on-step starts a note (triggers) rather than being absorbed as a
+// tie into the note before it. A non-tie on-step always starts. A tie step is
+// absorbed only if a real trigger reaches it through an unbroken backward run of
+// on-steps; if a gap (off-step) comes first there is nothing to tie into, so it
+// starts. When the whole lane is on+tie (a ring with no trigger), the first
+// on-step anchors it, so all-tied plays one held note instead of silence.
+function startsNote(track, lane, pos) {
+  const L = track[lane];
+  if (!L[pos].on) return false;
+  if (!L[pos].tie) return true;
+  for (let i = 1; i < track.length; i++) {
+    const prev = L[(pos - i + track.length) % track.length];
+    if (!prev.on) return true;    // gap upstream: nothing to tie into
+    if (!prev.tie) return false;  // a real trigger upstream absorbs us
+  }
+  let first = 0;
+  while (first < track.length && !L[first].on) first += 1;
+  return pos === first;
+}
+
 // Gate for a step, extended across any tied steps that follow it on the lane so
-// the note holds as one sustained note. A tie step does not retrigger; it is
-// absorbed here into the preceding note's gate.
+// the note holds as one sustained note (a tie step does not retrigger; it is
+// absorbed here into the preceding note's gate). If the next sounding step
+// glides (slide), the gate also reaches that onset so the mono voice is still
+// alive to glide from; the slide step then re-arms the gate on arrival.
 function tiedGate(track, lane, pos, stepDur) {
+  const L = track[lane];
   let span = 1;
   let p = pos;
   for (let i = 0; i < track.length; i++) {
     p = (p + 1) % track.length;
-    const nx = track[lane][p];
-    if (nx.on && nx.tie) span += 1; else break;
+    if (L[p].on && L[p].tie) span += 1; else break;
   }
-  return Math.max(0.01, (span - 1 + track[lane][pos].gateLen) * stepDur);
+  let steps = span - 1 + L[pos].gateLen;
+  const nxt = L[(pos + span) % track.length];
+  if (nxt.on && nxt.slide) steps = Math.max(steps, span + 0.05);
+  return Math.max(0.01, steps * stepDur);
 }
 
 function pump(horizon) {

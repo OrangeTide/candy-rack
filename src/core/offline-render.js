@@ -16,6 +16,22 @@ import { fxVoice } from './fx/voices.js';
 import { algoById, chainOrder } from './fx/algorithms.js';
 
 const POLY = 8;
+
+// Whether an on-step starts a note (triggers) or is absorbed as a tie into the
+// note before it. Mirrors startsNote() in src/programs/rack/main.js.
+function startsNote(track, lane, pos) {
+  const L = track[lane];
+  if (!L[pos].on) return false;
+  if (!L[pos].tie) return true;
+  for (let i = 1; i < track.length; i++) {
+    const prev = L[(pos - i + track.length) % track.length];
+    if (!prev.on) return true;
+    if (!prev.tie) return false;
+  }
+  let first = 0;
+  while (first < track.length && !L[first].on) first += 1;
+  return pos === first;
+}
 const TWO_PI = Math.PI * 2;
 
 function lfoShape(shape, ph) {
@@ -137,15 +153,23 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     const lanes = accentMode ? ['main'] : ['main', 'alt'];
     for (const lane of lanes) {
       const step = track[lane][pos];
-      if (!step.on || step.tie) continue; // tie steps are absorbed into the held note
-      // Extend the gate across any tied steps that follow, so the note holds.
+      // Only steps that START a note trigger; tie steps are absorbed into the
+      // held note (but an all-tied ring still starts its first step). Mirrors
+      // startsNote() in the in-app scheduler.
+      if (!startsNote(track, lane, pos)) continue;
+      // Extend the gate across any tied steps that follow, so the note holds;
+      // and if the next sounding step slides, reach that onset so the mono voice
+      // is still alive to glide from.
       let span = 1, p = pos;
       for (let i = 0; i < track.length; i++) {
         p = (p + 1) % track.length;
         const nx = track[lane][p];
         if (nx.on && nx.tie) span += 1; else break;
       }
-      const gateSec = Math.max(0.01, (span - 1 + step.gateLen) * node.stepDur);
+      let gsteps = span - 1 + step.gateLen;
+      const nxt = track[lane][(pos + span) % track.length];
+      if (nxt.on && nxt.slide) gsteps = Math.max(gsteps, span + 0.05);
+      const gateSec = Math.max(0.01, gsteps * node.stepDur);
       const accent = accentMode ? !!track.alt[pos].on : false;
       const offsets = node.desc.notesFor(step.note, node.params);
       if (node.desc.mono) {

@@ -961,5 +961,38 @@ console.log('== offline fx loop (send -> delay -> return) ==');
   check('fx render does not clip', peak <= 1.0, `peak ${peak.toFixed(3)}`);
 }
 
+console.log('== tie and slide scheduling ==');
+{
+  const { renderPattern } = await import('../src/core/offline-render.js');
+  const { makePattern, makeTrack } = await import('../src/core/sequencer.js');
+  const { engines } = await import('../src/core/worklet/registry.js');
+  const rms = (a) => { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / a.length); };
+
+  // Every step tied must still sound (the first step anchors one held note),
+  // not fall silent for lack of a non-tie trigger to tie into.
+  const allTied = makePattern([makeTrack('dx100', [0.2, 0.6, 0.35, 0.4, 0.25])]);
+  for (let i = 0; i < 16; i++) { const s = allTied.tracks[0].main[i]; s.on = true; s.note = 33; s.gateLen = 0.5; s.tie = true; }
+  const at = renderPattern(allTied, { engines, mode: 'oneshot', sampleRate: SR });
+  check('all-tied lane sounds (does not fall silent)', rms(at.left) > 0.02, `rms ${rms(at.left).toFixed(3)}`);
+
+  // A slide step holds the previous (short-gate) note into its onset so the mono
+  // voice is still alive to glide from: the boundary just before the slide note
+  // is silent without slide and sounding with it.
+  const mk = (slide) => {
+    const p = makePattern([makeTrack('dx100', [0.2, 0.6, 0.35, 0.4, 0.25])]);
+    const L = p.tracks[0].main;
+    L[0].on = true; L[0].note = 33; L[0].gateLen = 0.4;
+    L[1].on = true; L[1].note = 45; L[1].gateLen = 0.9; L[1].slide = slide;
+    return p;
+  };
+  const stepDur = 60 / 120 / 4;
+  const boundary = (r) => r.left.slice(Math.floor(0.85 * stepDur * SR), Math.floor(1.0 * stepDur * SR));
+  const noSl = renderPattern(mk(false), { engines, mode: 'oneshot', sampleRate: SR });
+  const sl = renderPattern(mk(true), { engines, mode: 'oneshot', sampleRate: SR });
+  check('slide holds the previous note into the glide',
+    rms(boundary(sl)) > 0.02 && rms(boundary(noSl)) < 0.005,
+    `slide ${rms(boundary(sl)).toFixed(3)} vs none ${rms(boundary(noSl)).toFixed(3)}`);
+}
+
 console.log(fails === 0 ? '\nOK: all checks passed' : `\nFAILED: ${fails} check(s)`);
 process.exit(fails === 0 ? 0 : 1);
