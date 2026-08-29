@@ -19,7 +19,7 @@ import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/f
 import { algoById } from '../../core/fx/algorithms.js';
 // The machine (brand, starter pattern, storage key) is injected per build via an
 // esbuild alias, so this one app powers Grape, Lemon, and every other machine.
-import { freshPattern, TRACKS, STORE_KEY } from 'machine-config';
+import { freshPattern, TRACKS, STORE_KEY, brand } from 'machine-config';
 import { AudioHost } from './audio.js';
 import { recordWav } from './record.js';
 import { ModMatrix } from './modmatrix.js';
@@ -1338,7 +1338,7 @@ function exportJson() {
   const blob = new Blob([serialize(pattern)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'web-rack-pattern.json';
+  a.href = url; a.download = `candyrack-${brand.name.toLowerCase()}-pattern.json`;
   document.body.append(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }

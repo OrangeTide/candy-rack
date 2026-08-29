@@ -4,6 +4,10 @@
 // hardware needed) and hands the viewer a 16-bit stereo WAV to download.
 import { renderPattern } from '../../core/offline-render.js';
 import { engines } from '../../core/worklet/registry.js';
+import { brand } from 'machine-config';
+
+// File-name slug for this machine (grape, lemon, strawberry, ...).
+const SLUG = brand.name.toLowerCase();
 
 function encodeWav(left, right, sampleRate) {
   const n = left.length;
@@ -44,7 +48,7 @@ export function recordWav(pattern, mode) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `candyrack-grape-${mode}.wav`;
+  a.download = `candyrack-${SLUG}-${mode}.wav`;
   document.body.append(a);
   a.click();
   a.remove();
