@@ -17,7 +17,18 @@ import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
 import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
 import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
-import { fmtPan } from '../../core/format.js';
+import { fmtPan, fmtHz, fmtDb } from '../../core/format.js';
+
+// Output-stage knob readouts mirror the DSP in core/worklet/runtime.js so a knob
+// shows its real value. Cutoff is a one-pole LP coefficient a = cut^2, hi-pass is
+// a = hp^2 * 0.45; the Hz is that pole at a nominal 48k. The coefficient is
+// sample-rate relative, so the readout is approximate (a guide, not exact).
+// Drive is the pre-clip gain 1.2 + drive*6, shown in dB above the clean 1.2.
+const SR_NOMINAL = 48000;
+const onepoleHz = (a) => -Math.log(1 - a) * SR_NOMINAL / (2 * Math.PI);
+const fmtCutoff = (v) => (v * v >= 0.999 ? 'open' : fmtHz(onepoleHz(v * v)));
+const fmtHiPass = (v) => (v <= 0.001 ? 'off' : fmtHz(onepoleHz(v * v * 0.45)));
+const fmtDrive = (v) => (v <= 0.001 ? 'clean' : fmtDb(20 * Math.log10((1.2 + v * 6) / 1.2)));
 // The machine (brand, starter pattern, storage key) is injected per build via an
 // esbuild alias, so this one app powers Grape, Lemon, and every other machine.
 import { freshPattern, TRACKS, STORE_KEY, brand } from 'machine-config';
@@ -526,12 +537,12 @@ function renderMixer() {
       track.output.cutoff = v;
       if (voices[t]) voices[t].setOutput({ cutoff: v });
       save();
-    }));
+    }, { format: fmtCutoff }));
     strip.append(makeKnob('Hi-Pass', track.output.hp, (v) => {
       track.output.hp = v;
       if (voices[t]) voices[t].setOutput({ hp: v });
       save();
-    }));
+    }, { format: fmtHiPass }));
     strip.append(makeKnob('Pan', (track.output.pan + 1) / 2, (v) => {
       track.output.pan = v * 2 - 1;
       if (host.ctx) host.setChannel(t, { pan: track.output.pan });
@@ -548,7 +559,7 @@ function renderMixer() {
       track.output.drive = v;
       if (voices[t]) voices[t].setOutput({ drive: v });
       save();
-    }));
+    }, { format: fmtDrive }));
     strips.append(strip);
   });
 

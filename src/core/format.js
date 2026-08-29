@@ -34,6 +34,17 @@ export function fmtMultiplier(x) {
   return 'x' + x.toFixed(1);
 }
 
+// A frequency in Hz, rolling up to kHz past a thousand: "760 Hz", "4.6 kHz".
+export function fmtHz(hz) {
+  if (hz >= 1000) return (hz / 1000).toFixed(hz < 10000 ? 1 : 0) + ' kHz';
+  return Math.round(hz) + ' Hz';
+}
+
+// A gain in decibels, signed: "+9.0 dB", "-3.5 dB".
+export function fmtDb(db) {
+  return (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+}
+
 // Pan, from a 0..1 knob where 0 is hard left, 0.5 centre, 1 hard right. Reads as
 // C, or L/R with the distance from centre in percent.
 export function fmtPan(v) {
