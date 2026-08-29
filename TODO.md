@@ -48,12 +48,11 @@ Ranked by impact toward that record.
 
 ## Future genre programs
 
-Each program is a standalone fruit-branded machine. Grouped by build cost.
-Existing backlog: Bubblegum rave (cheap, next), acid squelch (Lemon; the
-ACID/TB-303 engine, the RAT/Dist+ drive pedals, and the 909 kick/snare/hat kit
-now exist, so this is content-ready: a fruit-branded program with an acid line
-into the RAT stack over a 909 beat. Reference groove: Pump Panel's "Confusion"
-Reconstruction Mix), sunshine breaks
+Each program is a standalone fruit-branded machine. Grouped by build cost. The
+machine framework (build/<name>.html from a machine config) makes each new
+content-ready program cheap: a config + a starter + a build entry + a landing
+card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
+spirit), Strawberry (bubblegum rave). Remaining backlog: sunshine breaks
 (gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
 gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
 a Rings-style engine).

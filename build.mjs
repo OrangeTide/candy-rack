@@ -19,6 +19,7 @@ import { pathToFileURL } from 'node:url';
 const MACHINES = [
   { name: 'grape', config: 'src/programs/machines/grape.js' },
   { name: 'lemon', config: 'src/programs/machines/lemon.js' },
+  { name: 'strawberry', config: 'src/programs/machines/strawberry.js' },
 ];
 
 const APP = {
