@@ -50,8 +50,9 @@ Cheapest (content + existing engines):
 
 One small engine:
 
-- [ ] Green Apple: chiptune / bitpop (acid lime). Bit-crushed pulses (SUPERSAW
-      Decimate already exists), needs a pulse/duty engine + arpeggiator.
+- [ ] Peppermint: chiptune / bitpop (mint green/white, an oddball candy not a
+      fruit). Bit-crushed pulses (SUPERSAW Decimate already exists), needs a
+      pulse/duty engine + arpeggiator.
 
 Gated on the sampler:
 
