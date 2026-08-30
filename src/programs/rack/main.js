@@ -349,14 +349,15 @@ const app = document.getElementById('app');
 let selected = 0;
 let selectedPart = 0; // which kit part's sound the editor shows
 let pageByTrack = new Array(TRACKS).fill(0);
-// Steps selected for editing, keyed `lane:pos` within the current track. A tap
-// toggles a step on or off; a long-press adds or removes it from this set, and
-// the Note / Velocity / Gate controls set the same value on every member.
-// selAnchor is the most recently selected step, used to seed the control values.
+// Steps selected for editing, keyed `lane:pos` within the current track. In EDIT
+// mode a tap adds or removes a step from this set; the Note / Velocity / Gate /
+// Nudge controls set the same value on every member. selAnchor is the most
+// recently selected step, used to seed the control values.
 let selSteps = new Set();
 let selAnchor = null;
-// EDIT mode: a sticky alternative to long-press for entering step-edit. When on,
-// a plain tap selects a step (to edit it) instead of toggling it on/off.
+// EDIT mode: the single toggle that decides what a grid tap does. Off, a tap
+// places or clears steps; on, a tap selects steps to edit. Nothing else changes
+// tap behavior (no long-press, no implicit mode from the selection state).
 let editMode = false;
 
 // Performance transpose: a live semitone shift of the whole sequence at play
@@ -1098,7 +1099,7 @@ function renderEditor() {
   // press). When on, tapping a step selects it for the Note/Velocity/Gate
   // controls instead of placing/clearing it; turning it off deselects.
   const editBtn = el('button', 'edit-btn' + (editMode ? ' on' : ''), 'EDIT');
-  editBtn.title = 'Tap-to-edit steps (instead of long-press)';
+  editBtn.title = 'EDIT on: tap steps to select and edit them. EDIT off: tap to place or clear steps.';
   editBtn.onclick = () => {
     editMode = !editMode;
     // The seq-bar is not rebuilt by renderGrid, so toggle the button's own state
@@ -1188,58 +1189,40 @@ function renderGrid() {
   renderStepEditor();
 }
 
-const LONGPRESS_MS = 420;
 const MOVE_CANCEL_PX = 12;
 
-// A tap toggles the step; a long-press selects it. Each cell tracks its own
-// pointer so two fingers on two cells act independently, and both handlers
-// update just their own cell rather than re-rendering the grid, which would
-// tear cells out from under other in-progress touches.
+// A tap is the only gesture, and the EDIT lamp is the only thing that changes
+// what it does: EDIT off, a tap places or clears the step; EDIT on, a tap toggles
+// the step in the edit selection. No long-press. Each cell tracks its own pointer
+// so two fingers on two cells act independently, and the handlers update just
+// their own cell rather than re-rendering the grid, which would tear cells out
+// from under other in-progress touches. A drag past MOVE_CANCEL_PX cancels the
+// tap so scrolling the grid never toggles a step.
 function attachCellGestures(cell, laneName, pos) {
-  let timer = null;
   let startX = 0;
   let startY = 0;
-  let longFired = false;
   let active = false;
-  const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null; } };
 
   cell.addEventListener('pointerdown', (e) => {
     if (cell.classList.contains('disabled')) return;
     active = true;
-    longFired = false;
     startX = e.clientX;
     startY = e.clientY;
-    clearTimer();
-    timer = setTimeout(() => {
-      timer = null;
-      longFired = true;
-      // Trigger mode (nothing selected): long-press enters edit mode by
-      // selecting this step. Edit mode: long-press toggles its membership so
-      // several steps can be selected together.
-      if (selSteps.size === 0) selectOnly(laneName, pos);
-      else toggleSelect(cell, laneName, pos);
-    }, LONGPRESS_MS);
   });
   cell.addEventListener('pointermove', (e) => {
     if (!active) return;
     if (Math.abs(e.clientX - startX) > MOVE_CANCEL_PX ||
         Math.abs(e.clientY - startY) > MOVE_CANCEL_PX) {
       active = false;
-      clearTimer();
     }
   });
   cell.addEventListener('pointerup', () => {
     if (!active) return;
     active = false;
-    clearTimer();
-    if (longFired) return;
-    // Trigger mode (nothing selected, EDIT off): tap places or clears the step.
-    // Edit mode (a selection exists, or EDIT is on): tap selects/moves to this
-    // step so the Note/Velocity/Gate controls act on it.
-    if (selSteps.size === 0 && !editMode) toggleStep(cell, laneName, pos);
-    else selectOnly(laneName, pos);
+    if (editMode) toggleSelect(cell, laneName, pos);
+    else toggleStep(cell, laneName, pos);
   });
-  cell.addEventListener('pointercancel', () => { active = false; clearTimer(); });
+  cell.addEventListener('pointercancel', () => { active = false; });
 }
 
 // Tap: place or clear the step. Clearing also drops it from the selection.
@@ -1260,22 +1243,10 @@ function toggleStep(cell, laneName, pos) {
   save();
 }
 
-// Edit-mode tap, or entering edit mode: make this the only selected step. Only
-// the .selected classes are touched (not a grid rebuild), so in-progress touches
-// on other cells are not disturbed.
-function selectOnly(laneName, pos) {
-  const track = pattern.tracks[selected];
-  if (pos >= track.length) return;
-  selSteps.clear();
-  selSteps.add(stepKey(laneName, pos));
-  selAnchor = { lane: laneName, pos };
-  document.querySelectorAll('#grid .cell.selected').forEach((c) => c.classList.remove('selected'));
-  const cell = document.querySelector(`#grid .lane[data-lane="${laneName}"] .cell[data-pos="${pos}"]`);
-  if (cell) cell.classList.add('selected');
-  renderStepEditor();
-}
-
-// Long-press: add or remove the step from the edit selection.
+// EDIT-mode tap: add or remove the step from the edit selection, and make it the
+// anchor whose values seed the controls. Tapping several steps builds a multi-
+// selection; tapping a selected step drops it. Only the .selected classes are
+// touched (not a grid rebuild), so in-progress touches on other cells are safe.
 function toggleSelect(cell, laneName, pos) {
   const track = pattern.tracks[selected];
   if (pos >= track.length) return;
@@ -1297,7 +1268,7 @@ function renderStepEditor() {
   box.innerHTML = '';
 
   if (selSteps.size === 0 || !selAnchor) {
-    box.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step (or turn on EDIT) to edit it: then tap to move the selection, long-press to add or drop steps. Deselect all (or turn off EDIT) to place steps again.'));
+    box.append(el('div', 'hint', 'Tap a step to place or clear it. Turn on EDIT, then tap steps to select them for editing (tap again to deselect). Turn off EDIT to place steps again.'));
     return;
   }
 
