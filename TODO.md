@@ -20,9 +20,9 @@ more than its backlog position suggests.
    the off-beat Am7 chord stab into Dimension -> Echo -> Reverb, a dry sub, a
    ducked pad bed, a higher Am9 answer, an airy VOWEL top. guinep.js +
    guinep.starter.js + build entry + landing card (repurposed the Lime slot).
-4. Cross-loop hold for POLY engines (see Sequencer). Medium, high leverage: fixes
-   drones/pads re-attacking each loop on ALL poly engines, which gates Coconut and
-   any pad-heavy program's quality. Also warms up the offline loop render.
+4. [DONE 2026-08-29] Cross-loop hold for POLY engines (see Sequencer). Voice reuse
+   by note match + Env.hold() so poly drones/pads no longer re-attack each loop;
+   mirrored in offline-render (allocFor). Lifted Coconut and any pad-heavy program.
 5. [DONE 2026-08-29] MS-20 Sallen-Key filter engine. Mono lead (slide+accent) on
    the acid/sh101 platform with a 2-pole self-oscillating SVF whose loud resonant
    peak overdrives the output stage = the MS-20 scream. Params Cutoff/Peak/Env
