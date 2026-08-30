@@ -26,7 +26,7 @@ import { fmtPan, fmtHz, fmtDb } from '../../core/format.js';
 // Drive is the pre-clip gain 1.2 + drive*6, shown in dB above the clean 1.2.
 const SR_NOMINAL = 48000;
 const onepoleHz = (a) => -Math.log(1 - a) * SR_NOMINAL / (2 * Math.PI);
-const fmtCutoff = (v) => (v * v >= 0.999 ? 'open' : fmtHz(onepoleHz(v * v)));
+const fmtCutoff = (v) => (v * v >= 0.999 ? 'open' : fmtHz(onepoleHz(Math.max(0.0006, v * v))));
 const fmtHiPass = (v) => (v <= 0.001 ? 'off' : fmtHz(onepoleHz(v * v * 0.45)));
 const fmtDrive = (v) => (v <= 0.001 ? 'clean' : fmtDb(20 * Math.log10((1.2 + v * 6) / 1.2)));
 // The machine (brand, starter pattern, storage key) is injected per build via an
@@ -1620,4 +1620,9 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
   if (k === heldXposeKey) { heldXposeKey = null; clearXposeKey(); }
+});
+// If the window loses focus while a transpose key is held, its keyup never
+// arrives; clear the momentary shift so it does not stick.
+window.addEventListener('blur', () => {
+  if (heldXposeKey !== null || xposeKey !== null) { heldXposeKey = null; clearXposeKey(); }
 });
