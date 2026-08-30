@@ -102,9 +102,13 @@ export class AudioHost {
       limiter.ratio.value = 12;
       limiter.attack.value = 0.003;
       limiter.release.value = 0.25;
+      this.limiter = limiter;
       this.master.connect(this.djFilter);
       this.djFilter.connect(this.masterVol);
       this.masterVol.connect(limiter);
+      // limiter -> destination for now; once the worklet loads, the recorder tap
+      // is spliced inline (limiter -> recorder -> destination) so a Live take
+      // captures exactly the post-limiter master, the same signal that is heard.
       limiter.connect(this.ctx.destination);
       // Aux send bus: channels tap into it post-pan. Forced mono (channelCount
       // 1, explicit) so the whole pedal chain runs on one send, matching the
@@ -137,8 +141,60 @@ export class AudioHost {
         outputChannelCount: [2],
         processorOptions: { fx: 'thru' },
       }));
+      // Splice the recorder tap in just before the destination.
+      this.recorder = new AudioWorkletNode(this.ctx, 'recorder-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      this.limiter.disconnect(this.ctx.destination);
+      this.limiter.connect(this.recorder);
+      this.recorder.connect(this.ctx.destination);
+      this._recCapture = null;   // { l: [], r: [], frames } while a take runs
+      this._recCap = 0;          // hard frame cap for the current take
+      this.onRecCap = null;      // called when the cap stops a take on its own
+      this.recorder.port.onmessage = (e) => {
+        const cap = this._recCapture;
+        if (!cap) return;
+        cap.l.push(e.data.l);
+        cap.r.push(e.data.r);
+        cap.frames += e.data.l.length;
+        if (cap.frames >= this._recCap && this.onRecCap) this.onRecCap();
+      };
     })();
     return this.ready;
+  }
+
+  // ---- Live recording (master-bus tap) ------------------------------------
+
+  get recording() { return !!this._recCapture; }
+
+  // Start capturing the master out. maxSeconds is a hard cap; when it is reached
+  // onRecCap fires so the UI can finalize the take before memory runs out.
+  startLiveRecording(maxSeconds) {
+    if (!this.recorder || this._recCapture) return;
+    this._recCap = Math.floor(maxSeconds * this.ctx.sampleRate);
+    this._recCapture = { l: [], r: [], frames: 0 };
+    this.recorder.port.postMessage('start');
+  }
+
+  // Stop the take and return its concatenated stereo buffers, or null if nothing
+  // was captured. The caller encodes and downloads the WAV.
+  stopLiveRecording() {
+    if (!this._recCapture) return null;
+    this.recorder.port.postMessage('stop');
+    const cap = this._recCapture;
+    this._recCapture = null;
+    if (!cap.frames) return null;
+    const left = new Float32Array(cap.frames);
+    const right = new Float32Array(cap.frames);
+    let o = 0;
+    for (let i = 0; i < cap.l.length; i++) {
+      left.set(cap.l[i], o);
+      right.set(cap.r[i], o);
+      o += cap.l[i].length;
+    }
+    return { left, right, sampleRate: this.ctx.sampleRate };
   }
 
   // Wire the send bus through the four pedals into the return, per the routing

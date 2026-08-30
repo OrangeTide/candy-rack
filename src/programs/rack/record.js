@@ -41,17 +41,24 @@ function encodeWav(left, right, sampleRate) {
   return new Blob([buf], { type: 'audio/wav' });
 }
 
-// Render and trigger a download. Returns the clip length in seconds.
-export function recordWav(pattern, mode) {
-  const { left, right, sampleRate } = renderPattern(pattern, { engines, mode, sampleRate: 48000 });
+// Encode stereo buffers to a WAV and trigger a download. Returns the clip length
+// in seconds. Shared by the offline bounce and the Live master-tap recording.
+export function downloadWav(left, right, sampleRate, tag) {
   const blob = encodeWav(left, right, sampleRate);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `candyrack-${SLUG}-${mode}.wav`;
+  a.download = `candyrack-${SLUG}-${tag}.wav`;
   document.body.append(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
   return left.length / sampleRate;
+}
+
+// Bounce the pattern offline (deterministic, no audio hardware) and download it.
+// Returns the clip length in seconds.
+export function recordWav(pattern, mode) {
+  const { left, right, sampleRate } = renderPattern(pattern, { engines, mode, sampleRate: 48000 });
+  return downloadWav(left, right, sampleRate, mode);
 }

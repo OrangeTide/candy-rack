@@ -33,7 +33,7 @@ const fmtDrive = (v) => (v <= 0.001 ? 'clean' : fmtDb(20 * Math.log10((1.2 + v *
 // esbuild alias, so this one app powers Grape, Lemon, and every other machine.
 import { freshPattern, TRACKS, STORE_KEY, brand } from 'machine-config';
 import { AudioHost } from './audio.js';
-import { recordWav } from './record.js';
+import { recordWav, downloadWav } from './record.js';
 import { ModMatrix } from './modmatrix.js';
 
 function loadPattern() {
@@ -300,6 +300,87 @@ function stop() {
 }
 
 function togglePlay() { playing ? stop() : play(); }
+
+// ---- Live recording --------------------------------------------------------
+
+// Hard cap on a Live take. Capture is Float32 stereo at the AudioContext rate
+// (~48 kHz), about 23 MB per minute held in RAM, so five minutes is ~115 MB. The
+// cap stops the take on its own before a long jam can exhaust the tab.
+const MAX_LIVE_SECONDS = 300;
+
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+// The Live recorder control, built once and reused. It captures the master out
+// while you play (transpose, mutes, knob moves, GEN switches, everything the
+// offline bounce leaves out) and downloads a WAV of the actual take. It is
+// independent of the transport, so you start it and then hit Play or jam the
+// perform controls and it records what is heard.
+//
+// A round record lamp is the whole affordance: dark red circle at rest, a solid
+// pulsing red circle with a stop square (and a counting timer) while recording.
+// It is a stable node because renderMixer() rebuilds the mixer on every solo or
+// save; recreating it would drop an in-progress take's button and timer.
+let liveEl = null;
+function liveRecorder() {
+  if (liveEl) return liveEl;
+  const IDLE_TITLE = 'Live-record the master out. Click to start, click again to stop and save a WAV.';
+  const box = el('div', 'mix-rec');
+  const btn = el('button', 'recdot', '●');   // idle circle; a stop square while recording
+  btn.title = IDLE_TITLE;
+  const label = el('div', 'knob-label reclabel', 'Rec');
+  const time = el('div', 'rec-time', '');
+  let timer = null;
+  let startedAt = 0;
+
+  const tick = () => {
+    const elapsed = host.currentTime - startedAt;
+    const remain = Math.max(0, MAX_LIVE_SECONDS - elapsed);
+    time.textContent = mmss(elapsed);
+    btn.title = `Recording. ${mmss(remain)} left before the cap. Click to stop and save.`;
+  };
+
+  // Stop the take: halt capture at once, then encode and download off the paint
+  // so a long take does not freeze the click.
+  const finish = () => {
+    if (timer) { clearInterval(timer); timer = null; }
+    host.onRecCap = null;
+    const buf = host.stopLiveRecording();
+    box.classList.remove('armed');
+    btn.classList.remove('armed');
+    btn.textContent = '●';
+    btn.title = IDLE_TITLE;
+    label.textContent = 'Rec';
+    if (!buf) { time.textContent = ''; return; }
+    time.textContent = 'Saving…';
+    setTimeout(() => {
+      const secs = downloadWav(buf.left, buf.right, buf.sampleRate, 'live');
+      time.textContent = `Saved ${secs.toFixed(1)}s`;
+    }, 20);
+  };
+
+  btn.onclick = async () => {
+    if (host.recording) { finish(); return; }
+    if (!AUDIO_SUPPORTED) { showUnsupported(); return; }
+    await ensureAudio();
+    await host.resume();
+    host.onRecCap = finish;   // the hard cap stops and saves the take on its own
+    host.startLiveRecording(MAX_LIVE_SECONDS);
+    // Roll the transport on arm so a take never opens with accidental silence.
+    // If it is already playing, leave it be. Stopping the take leaves it running.
+    if (!playing) play();
+    startedAt = host.currentTime;
+    box.classList.add('armed');
+    btn.classList.add('armed');
+    btn.textContent = '■';   // stop square
+    label.textContent = 'REC';
+    tick();
+    timer = setInterval(tick, 250);
+  };
+
+  box.append(btn, label, time);
+  liveEl = box;
+  return liveEl;
+}
 
 // ---- playhead --------------------------------------------------------------
 
@@ -598,15 +679,15 @@ function render() {
   app.append(pedals);
   renderPedals();
 
-  // Recorder
+  // Bounce: render the pattern offline to a WAV (deterministic, no jam moves).
   const rec = el('div', 'io');
-  rec.append(el('div', 'panel-tag', 'Record WAV'));
+  rec.append(el('div', 'panel-tag', 'Bounce WAV'));
   const recMode = el('select', 'sel rec-mode');
   [['loop', 'seamless loop'], ['oneshot', 'one-shot'], ['tails', 'with tails']].forEach(([v, t]) => {
     const o = el('option', null, t); o.value = v;
     recMode.append(o);
   });
-  const recBtn = el('button', 'iobtn rec', 'Record ●');
+  const recBtn = el('button', 'iobtn rec', 'Bounce ●');
   recBtn.onclick = () => {
     recBtn.textContent = 'Rendering…';
     // Let the label paint before the synchronous render.
@@ -617,7 +698,7 @@ function render() {
       } catch (err) {
         recBtn.textContent = 'Failed';
       }
-      setTimeout(() => { recBtn.textContent = 'Record ●'; }, 1600);
+      setTimeout(() => { recBtn.textContent = 'Bounce ●'; }, 1600);
     }, 20);
   };
   rec.append(recMode, recBtn);
@@ -737,6 +818,9 @@ function renderMixer() {
   };
   resWrap.append(res, el('div', 'knob-label', 'Reso'));
   master.append(resWrap);
+  // Live master-out recorder, at the foot of the master strip since it captures
+  // this bus. A persistent node, so an in-progress take survives mixer rebuilds.
+  master.append(liveRecorder());
   strips.append(master);
 
   box.append(strips);

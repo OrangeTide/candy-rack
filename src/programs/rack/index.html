@@ -790,6 +790,29 @@
   }
   .iobtn.rec:hover { color: #2a0713; }
   .rec-mode { width: 150px; color: var(--m-ink); }
+  .rec-time { font-variant-numeric: tabular-nums; font-size: 12px; letter-spacing: .5px; color: var(--cyan); text-align: center; }
+  /* Live master-out recorder, on the master strip: a round record lamp. */
+  .mix-rec { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 12px; }
+  .recdot {
+    width: 44px; height: 44px; border-radius: 50%; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1; color: var(--lamp); cursor: pointer;
+    background: radial-gradient(circle at 40% 33%, #3a1120, #180810);
+    border: 2px solid var(--lamp);
+    box-shadow: 0 2px 0 #1f1040, 0 0 6px rgba(255,90,125,.3) inset;
+  }
+  .recdot:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f1040; }
+  .recdot.armed {
+    color: #fff; border-color: #ffb3c2;
+    background: linear-gradient(180deg, #ff5a7d, #c01f45);
+    animation: recpulse 1s ease-in-out infinite;
+  }
+  @keyframes recpulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255,90,125,.5); }
+    50% { box-shadow: 0 0 20px rgba(255,90,125,.95); }
+  }
+  .mix-rec.armed .reclabel { color: var(--lamp); animation: recblink 1s step-start infinite; }
+  @keyframes recblink { 50% { opacity: .3; } }
 </style>
 <!-- Per-machine palette (injected by build.mjs); overrides the Grape defaults above. -->
 __MACHINE_STYLE__
