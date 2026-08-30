@@ -141,6 +141,28 @@ export function makeRoute() {
   };
 }
 
+// LFO tempo-sync divisions: one full LFO cycle spans `beats` quarter notes. The
+// UI offers these; a route with src.sync set to one of these `beats` values
+// locks its rate to the tempo. Ordered slow to fast.
+export const SYNC_DIVS = [
+  { beats: 16, label: '4 bar' },
+  { beats: 8, label: '2 bar' },
+  { beats: 4, label: '1 bar' },
+  { beats: 2, label: '1/2' },
+  { beats: 1, label: '1/4' },
+  { beats: 0.5, label: '1/8' },
+  { beats: 0.25, label: '1/16' },
+];
+
+// The LFO rate in Hz for a source. When src.sync (beats per cycle) is set the
+// rate is tempo-locked: cycle period = beats * (60/bpm) seconds. Otherwise the
+// free-running src.rateHz is used. Shared by the realtime matrix and the offline
+// renderer so both agree.
+export function lfoHz(src, bpm) {
+  if (src && src.sync) return bpm / (60 * src.sync);
+  return (src && src.rateHz) || 2;
+}
+
 export function makePattern(tracks, routes = []) {
   // swing 0..1 delays the off-beat 16ths toward a triplet shuffle (0 = straight).
   return { version: 5, bpm: 120, swing: 0, tracks, routes, master: makeMaster(), fx: makeFx() };

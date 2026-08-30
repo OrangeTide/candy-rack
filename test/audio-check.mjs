@@ -89,6 +89,17 @@ check('starter chord Type values read maj/maj/min7',
   typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
   `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
+console.log('== tempo-synced LFO ==');
+{
+  const { lfoHz } = await import('../src/core/sequencer.js');
+  // A synced LFO locks its rate to tempo: one bar (4 beats) is one cycle.
+  check('sync 1 bar = bpm/240 Hz', Math.abs(lfoHz({ sync: 4 }, 120) - 0.5) < 1e-9, `${lfoHz({ sync: 4 }, 120)}`);
+  check('sync 1/8 at 120 = 4 Hz', Math.abs(lfoHz({ sync: 0.5 }, 120) - 4) < 1e-9);
+  // Synced rate scales with tempo; free-running rate does not.
+  check('synced rate tracks bpm', lfoHz({ sync: 4 }, 133) > lfoHz({ sync: 4 }, 100));
+  check('free-running rate ignores bpm', lfoHz({ rateHz: 0.9 }, 100) === lfoHz({ rateHz: 0.9 }, 133));
+}
+
 console.log('== supersaw stereo spread ==');
 {
   const ss = new SupersawVoice(SR);

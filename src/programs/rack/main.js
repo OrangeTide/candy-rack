@@ -14,7 +14,7 @@ import { Transport } from '../../core/transport.js';
 import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
 import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
-import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts } from '../../core/sequencer.js';
+import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts, SYNC_DIVS } from '../../core/sequencer.js';
 import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
 import { fmtPan, fmtHz, fmtDb } from '../../core/format.js';
@@ -98,6 +98,7 @@ async function ensureAudio() {
   host.setMaster(pattern.master);
   applyFx();
   modMatrix.attach(voices);
+  modMatrix.setBpm(pattern.bpm); // so tempo-synced LFOs build at the right rate
   modMatrix.rebuild(pattern.routes);
   clock = new Clock(host.ctx);
 }
@@ -376,6 +377,7 @@ function render() {
   tempoInput.oninput = () => {
     pattern.bpm = clampNum(tempoInput.value, 20, 300, 120);
     transport.bpm = pattern.bpm;
+    modMatrix.setBpm(pattern.bpm);
     save();
   };
   screen.append(tempoInput, el('span', 'lcd-unit', 'BPM'));
@@ -386,6 +388,7 @@ function render() {
     pattern.bpm = clampNum(pattern.bpm + d, 20, 300, 120);
     transport.bpm = pattern.bpm;
     tempoInput.value = pattern.bpm;
+    modMatrix.setBpm(pattern.bpm);
     save();
   };
   up.onclick = () => nudge(1);
@@ -1245,12 +1248,25 @@ function renderMatrix() {
       row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); }));
     } else {
       row.append(pick([['sine', 'sine'], ['tri', 'tri'], ['saw', 'saw'], ['square', 'sqr']], r.src.shape, (v) => { r.src.shape = v; applyRoutes(); }));
-      const rate = el('input', 'mini');
-      rate.type = 'range'; rate.min = 1; rate.max = 200; rate.value = Math.round(r.src.rateHz * 10);
-      rate.title = 'LFO rate (Hz)';
-      rate.oninput = () => { r.src.rateHz = Number(rate.value) / 10; applyRoutes(); rateVal.textContent = r.src.rateHz.toFixed(1); };
-      const rateVal = el('span', 'rv', r.src.rateHz.toFixed(1));
-      row.append(rate, rateVal);
+      // Sync toggle: free-running Hz, or a tempo-locked musical division.
+      const syncBtn = el('button', 'pol', r.src.sync ? '♪' : 'Hz');
+      syncBtn.title = r.src.sync ? 'tempo-synced (click for free Hz)' : 'free-running Hz (click to sync to tempo)';
+      syncBtn.onclick = () => {
+        if (r.src.sync) { delete r.src.sync; if (!r.src.rateHz) r.src.rateHz = 2; }
+        else { r.src.sync = 4; } // default one bar
+        applyRoutes(); renderMatrix();
+      };
+      row.append(syncBtn);
+      if (r.src.sync) {
+        row.append(pick(SYNC_DIVS.map((d) => [String(d.beats), d.label]), String(r.src.sync), (v) => { r.src.sync = Number(v); applyRoutes(); }));
+      } else {
+        const rate = el('input', 'mini');
+        rate.type = 'range'; rate.min = 1; rate.max = 200; rate.value = Math.round((r.src.rateHz || 2) * 10);
+        rate.title = 'LFO rate (Hz)';
+        rate.oninput = () => { r.src.rateHz = Number(rate.value) / 10; applyRoutes(); rateVal.textContent = r.src.rateHz.toFixed(1); };
+        const rateVal = el('span', 'rv', (r.src.rateHz || 2).toFixed(1));
+        row.append(rate, rateVal);
+      }
     }
 
     row.append(el('span', 'arrow', '→'));

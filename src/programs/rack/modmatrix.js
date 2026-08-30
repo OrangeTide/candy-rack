@@ -12,6 +12,8 @@
 // Trigger pulses are scheduled by the sequencer through onSourceTrigger() at the
 // exact AudioContext time the source step fires, matching the note it rides on.
 
+import { lfoHz } from '../../core/sequencer.js';
+
 const SHAPES = { sine: 'sine', tri: 'triangle', saw: 'sawtooth', square: 'square' };
 
 export class ModMatrix {
@@ -20,10 +22,23 @@ export class ModMatrix {
     this.voices = [];
     this.nodes = []; // per active route: { route, gain, osc?, cs? }
     this.routes = [];
+    this.bpm = 120; // for tempo-synced LFO rates
   }
 
   attach(voices) {
     this.voices = voices;
+  }
+
+  // Update the tempo; retune any tempo-synced LFO oscillators live so a sync'd
+  // filter wobble tracks the transport without a full graph rebuild.
+  setBpm(bpm) {
+    this.bpm = bpm;
+    const ctx = this.host.ctx;
+    for (const n of this.nodes) {
+      if (n.osc && n.route.src.sync) {
+        try { n.osc.frequency.setValueAtTime(lfoHz(n.route.src, bpm), ctx ? ctx.currentTime : 0); } catch (_) {}
+      }
+    }
   }
 
   destParam(route) {
@@ -65,7 +80,7 @@ export class ModMatrix {
     } else if (route.src.type === 'lfo') {
       const osc = ctx.createOscillator();
       osc.type = SHAPES[route.src.shape] || 'sine';
-      osc.frequency.value = route.src.rateHz || 2;
+      osc.frequency.value = lfoHz(route.src, this.bpm);
       osc.connect(gain);
       osc.start();
       this.nodes.push({ route, gain, osc });

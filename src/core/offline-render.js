@@ -14,6 +14,7 @@
 import { kitPartVoice } from './worklet/registry.js';
 import { fxVoice } from './fx/voices.js';
 import { algoById, chainOrder } from './fx/algorithms.js';
+import { lfoHz } from './sequencer.js';
 
 const POLY = 8;
 
@@ -230,7 +231,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       let val;
       if (r.src.type === 'lfo') {
         val = lfoShape(r.src.shape, r._phase);
-        r._phase += (TWO_PI * (r.src.rateHz || 2)) / SR;
+        r._phase += (TWO_PI * lfoHz(r.src, pattern.bpm)) / SR;
       } else if (r.src.type === 'env') {
         const sn = nodes[r.src.track];
         val = sn ? sn.envFollow : 0; // last sample's follower (1-sample delay)

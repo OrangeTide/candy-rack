@@ -94,8 +94,9 @@ export function freshPattern() {
     // Auto-vowel: a slow LFO sweeps the choir vowel (m0) so the "aah" morphs.
     { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.13, shape: 'sine' },
       dest: { track: 4, param: 'm0' }, depth: 0.5, polarity: 1, decay: 0.16 },
-    // A very slow LFO breathes the deep saw pad's filter open and shut.
-    { src: { type: 'lfo', track: 0, lane: 'main', rateHz: 0.09, shape: 'tri' },
+    // A tempo-synced 4-bar LFO breathes the deep saw pad's filter open and shut,
+    // so the swell stays locked to the groove at any tempo.
+    { src: { type: 'lfo', track: 0, lane: 'main', sync: 16, shape: 'tri' },
       dest: { track: 5, param: 'cutoff' }, depth: 0.28, polarity: 1, decay: 0.16 },
   ];
 
