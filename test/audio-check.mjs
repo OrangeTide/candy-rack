@@ -142,6 +142,20 @@ console.log('== GEN generative source ==');
   for (let i = 0; i < y1.left.length; i++) { const s = y1.left[i]; if (Number.isNaN(s)) yNan = true; yPeak = Math.max(yPeak, Math.abs(s)); if (s !== y2.left[i]) ySame = false; }
   check('GEN X-note + Y-param renders bounded', !yNan && yPeak <= 1.0, `peak ${yPeak.toFixed(3)}`);
   check('GEN X/Y render is deterministic', ySame);
+
+  // GEN -> gate: a track with NO on-steps stays silent, but a gate output fires
+  // it generatively (an evolving rhythm), so the render becomes non-silent.
+  const mkGate = (withGate) => {
+    const t = seqMod.makeTrack('sh101', P);
+    for (let i = 0; i < 16; i++) t.main[i].note = 48; // pitches set, but no steps ON
+    const f = () => { const x = seqMod.makeTrack('sh101', P); x.mute = true; return x; };
+    const routes = withGate ? [{ src: { type: 'gen', mode: 'marbles', length: 8, lock: 0 }, dest: { track: 0, param: 'gate' }, depth: 1, polarity: 1 }] : [];
+    const p = seqMod.makePattern([t, f(), f(), f(), f(), f()], routes); p.bpm = 120; return p;
+  };
+  const rms = (buf) => { let e = 0; for (let i = 0; i < buf.length; i++) e += buf[i] * buf[i]; return Math.sqrt(e / buf.length); };
+  const silent = rms(off.renderPattern(mkGate(false), { sampleRate: 48000, engines: reg.engines, mode: 'loop' }).left);
+  const gated = rms(off.renderPattern(mkGate(true), { sampleRate: 48000, engines: reg.engines, mode: 'loop' }).left);
+  check('GEN gate fires an otherwise-silent track', silent < 1e-4 && gated > 0.01, `silent ${silent.toFixed(4)} gated ${gated.toFixed(3)}`);
 }
 
 console.log('== poly cross-loop hold ==');

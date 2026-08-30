@@ -147,6 +147,16 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     return noteOff;
   }
 
+  // Whether any GEN gate output (X or Y, > 0.5) targets this track this step.
+  function genGate(tIndex) {
+    for (const r of routes) {
+      if (!r._gen || r.src.type !== 'gen') continue;
+      if (r.dest.param === 'gate' && r.dest.track === tIndex && r._genVal > 0.5) return true;
+      if (r.y && r.y.on && r.y.param === 'gate' && r.y.track === tIndex && r._genValY > 0.5) return true;
+    }
+    return false;
+  }
+
   function alloc(node) {
     for (const v of node.pool) if (!v.active) return v;
     const v = node.pool[node.rr % POLY];
@@ -215,6 +225,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     // accents it. Mirrors the runtime and the in-app scheduler.
     const accentMode = node.desc.altMode === 'accent';
     const lanes = accentMode ? ['main'] : ['main', 'alt'];
+    let fired = false;
     for (const lane of lanes) {
       const step = track[lane][pos];
       // Only steps that START a note trigger; tie steps are absorbed into the
@@ -249,10 +260,28 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
           allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         }
       }
+      fired = true;
       for (const r of routes) {
         if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
         if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
         r._env = 1;
+      }
+    }
+    // Generative gate (GEN -> gate): fill the step with a hit at its programmed
+    // pitch when a gate output is high and no lane fired. Mirrors the app.
+    if (!fired && genGate(tIndex)) {
+      const step = track.main[pos];
+      const gnote = gn(step.note);
+      const gateSec = Math.max(0.01, 0.9 * node.stepDur);
+      const offsets = node.desc.notesFor(gnote, node.params);
+      if (node.desc.mono) {
+        const off = offsets.length ? offsets[0] : 0;
+        node.pool[0].noteOn({ freq: 440 * Math.pow(2, (gnote - 69 + off) / 12), note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles });
+      } else {
+        for (const off of offsets) {
+          const nv = gnote + off;
+          allocFor(node, nv, false).noteOn({ freq: 440 * Math.pow(2, (gnote - 69 + off) / 12), note: nv, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles });
+        }
       }
     }
   }

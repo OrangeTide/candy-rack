@@ -188,6 +188,13 @@ function scheduleTrackStep(t, absStep, time) {
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
+  // Generative gate (GEN -> gate): when high and the lane did not already fire,
+  // trigger the voice at this step's programmed pitch (a generative rhythm). Pair
+  // it with a GEN -> pitch route for a fully generative voice.
+  if (!hit && modMatrix.genGate(t)) {
+    v.trigger(time, xposed(track, m.note, genOff), m.velocity, stepDur * 0.9, false, false, false);
+    hit = true;
+  }
   litByTrack[t].push({ pos, time, hit });
 }
 
@@ -1475,7 +1482,7 @@ function renderMatrix() {
         genLine.append(yt);
         let yOpts;
         if (r.y.track === -1) yOpts = [['volume', 'Volume']];
-        else { const ye = engineById(pattern.tracks[r.y.track].engine); yOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level'], ['note', 'Pitch']].concat(ye.params.map((p, i) => ['m' + i, p.label])); }
+        else { const ye = engineById(pattern.tracks[r.y.track].engine); yOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level'], ['note', 'Pitch'], ['gate', 'Gate']].concat(ye.params.map((p, i) => ['m' + i, p.label])); }
         genLine.append(pick(yOpts, r.y.param, (v) => { r.y.param = v; applyRoutes(); renderMatrix(); }));
         if (r.y.param === 'note') {
           genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.y.scale || 'minor', (v) => { r.y.scale = v; applyRoutes(); }));
@@ -1544,7 +1551,7 @@ function renderMatrix() {
     } else {
       const destEng = engineById(pattern.tracks[r.dest.track].engine);
       destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']];
-      if (r.src.type === 'gen') destOpts.push(['note', 'Pitch']); // generative note sequencer
+      if (r.src.type === 'gen') destOpts.push(['note', 'Pitch'], ['gate', 'Gate']); // generative pitch / rhythm
       destOpts = destOpts.concat(destEng.params.map((p, i) => ['m' + i, p.label]));
     }
     // renderMatrix re-run so the gen scale/octave controls appear/hide with Pitch.

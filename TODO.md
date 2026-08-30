@@ -185,9 +185,12 @@ mod-matrix source instead of a module row. Full spec: docs/GEN-SOURCE-DESIGN.md.
       per-route value LED (green/red meter); Marbles X/Y outputs -- a GEN drives an
       X output (route.dest) and an optional half-rate Y companion (route.y) with its
       own dest/param/depth (+Y on the gen line), both to params or Pitch, mirrored
-      offline. Verified in-browser + checks. STILL OPEN: mode as a mod destination,
-      a gate output for trigger destinations, a free-running tempo-synced clock
-      (currently clocks per X-dest-track step), a Y value LED.
+      offline. Also a GATE output (Marbles t): a 'gate' dest thresholds a GEN
+      output (X or Y > 0.5) and fires the track's voice at its programmed pitch
+      when the lane didn't -- a generative rhythm; pair with GEN -> pitch for a
+      full generative voice. Verified in-browser + checks. STILL OPEN: mode as a
+      mod destination, a free-running tempo-synced clock (currently clocks per
+      X-dest-track step), a Y value LED.
 - [ ] (Optional, cosmetic) render matrix routes as little patch-cord graphics for
       the modular LOOK, without making them free-patchable -- flavor over the same
       matrix, if the eurorack aesthetic is wanted.

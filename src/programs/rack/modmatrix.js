@@ -111,7 +111,7 @@ export class ModMatrix {
   buildGenRoute(route, ctx) {
     const node = { route, gen: makeGen(this.seedFor(route)) };
     const mkOut = (dest, depth, polarity, out) => {
-      if (!dest || dest.param === 'note') return; // note: read by the scheduler
+      if (!dest || dest.param === 'note' || dest.param === 'gate') return; // read by the scheduler
       const param = this.destParamOf(dest);
       if (!param) return;
       const gain = ctx.createGain();
@@ -202,6 +202,18 @@ export class ModMatrix {
       if (r.y && r.y.on && r.y.param === 'note' && r.y.track === track) off += q(n.gen.valueY, r.y);
     }
     return off;
+  }
+
+  // Whether any GEN gate output (X or Y, thresholded at 0.5) targeting this track
+  // is high this step. The scheduler uses it to fire the track generatively.
+  genGate(track) {
+    for (const n of this.nodes) {
+      if (!n.gen || n.route.src.type !== 'gen') continue;
+      const r = n.route;
+      if (r.dest.param === 'gate' && r.dest.track === track && n.gen.value > 0.5) return true;
+      if (r.y && r.y.on && r.y.param === 'gate' && r.y.track === track && n.gen.valueY > 0.5) return true;
+    }
+    return false;
   }
 
   teardown() {
