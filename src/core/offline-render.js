@@ -167,6 +167,17 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     node.rr += 1;
     return v;
   }
+  // Effective params for a step: base params with any per-step locks overriding
+  // those indices. Mirrors the worklet runtime's lockedParams().
+  function lockedParams(base, locks) {
+    if (!locks) return base;
+    let has = false;
+    for (const k in locks) { has = true; break; }
+    if (!has) return base;
+    const p = base.slice();
+    for (const k in locks) { let v = locks[k]; p[k] = v < 0 ? 0 : v > 1 ? 1 : v; }
+    return p;
+  }
   // Poly cross-loop hold: on a tied trigger, reuse the voice already sounding
   // this note (it will regate/hold, no re-attack); otherwise allocate fresh.
   // Mirrors the worklet runtime's poly path.
@@ -216,7 +227,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         // Rows use the offset only (not an absolute rooted pitch), matching the app.
         let gnote = (step.note == null ? 60 : step.note) + gs.off; gnote = gnote < 0 ? 0 : gnote > 127 ? 127 : gnote;
         const freq = 440 * Math.pow(2, (gnote - 69) / 12);
-        allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
+        allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: lockedParams(node.params, step.locks), toggles: node.toggles, tie: !!step.tie });
         for (const r of routes) {
           if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
           if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
@@ -252,17 +263,18 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       const gateSec = Math.max(0.01, gsteps * node.stepDur);
       const accent = accentMode ? !!track.alt[pos].on : false;
       const gnote = gn(step.note);
-      const offsets = node.desc.notesFor(gnote, node.params);
+      const ep = lockedParams(node.params, step.locks);
+      const offsets = node.desc.notesFor(gnote, ep);
       if (node.desc.mono) {
         // One reused voice so slide steps glide legato, mirroring the runtime.
         const off = offsets.length ? offsets[0] : 0;
         const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
-        node.pool[0].noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
+        node.pool[0].noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
       } else {
         for (const off of offsets) {
           const noteVal = gnote + off;
           const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
-          allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
+          allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, tie: !!step.tie });
         }
       }
       fired = true;

@@ -99,6 +99,16 @@ class VoiceProcessor extends AudioWorkletProcessor {
     };
   }
 
+  // Effective params for a trigger: the live params, with any per-step locks
+  // overriding those indices (clamped). Returns the live array unchanged when the
+  // step has no locks, so the common path allocates nothing.
+  lockedParams(locks) {
+    if (!locks) return this.params;
+    const p = this.params.slice();
+    for (const k in locks) { let v = locks[k]; p[k] = v < 0 ? 0 : v > 1 ? 1 : v; }
+    return p;
+  }
+
   alloc() {
     for (const v of this.pool) if (!v.active) return v;
     const v = this.pool[this.rr % this.pool.length];
@@ -113,14 +123,17 @@ class VoiceProcessor extends AudioWorkletProcessor {
       this.pool[part].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec: 0.1, params: this.partParams[part] });
       return;
     }
-    const offsets = this.desc.notesFor(ev.note, this.params);
+    // Per-step parameter locks: fire this trigger with an override of the live
+    // params for the locked indices, so a single step can hold its own timbre.
+    const params = this.lockedParams(ev.locks);
+    const offsets = this.desc.notesFor(ev.note, params);
     const gateSec = typeof ev.gateSec === 'number' ? ev.gateSec : 0.1;
     // Monophonic engines reuse one voice so slide steps can glide legato into
     // it; polyphonic engines allocate a fresh voice per note.
     if (this.desc.mono) {
       const off = offsets.length ? offsets[0] : 0;
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
-      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, slide: !!ev.slide, accent: !!ev.accent, tie: !!ev.tie });
+      this.pool[0].noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params, toggles: this.toggles, slide: !!ev.slide, accent: !!ev.accent, tie: !!ev.tie });
       return;
     }
     for (const off of offsets) {
@@ -133,7 +146,7 @@ class VoiceProcessor extends AudioWorkletProcessor {
       let v = null;
       if (ev.tie) { for (const pv of this.pool) { if (pv.active && pv.note === noteVal) { v = pv; break; } } }
       if (!v) v = this.alloc();
-      v.noteOn({ freq, note: noteVal, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, tie: !!ev.tie });
+      v.noteOn({ freq, note: noteVal, vel: ev.velocity, gateSec, params, toggles: this.toggles, tie: !!ev.tie });
     }
   }
 

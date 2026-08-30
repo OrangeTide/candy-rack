@@ -276,6 +276,33 @@ console.log('== sample (ROMpler) ==');
   check('sample loop mode sustains (still active at 2s)', loop.active && loop.frames >= SR * 2 - 2);
 }
 
+console.log('== per-step parameter locks ==');
+{
+  const seq = await import('../src/core/sequencer.js');
+  const { renderPattern } = await import('../src/core/offline-render.js');
+  const { engines: wEngines } = await import('../src/core/worklet/registry.js');
+  const build = (locks) => {
+    const t = seq.makeTrack('acid', [0.5, 0.6, 0.5, 0.4, 0.2]);
+    for (const i of [0, 4, 8, 12]) { const s = t.main[i]; s.on = true; s.note = 45; s.velocity = 110; s.gateLen = 0.5; }
+    if (locks) { t.main[8].locks = { 0: 0.05 }; t.main[12].locks = { 0: 0.95 }; } // lock Cutoff dark / bright
+    return seq.makePattern([t], []);
+  };
+  const base = renderPattern(build(false), { sampleRate: SR, engines: wEngines, mode: 'loop' });
+  const lock = renderPattern(build(true), { sampleRate: SR, engines: wEngines, mode: 'loop' });
+  let maxd = 0; for (let i = 0; i < base.left.length; i++) maxd = Math.max(maxd, Math.abs(base.left[i] - lock.left[i]));
+  check('a p-locked step renders differently', maxd > 0.02, `max|d| ${maxd.toFixed(3)}`);
+  // clearing the lock reverts to the base render exactly
+  const cleared = build(true); cleared.tracks[0].main[8].locks = {}; cleared.tracks[0].main[12].locks = {};
+  const rc = renderPattern(cleared, { sampleRate: SR, engines: wEngines, mode: 'loop' });
+  let same = true; for (let i = 0; i < base.left.length; i++) if (base.left[i] !== rc.left[i]) { same = false; break; }
+  check('clearing all locks reverts to the base render', same);
+  // deserialize backfills locks on old steps and preserves set ones
+  const j = JSON.parse(seq.serialize(build(true)));
+  delete j.tracks[0].main[0].locks;
+  const back = seq.deserialize(JSON.stringify(j));
+  check('locks survive load and backfill empty', Object.keys(back.tracks[0].main[12].locks).length === 1 && typeof back.tracks[0].main[0].locks === 'object');
+}
+
 console.log('== pulse (chiptune) ==');
 {
   const { PulseVoice, ARP_SHAPES } = await import('../src/core/worklet/engines/pulse.js');

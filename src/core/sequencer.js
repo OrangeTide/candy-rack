@@ -229,7 +229,12 @@ export function deserialize(text) {
       if (typeof pt.mute !== 'boolean') pt.mute = false;
     }
     for (const lane of trackLanes(t)) {
-      for (const s of laneSteps(t, lane)) if (typeof s.tie !== 'boolean') s.tie = false;
+      for (const s of laneSteps(t, lane)) {
+        if (typeof s.tie !== 'boolean') s.tie = false;
+        // Per-step parameter locks: a bag of { engineParamIndex: value } applied
+        // when this step fires. Backfilled empty so older saves load.
+        if (!s.locks || typeof s.locks !== 'object') s.locks = {};
+      }
     }
   }
   // Backfill the effects section added in version 5 so older saved patterns load.

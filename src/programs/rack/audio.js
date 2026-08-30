@@ -47,8 +47,12 @@ export class Voice {
 
   // time is an AudioContext time; the worklet fires on the exact sample.
   // gateSec is the note length; pitched engines release on it, drum ignores it.
-  trigger(time, note, velocity, gateSec, slide, accent, tie) {
-    this.node.port.postMessage({ type: 'trigger', time, note, velocity, gateSec, slide, accent, tie });
+  trigger(time, note, velocity, gateSec, slide, accent, tie, locks) {
+    const msg = { type: 'trigger', time, note, velocity, gateSec, slide, accent, tie };
+    // Per-step parameter locks: only sent when the step actually has any, so an
+    // ordinary trigger stays a small message.
+    if (locks) { for (const k in locks) { msg.locks = locks; break; } }
+    this.node.port.postMessage(msg);
   }
 
   // Kit tracks: set one part's voice type and drum params, and trigger one part.

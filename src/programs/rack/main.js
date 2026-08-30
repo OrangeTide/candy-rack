@@ -166,7 +166,7 @@ function scheduleTrackStep(t, absStep, time) {
     for (const lane of trackLanes(track)) {
       if (!startsNote(track, lane, pos)) continue;
       const s = laneSteps(track, lane)[pos];
-      v.trigger(time, xposed(track, s.note, genOff), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
+      v.trigger(time, xposed(track, s.note, genOff), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie, s.locks);
       modMatrix.onSourceTrigger(t, lane, time);
       hit = true;
     }
@@ -183,12 +183,12 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
+    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie, m.locks);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, xposed(track, genNote(a.note), genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
+    v.trigger(time, xposed(track, genNote(a.note), genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie, a.locks);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
@@ -196,7 +196,7 @@ function scheduleTrackStep(t, absStep, time) {
   // trigger the voice at this step's programmed pitch (a generative rhythm). Pair
   // it with a GEN -> pitch route for a fully generative voice.
   if (!hit && modMatrix.genGate(t)) {
-    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, stepDur * 0.9, false, false, false);
+    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, stepDur * 0.9, false, false, false, m.locks);
     hit = true;
   }
   litByTrack[t].push({ pos, time, hit });
@@ -1166,6 +1166,7 @@ function renderGrid() {
       if (step && step.on) cell.classList.add('on');
       if (step && step.slide) cell.append(el('span', 'slide-mark'));
       if (step && step.on && step.tie) cell.append(el('span', 'tie-mark'));
+      if (step && step.locks && Object.keys(step.locks).length) cell.append(el('span', 'lock-mark'));
       if (selSteps.has(stepKey(laneName, pos))) cell.classList.add('selected');
       attachCellGestures(cell, laneName, pos);
       cells.append(cell);
@@ -1360,6 +1361,43 @@ function renderStepEditor() {
   tieBtn.onclick = () => { const nv = !anchor.tie; applyAll((s) => { s.tie = nv; }); renderGrid(); };
   tieRow.append(tieBtn);
   box.append(tieRow);
+
+  // Per-step parameter locks: override the engine's knob values for just the
+  // selected steps (Elektron-style p-locks). Not shown for kit, whose parts carry
+  // their own params.
+  const lkTrack = pattern.tracks[selected];
+  const lkMeta = engineById(lkTrack.engine);
+  if (!isKit(lkTrack) && lkMeta.params && lkMeta.params.length) {
+    box.append(el('div', 'ed-sub', 'Param locks'));
+    lkMeta.params.forEach((pm, i) => {
+      const isLocked = () => anchor.locks && Object.prototype.hasOwnProperty.call(anchor.locks, i);
+      const row = el('div', 'ed-field lock' + (isLocked() ? ' on' : ''));
+      row.append(el('span', 'lbl', pm.label));
+      const fmt = (v) => (pm.format ? pm.format(v) : Math.round(v * 100) + '%');
+      const vv = el('span', 'val', isLocked() ? fmt(anchor.locks[i]) : 'base');
+      const sl = el('input', 'range');
+      sl.type = 'range'; sl.min = 0; sl.max = 1000;
+      sl.value = Math.round((isLocked() ? anchor.locks[i] : lkTrack.params[i]) * 1000);
+      sl.oninput = () => {
+        const v = Number(sl.value) / 1000;
+        applyAll((s) => { s.locks[i] = v; });
+        vv.textContent = fmt(v);
+        row.classList.add('on');
+      };
+      sl.onchange = () => renderGrid(); // update the step markers on release
+      const clr = el('button', 'note-btn', '×');
+      clr.title = 'Clear this lock on the selected steps';
+      clr.onclick = () => {
+        applyAll((s) => { delete s.locks[i]; });
+        row.classList.remove('on');
+        sl.value = Math.round(lkTrack.params[i] * 1000);
+        vv.textContent = 'base';
+        renderGrid();
+      };
+      row.append(vv, sl, clr);
+      box.append(row);
+    });
+  }
 
   box.append(el('div', 'hint poly', engineById(pattern.tracks[selected].engine).altMode === 'accent'
     ? 'Accent: a trigger on the ACCENT (alt) lane under a main step accents that note, louder and brighter, 303 style. An accent with no main step does nothing.'

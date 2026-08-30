@@ -35,6 +35,10 @@ More flavors fill out the rainbow over time as new engines land.
   (portamento) and tie (hold a note across steps, seamless across the loop).
   Per-track swing. Step numbers label the grid, and either a long-press or the
   EDIT toggle opens per-step editing.
+- **Parameter locks.** Any step can override the engine's knob values just for
+  that trigger (Elektron-style p-locks), so one step can hold its own cutoff,
+  duty, chord type, or any other engine parameter. Set them on the selected steps
+  from the step editor; a locked step is marked in the grid.
 - **Polyphonic voice rows.** A single-note poly engine can sequence up to six
   pitched rows, one voice per row, to play a chord per step.
 - **Performance transpose.** A live semitone shift of the whole sequence, in the
