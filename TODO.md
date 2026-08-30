@@ -11,8 +11,9 @@ more than its backlog position suggests.
 
 1. [DONE 2026-08-29] Richer chord Type sets (min7/dom7/dim/9th). 8->16 voicings,
    named Type readout. Unblocked Blueberry; lifts CHORD everywhere.
-2. Tempo-synced LFO in the mod matrix. Small-to-medium. Unblocks Blackberry's
-   tape-wobble, pairs with VaporCloud for vaporwave, useful in every machine.
+2. [DONE 2026-08-29] Tempo-synced LFO in the mod matrix. A route src can carry
+   `sync` (beats/cycle); Hz/sync toggle + division picker (4 bar..1/16); lfoHz()
+   shared by realtime + offline; retunes live with tempo. Unblocked Blackberry.
 3. dub-techno machine. Content-ready now (chord -> Dimension -> Reverb chain
    exists). A new fruit machine is cheap: config + starter + build entry + card.
 4. Cross-loop hold for POLY engines (see Sequencer). Medium, high leverage: fixes
@@ -91,8 +92,8 @@ Each program is a standalone fruit-branded machine. Grouped by build cost. The
 machine framework (build/<name>.html from a machine config) makes each new
 content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
-spirit), Strawberry (bubblegum rave), Blueberry (space jazz). Remaining backlog:
-sunshine breaks
+spirit), Strawberry (bubblegum rave), Blueberry (space jazz), Blackberry (dungeon
+synth). Remaining backlog: sunshine breaks
 (gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
 gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
 a Rings-style engine).
@@ -103,9 +104,12 @@ Cheapest (content + existing engines):
       2026-08-29: D-dorian modal vamp, brushed jazz kit + swing, walking FM BASS,
       Dm9 CHORD comp (new min9 voicing), sparse E.PIANO Rhodes, VOWEL choir +
       SUPERSAW pad bed into Dimension->Reverb. blueberry.js + blueberry.starter.js.
-- [ ] Blackberry: dungeon synth / electronic-folk (deep desaturated indigo).
-      Detuned CHORD pads, VOWEL choir/monk drone, EPIANO as bell/harpsichord.
-      Wants the tempo-synced tape-wobble LFO.
+- [x] Blackberry: dungeon synth / dark medieval folk (deep bramble purple). BUILT
+      2026-08-29: a slow 2-bar (32-step) A-minor lament over the A-G-F-E descent;
+      soft frame drum, SH-101 sub drone, medieval open-fifth CHORD pads, VOWEL
+      monk-choir pedal tone, E.PIANO bell melody, into VaporCloud tape wash ->
+      cavern Reverb, with tempo-synced 2-bar/4-bar pad LFOs. blackberry.js +
+      blackberry.starter.js.
 
 One small engine:
 
