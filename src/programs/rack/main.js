@@ -353,6 +353,24 @@ function setXposeBase(n) {
 }
 function setXposeKey(off) { xposeKey = off; updateXposeReadout(); }
 function clearXposeKey() { xposeKey = null; updateXposeReadout(); }
+
+// While steps are selected (editing), a piano/keyboard key SETS their pitch
+// instead of transposing: the key's semitone offset lands in the octave of the
+// anchor step's current note, so edits stay near the track's range. Returns true
+// when it set a note (the caller then skips the perform transpose), false when
+// nothing is selected (perform mode).
+function applyStepPitch(offset) {
+  if (selSteps.size === 0 || !selAnchor) return false;
+  const track = pattern.tracks[selected];
+  const anchor = laneSteps(track, selAnchor.lane)[selAnchor.pos];
+  const base = Math.floor((anchor.note ?? 60) / 12) * 12;
+  let note = base + offset;
+  if (note < 0) note = 0; else if (note > 127) note = 127;
+  for (const s of selectedStepObjs()) s.note = note;
+  save();
+  renderGrid(); // refreshes the step editor's Note readout + selection visuals
+  return true;
+}
 function updateXposeReadout() {
   const amt = xposeAmount();
   const e = document.getElementById('xpose-val'); if (e) e.textContent = fmtXpose(amt);
@@ -377,7 +395,7 @@ function makePiano() {
     k.append(el('span', 'pk-lbl', label));
     if (off === xposeAmount()) k.classList.add('active');
     const up = () => { if (xposeKey === off) clearXposeKey(); };
-    k.addEventListener('pointerdown', (e) => { e.preventDefault(); setXposeKey(off); try { k.setPointerCapture(e.pointerId); } catch (_) {} });
+    k.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!applyStepPitch(off)) setXposeKey(off); try { k.setPointerCapture(e.pointerId); } catch (_) {} });
     k.addEventListener('pointerup', up);
     k.addEventListener('pointercancel', up);
     return k;
@@ -1618,7 +1636,11 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.key >= '1' && e.key <= '6') { selectTrack(Number(e.key) - 1); return; }
   const k = e.key.toLowerCase();
-  if (!e.repeat && k in XPOSE_KEYS) { heldXposeKey = k; setXposeKey(XPOSE_KEYS[k]); }
+  if (!e.repeat && k in XPOSE_KEYS) {
+    const off = XPOSE_KEYS[k];
+    // Editing a step: the key sets its note. Otherwise: momentary transpose.
+    if (!applyStepPitch(off)) { heldXposeKey = k; setXposeKey(off); }
+  }
 });
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
