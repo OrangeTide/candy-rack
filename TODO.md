@@ -14,11 +14,12 @@ more than its backlog position suggests.
 2. [DONE 2026-08-29] Tempo-synced LFO in the mod matrix. A route src can carry
    `sync` (beats/cycle); Hz/sync toggle + division picker (4 bar..1/16); lfoHz()
    shared by realtime + offline; retunes live with tempo. Unblocked Blackberry.
-3. dub-techno machine. Content-ready now (chord -> Dimension -> Reverb chain
-   exists). A new fruit machine is cheap: config + starter + build entry + card.
-   FRUIT (user-assigned 2026-08-29): GUINEP (Spanish lime / mamoncillo) -- a
-   partially peeled guinep: green rind, pale orange-salmon lychee-like flesh.
-   Palette leans green rind + salmon flesh; distinct from Lime.
+3. [DONE 2026-08-29] Guinep dub-techno machine. GUINEP (Spanish lime /
+   mamoncillo), a partially peeled fruit: green rind, salmon flesh; green-and-
+   salmon skin, distinct from Lime. A-minor / 124 bpm: minimal four-on-the-floor,
+   the off-beat Am7 chord stab into Dimension -> Echo -> Reverb, a dry sub, a
+   ducked pad bed, a higher Am9 answer, an airy VOWEL top. guinep.js +
+   guinep.starter.js + build entry + landing card (repurposed the Lime slot).
 4. Cross-loop hold for POLY engines (see Sequencer). Medium, high leverage: fixes
    drones/pads re-attacking each loop on ALL poly engines, which gates Coconut and
    any pad-heavy program's quality. Also warms up the offline loop render.
@@ -113,10 +114,9 @@ machine framework (build/<name>.html from a machine config) makes each new
 content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
 spirit), Strawberry (bubblegum rave), Blueberry (space jazz), Blackberry (dungeon
-synth), Coconut (generative ambient). Remaining backlog: sunshine breaks
-(gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
-gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
-a Rings-style engine).
+synth), Coconut (generative ambient), Guinep (dub techno). Remaining backlog:
+sunshine breaks (gated on sampler), gothic-industrial / Licorice (has
+distortion/ringmod now via the FX rack; wants a Rings-style engine).
 
 Cheapest (content + existing engines):
 
@@ -130,6 +130,14 @@ Cheapest (content + existing engines):
       monk-choir pedal tone, E.PIANO bell melody, into VaporCloud tape wash ->
       cavern Reverb, with tempo-synced 2-bar/4-bar pad LFOs. blackberry.js +
       blackberry.starter.js.
+- [x] Guinep: dub techno (green rind, pale salmon flesh; a partially peeled
+      Spanish lime, distinct from Lime). BUILT 2026-08-29: A-minor, 124 bpm.
+      A deep minimal 909 four-on-the-floor, THE off-beat Am7 chord stab sent hard
+      into Dimension -> tape Echo -> long dark Reverb (the Basic Channel / Rhythm
+      & Sound chord), a hypnotic dry A1 sub, a kick-ducked dark SUPERSAW pad bed,
+      a sparse higher Am9 answer stab, and a distant VOWEL "aah" top drifting
+      under a synced LFO. guinep.js + guinep.starter.js; repurposed the old Lime
+      dub-techno landing placeholder into the live Guinep card.
 
 One small engine:
 

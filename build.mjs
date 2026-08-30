@@ -27,6 +27,7 @@ const MACHINES = [
   { name: 'blueberry', config: 'src/programs/machines/blueberry.js' },
   { name: 'blackberry', config: 'src/programs/machines/blackberry.js' },
   { name: 'coconut', config: 'src/programs/machines/coconut.js' },
+  { name: 'guinep', config: 'src/programs/machines/guinep.js' },
 ];
 
 const APP = {
