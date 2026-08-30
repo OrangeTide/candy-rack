@@ -320,12 +320,19 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart
 // pulsing red circle with a stop square (and a counting timer) while recording.
 // It is a stable node because renderMixer() rebuilds the mixer on every solo or
 // save; recreating it would drop an in-progress take's button and timer.
+// Vector glyphs for the record lamp. A text ● / ■ sits off-center because of the
+// font baseline, so draw the shapes as SVG: they center exactly in the flex box
+// and scale crisply. fill=currentColor picks up the button's color per state.
+const ICON_DOT = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>';
+const ICON_STOP = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>';
+
 let liveEl = null;
 function liveRecorder() {
   if (liveEl) return liveEl;
   const IDLE_TITLE = 'Live-record the master out. Click to start, click again to stop and save a WAV.';
   const box = el('div', 'mix-rec');
-  const btn = el('button', 'recdot', '●');   // idle circle; a stop square while recording
+  const btn = el('button', 'recdot');   // idle circle; a stop square while recording
+  btn.innerHTML = ICON_DOT;
   btn.title = IDLE_TITLE;
   const label = el('div', 'knob-label reclabel', 'Rec');
   const time = el('div', 'rec-time', '');
@@ -347,7 +354,7 @@ function liveRecorder() {
     const buf = host.stopLiveRecording();
     box.classList.remove('armed');
     btn.classList.remove('armed');
-    btn.textContent = '●';
+    btn.innerHTML = ICON_DOT;
     btn.title = IDLE_TITLE;
     label.textContent = 'Rec';
     if (!buf) { time.textContent = ''; return; }
@@ -371,7 +378,7 @@ function liveRecorder() {
     startedAt = host.currentTime;
     box.classList.add('armed');
     btn.classList.add('armed');
-    btn.textContent = '■';   // stop square
+    btn.innerHTML = ICON_STOP;
     label.textContent = 'REC';
     tick();
     timer = setInterval(tick, 250);
