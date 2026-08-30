@@ -1,6 +1,6 @@
 {
   "name": "candyrack",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "candyRACK: real-time audio grooveboxes as single-page HTML programs over a shared core.",
   "license": "0BSD",
