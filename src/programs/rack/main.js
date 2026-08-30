@@ -127,6 +127,17 @@ function trackAudible(t) {
   return !pattern.tracks.some((x) => x.solo) || track.solo;
 }
 
+// Per-step micro-timing: shift a note's onset off the grid by step.nudge (a
+// fraction of a step, clamped to +/-0.5). The grid time (mod routing, GEN clock,
+// the playhead) is untouched; only the audible onset moves. Clamped so an early
+// (negative) nudge never lands before now.
+function nudged(time, step, stepDur) {
+  const n = step.nudge || 0;
+  if (!n) return time;
+  const nt = time + (n < -0.5 ? -0.5 : n > 0.5 ? 0.5 : n) * stepDur;
+  return nt < host.currentTime ? host.currentTime : nt;
+}
+
 function scheduleTrackStep(t, absStep, time) {
   const track = pattern.tracks[t];
   if (!trackAudible(t)) return;
@@ -150,7 +161,7 @@ function scheduleTrackStep(t, absStep, time) {
       if (track.parts[part].mute) continue;
       const step = track.parts[part].lane[pos];
       if (!step.on) continue;
-      v.triggerPart(time, step.note, step.velocity, part);
+      v.triggerPart(nudged(time, step, stepDur), step.note, step.velocity, part);
       modMatrix.onSourceTrigger(t, 'part' + part, time);
       hit = true;
     }
@@ -166,7 +177,7 @@ function scheduleTrackStep(t, absStep, time) {
     for (const lane of trackLanes(track)) {
       if (!startsNote(track, lane, pos)) continue;
       const s = laneSteps(track, lane)[pos];
-      v.trigger(time, xposed(track, s.note, genOff), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie, s.locks);
+      v.trigger(nudged(time, s, stepDur), xposed(track, s.note, genOff), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie, s.locks);
       modMatrix.onSourceTrigger(t, lane, time);
       hit = true;
     }
@@ -183,12 +194,12 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie, m.locks);
+    v.trigger(nudged(time, m, stepDur), xposed(track, genNote(m.note), genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie, m.locks);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, xposed(track, genNote(a.note), genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie, a.locks);
+    v.trigger(nudged(time, a, stepDur), xposed(track, genNote(a.note), genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie, a.locks);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
@@ -1341,6 +1352,15 @@ function renderStepEditor() {
   const gv = el('span', 'val', Math.round(anchor.gateLen * 100) + '%');
   gate.oninput = () => { const g = Number(gate.value); applyAll((s) => { s.gateLen = g / 100; }); gv.textContent = g + '%'; };
   box.append(field('Gate', gate, gv));
+
+  // Nudge: micro-timing offset, -50%..+50% of a step. Negative pushes the note
+  // early (ahead of the beat), positive lays it back. 0 is dead on the grid.
+  const fmtNudge = (n) => n === 0 ? '0' : (n > 0 ? '+' : '') + n + '%';
+  const nudge = el('input', 'range');
+  nudge.type = 'range'; nudge.min = -50; nudge.max = 50; nudge.value = Math.round((anchor.nudge || 0) * 100);
+  const nv2 = el('span', 'val', fmtNudge(Math.round((anchor.nudge || 0) * 100)));
+  nudge.oninput = () => { const n = Number(nudge.value); applyAll((s) => { s.nudge = n / 100; }); nv2.textContent = fmtNudge(n); };
+  box.append(field('Nudge', nudge, nv2));
 
   // Slide is only meaningful on a monophonic engine, where it glides legato
   // from the previous note (303 style).

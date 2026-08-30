@@ -110,6 +110,12 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       stereo: typeof pool[0].renderStereo === 'function',
       stepDur: q / track.ratio,
       cursor: { step: 0, nextTime: 0 },
+      // Deferred note onsets for per-step micro-timing (nudge). A nudged note is
+      // queued as { when: sampleIndex, fn } and drained when the loop reaches it,
+      // so its onset lands off the grid exactly as the realtime scheduler places
+      // it. nudge 0 fires immediately (never queued), so existing patterns render
+      // byte-identical.
+      pending: [],
     };
   });
   // Mod-output follower coefficients, matching the worklet runtime.
@@ -185,7 +191,20 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     if (tie) { for (const v of node.pool) if (v.active && v.note === noteVal) return v; }
     return alloc(node);
   }
-  function fireStep(node, tIndex, pos) {
+  // Fire a note onset, deferred by the step's nudge (fraction of a step). nudge 0
+  // fires now (unchanged); otherwise the onset is queued at its off-grid sample.
+  // An early (negative) nudge is clamped to the current sample, since the forward
+  // render cannot fire before the cursor reached the step; the realtime scheduler
+  // places early notes exactly.
+  function emit(node, i, step, fn) {
+    const n = step.nudge || 0;
+    if (!n) { fn(); return; }
+    const nn = n < -0.5 ? -0.5 : n > 0.5 ? 0.5 : n;
+    let when = i + Math.round(nn * node.stepDur * SR);
+    if (when < i) when = i;
+    node.pending.push({ when, fn });
+  }
+  function fireStep(node, tIndex, pos, i) {
     const track = node.track;
     // Advance GEN sources clocked by this step; gn() shifts a pitched note by the
     // summed GEN -> note offset (kit/drums are not shifted). Mirrors the app.
@@ -199,7 +218,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         const step = track.parts[part].lane[pos];
         if (!step.on) continue;
         const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
-        node.pool[part].noteOn({ freq, note: step.note, vel: step.velocity, gateSec: 0.1, params: node.partParams[part] });
+        emit(node, i, step, () => node.pool[part].noteOn({ freq, note: step.note, vel: step.velocity, gateSec: 0.1, params: node.partParams[part] }));
         for (const r of routes) {
           if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
           if (r.src.lane !== 'both' && r.src.lane !== 'part' + part) continue;
@@ -227,7 +246,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         // Rows use the offset only (not an absolute rooted pitch), matching the app.
         let gnote = (step.note == null ? 60 : step.note) + gs.off; gnote = gnote < 0 ? 0 : gnote > 127 ? 127 : gnote;
         const freq = 440 * Math.pow(2, (gnote - 69) / 12);
-        allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: lockedParams(node.params, step.locks), toggles: node.toggles, tie: !!step.tie });
+        emit(node, i, step, () => allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: lockedParams(node.params, step.locks), toggles: node.toggles, tie: !!step.tie }));
         for (const r of routes) {
           if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
           if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
@@ -269,13 +288,15 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         // One reused voice so slide steps glide legato, mirroring the runtime.
         const off = offsets.length ? offsets[0] : 0;
         const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
-        node.pool[0].noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
+        emit(node, i, step, () => node.pool[0].noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie }));
       } else {
-        for (const off of offsets) {
-          const noteVal = gnote + off;
-          const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
-          allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, tie: !!step.tie });
-        }
+        emit(node, i, step, () => {
+          for (const off of offsets) {
+            const noteVal = gnote + off;
+            const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
+            allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: ep, toggles: node.toggles, tie: !!step.tie });
+          }
+        });
       }
       fired = true;
       for (const r of routes) {
@@ -320,6 +341,12 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   let rawLen = cap;
   for (let i = 0; i < cap; i++) {
     const t = i / SR;
+    // Drain any nudged note onsets whose off-grid sample has arrived. Runs every
+    // sample (even past the loop) so a late nudge near the loop end still fires.
+    for (let n = 0; n < nodes.length; n++) {
+      const pend = nodes[n].pending;
+      if (pend.length) nodes[n].pending = pend.filter((p) => { if (p.when <= i) { p.fn(); return false; } return true; });
+    }
     if (i < loopSamples) {
       for (let n = 0; n < nodes.length; n++) {
         const node = nodes[n];
@@ -327,7 +354,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         const swing = node.track.swing || 0;
         // Swing delays the off-beat 16ths (odd steps).
         while (t >= node.cursor.nextTime + (node.cursor.step % 2 === 1 ? swing * node.stepDur * 0.4 : 0)) {
-          fireStep(node, n, node.cursor.step % node.track.length);
+          fireStep(node, n, node.cursor.step % node.track.length, i);
           node.cursor.step += 1;
           node.cursor.nextTime += node.stepDur;
         }

@@ -19,8 +19,11 @@ export function makeStep() {
   // Polyphonic engines ignore it. tie merges this step into the previous note:
   // it does not retrigger, it just extends the held note across this step (a
   // sustained "whole note" instead of re-articulated steps). Both default false,
-  // so old patterns read as unset.
-  return { on: false, note: 60, velocity: 100, gateLen: 0.5, slide: false, tie: false, locks: {} };
+  // so old patterns read as unset. nudge is a per-step micro-timing offset as a
+  // fraction of a step (-0.5..0.5): the note's onset is pushed early or late off
+  // the grid for a human feel, while the sequencer keeps clocking on the grid. It
+  // is a per-step, per-lane value edited like a p-lock; 0 is dead on the grid.
+  return { on: false, note: 60, velocity: 100, gateLen: 0.5, slide: false, tie: false, nudge: 0, locks: {} };
 }
 
 export function makeLane() {
@@ -231,6 +234,8 @@ export function deserialize(text) {
     for (const lane of trackLanes(t)) {
       for (const s of laneSteps(t, lane)) {
         if (typeof s.tie !== 'boolean') s.tie = false;
+        // Per-step micro-timing offset added later; backfill 0 (on the grid).
+        if (typeof s.nudge !== 'number') s.nudge = 0;
         // Per-step parameter locks: a bag of { engineParamIndex: value } applied
         // when this step fires. Backfilled empty so older saves load.
         if (!s.locks || typeof s.locks !== 'object') s.locks = {};

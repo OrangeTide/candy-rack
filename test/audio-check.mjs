@@ -303,6 +303,34 @@ console.log('== per-step parameter locks ==');
   check('locks survive load and backfill empty', Object.keys(back.tracks[0].main[12].locks).length === 1 && typeof back.tracks[0].main[0].locks === 'object');
 }
 
+console.log('== per-step nudge (micro-timing) ==');
+{
+  const seq = await import('../src/core/sequencer.js');
+  const { renderPattern } = await import('../src/core/offline-render.js');
+  const { engines: wEngines } = await import('../src/core/worklet/registry.js');
+  const build = (nudge) => {
+    const t = seq.makeTrack('acid', [0.5, 0.6, 0.5, 0.4, 0.2]);
+    const s = t.main[0]; s.on = true; s.note = 45; s.velocity = 120; s.gateLen = 0.5; s.nudge = nudge;
+    return seq.makePattern([t], []);
+  };
+  const onset = (buf) => { for (let i = 0; i < buf.length; i++) if (Math.abs(buf[i]) > 0.02) return i; return -1; };
+  const opt = { sampleRate: SR, engines: wEngines, mode: 'tails' };
+  const grid = renderPattern(build(0), opt);
+  const late = renderPattern(build(0.4), opt);
+  const dSamp = onset(late.left) - onset(grid.left);
+  // At 120 BPM a 16th is 0.125 s; a +0.4 nudge lays the onset back ~50 ms.
+  check('a positive nudge delays the onset', dSamp > SR * 0.02, `Δ ${dSamp} samples`);
+  // The same nudged pattern renders identically each pass (deterministic WAV).
+  const late2 = renderPattern(build(0.4), opt);
+  let same = true; for (let i = 0; i < late.left.length; i++) if (late.left[i] !== late2.left[i]) { same = false; break; }
+  check('nudged render is deterministic', same);
+  // nudge round-trips through save/load and backfills 0 on older steps.
+  const j = JSON.parse(seq.serialize(build(0.25)));
+  delete j.tracks[0].main[1].nudge;
+  const back = seq.deserialize(JSON.stringify(j));
+  check('nudge survives load and backfills 0', back.tracks[0].main[0].nudge === 0.25 && back.tracks[0].main[1].nudge === 0);
+}
+
 console.log('== pulse (chiptune) ==');
 {
   const { PulseVoice, ARP_SHAPES } = await import('../src/core/worklet/engines/pulse.js');
