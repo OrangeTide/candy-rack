@@ -14,7 +14,7 @@
 import { kitPartVoice } from './worklet/registry.js';
 import { fxVoice } from './fx/voices.js';
 import { algoById, chainOrder } from './fx/algorithms.js';
-import { lfoHz } from './sequencer.js';
+import { lfoHz, isRows, trackLanes, laneSteps } from './sequencer.js';
 
 const POLY = 8;
 
@@ -22,7 +22,7 @@ const POLY = 8;
 // the note before it. Slide overrides tie. Mirrors startsNote() in
 // src/programs/rack/main.js.
 function startsNote(track, lane, pos) {
-  const L = track[lane];
+  const L = laneSteps(track, lane);
   const s = L[pos];
   if (!s.on) return false;
   if (!s.tie || s.slide) return true;
@@ -150,6 +150,33 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       }
       return;
     }
+    // Voice rows: fire each active row as its own note into the poly pool, an
+    // N-note chord. Single-note poly engines only (mono + chord excluded, matching
+    // the in-app scheduler).
+    if (isRows(track) && !node.desc.mono && track.engine !== 'chord') {
+      for (const lane of trackLanes(track)) {
+        if (!startsNote(track, lane, pos)) continue;
+        const L = laneSteps(track, lane);
+        const step = L[pos];
+        let span = 1, p = pos;
+        for (let i = 0; i < track.length; i++) {
+          p = (p + 1) % track.length;
+          const nx = L[p];
+          if (nx.on && nx.tie && !nx.slide) span += 1; else break;
+        }
+        const gsteps = span - 1 + step.gateLen;
+        const gateSec = Math.max(0.01, gsteps * node.stepDur);
+        const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
+        alloc(node).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles });
+        for (const r of routes) {
+          if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
+          if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
+          r._env = 1;
+        }
+      }
+      return;
+    }
+
     // Accent mode: only the main lane sounds, and a coincident alt trigger
     // accents it. Mirrors the runtime and the in-app scheduler.
     const accentMode = node.desc.altMode === 'accent';

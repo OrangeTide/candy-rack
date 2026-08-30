@@ -468,6 +468,17 @@
     box-shadow: 0 2px 5px rgba(0,0,0,.5) inset;
   }
   .part-tab.on { color: #2a0713; background: linear-gradient(180deg, #ffd27a, var(--amber)); border-color: var(--amber); box-shadow: 0 0 10px rgba(255,179,46,.5); }
+
+  /* Voice-rows control (poly chord sequencing) */
+  .rows-ctl { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
+  .rows-btn {
+    font-family: var(--disp); font-weight: 800; font-size: 12px; letter-spacing: 1px;
+    color: var(--m-ink-dim); background: linear-gradient(180deg, var(--m-well-2), var(--m-well));
+    border: 1px solid #000; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,.5) inset;
+  }
+  .rows-btn.on { color: #06210b; background: linear-gradient(180deg, #b6f58a, var(--lime)); border-color: var(--lime); box-shadow: 0 0 10px rgba(158,245,58,.45); }
+  .rows-lbl { font-family: var(--tech); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--m-ink-mute); }
   .lane-tag.partsel { color: var(--amber); text-shadow: 0 0 8px rgba(255,179,46,.6); }
   .lane[data-lane^="part"] .lane-tag { cursor: pointer; }
   /* Part selector + its Type, side by side, with room before the knobs. */

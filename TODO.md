@@ -68,13 +68,15 @@ so this record's palette is fully covered by the Grape machine.
       than allocating a new one. Also: the offline 'loop' render is one cold
       pass, so a recorded drone still attacks at the tile start even for mono;
       a warm-up pass would fix the WAV.
-- [ ] Polyphonic chord rows on poly engines. The kit's 4-lane machinery
-      (laneSteps/trackLanes, N-row grid, per-lane scheduling) generalizes: a poly
-      engine could use N note-rows, one voice per row, to play an N-note chord per
-      step, each row with its own pitch. The multi-lane plumbing is already there;
-      this needs a poly-engine "voice rows" mode (like kit parts, but each row is
-      a pitched note into one shared engine rather than a separate drum voice) and
-      a row-count control.
+- [x] Polyphonic chord rows on poly engines. DONE 2026-08-29. A single-note poly
+      track can enable voice-rows mode (track.rowMode + track.rows[N] lanes, 2..6
+      via setRowCount): trackLanes/laneSteps return row0..rowN-1, the scheduler
+      fires each active row as its own note into the poly pool (an N-note chord),
+      mirrored in offline-render; startsNote/tiedGate made lane-agnostic so ties
+      work per row. UI: a ROWS toggle + VOICES count in the editor (hidden for kit,
+      mono, and CHORD), grid rows labeled V1..VN. Engine flip to mono/kit/CHORD
+      disables it. Verified: 3 rows render a real C-E-G triad offline. Note: rows
+      are poly voices, so they still re-attack each loop until poly cross-loop hold.
 
 ## Future engines
 
@@ -135,6 +137,11 @@ Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
       slow filter LFOs. The FX send rack now exists, so this is content-ready,
       but SUPERSAW/CHORD are poly, so the long-tie drones re-attack every loop
       until the poly cross-loop hold lands. Best built after item 4.
+
+## Modulation Rack Row
+
+- [ ] create a 3U x 40 HP eurorack row. the goal is to hold Maths, Tides, Turing Machine, or Marbles
+- [ ] TODO: how to assign inputs/outputs. Obvious is to draw cables, with a top row of jacks for outputs and a bottom row of inputs. The available ports would mirror what the mod-matrix already supports.
 
 ## Other
 

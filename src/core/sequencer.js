@@ -72,18 +72,47 @@ export function makeTrack(engineId, params, toggles) {
   return t;
 }
 
+// Voice rows: a poly engine can sequence N pitched note-rows (row0..rowN-1), one
+// voice per row, so a step plays an N-note chord with an independent pitch per
+// row. This reuses the kit's N-lane grid machinery, but every row feeds the same
+// shared engine (not a separate voice type), so there are no per-row params.
+export const MAX_ROWS = 6; // within the worklet poly pool (POLY 8), with headroom
+
+export function makeVoiceRows(n) {
+  return Array.from({ length: n }, makeLane);
+}
+
+// Turn voice-rows on (or resize) on a track: ensure track.rows has n lanes,
+// preserving existing rows. Clamped to [2, MAX_ROWS].
+export function setRowCount(track, n) {
+  n = Math.max(2, Math.min(MAX_ROWS, n | 0));
+  if (!Array.isArray(track.rows)) track.rows = [];
+  while (track.rows.length < n) track.rows.push(makeLane());
+  track.rows.length = n;
+}
+
 // A track is a drum kit when its engine is 'kit'. Kit tracks sequence four part
-// rows (part0..part3); melodic tracks sequence main and alt.
+// rows (part0..part3); a poly track in voice-rows mode sequences row0..rowN-1;
+// otherwise a melodic track sequences main and alt.
 export function isKit(track) {
   return track.engine === 'kit';
 }
-export function trackLanes(track) {
-  return isKit(track) ? ['part0', 'part1', 'part2', 'part3'] : ['main', 'alt'];
+export function isRows(track) {
+  return !!track.rowMode && Array.isArray(track.rows) && track.rows.length > 0 && !isKit(track);
 }
-// The step array for a lane name, unifying melodic lanes and kit part rows.
+export function trackLanes(track) {
+  if (isKit(track)) return ['part0', 'part1', 'part2', 'part3'];
+  if (isRows(track)) return track.rows.map((_, i) => 'row' + i);
+  return ['main', 'alt'];
+}
+// The step array for a lane name, unifying melodic lanes, kit part rows, and
+// poly voice rows.
 export function laneSteps(track, name) {
   if (name.charCodeAt(0) === 112 /* 'p' */ && name.startsWith('part')) {
     return track.parts[+name.slice(4)].lane;
+  }
+  if (name.charCodeAt(0) === 114 /* 'r' */ && name.startsWith('row')) {
+    return track.rows[+name.slice(3)];
   }
   return track[name];
 }

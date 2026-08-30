@@ -89,6 +89,27 @@ check('starter chord Type values read maj/maj/min7',
   typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
   `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
+console.log('== voice rows (poly chord sequencing) ==');
+{
+  const seq = await import('../src/core/sequencer.js');
+  const off = await import('../src/core/offline-render.js');
+  const reg = await import('../src/core/worklet/registry.js');
+  const { makeTrack, makePattern, setRowCount, isRows, trackLanes, laneSteps } = seq;
+  const t = makeTrack('supersaw', [0.4, 0.6, 0.5, 0.0, 0.1]);
+  t.rowMode = true; setRowCount(t, 3);
+  [60, 64, 67].forEach((note, r) => { const s = t.rows[r][0]; s.on = true; s.note = note; s.gateLen = 0.9; s.velocity = 100; });
+  check('rows mode: 3 lanes, per-row pitch', isRows(t) && trackLanes(t).length === 3 && laneSteps(t, 'row1')[0].note === 64);
+
+  const filler = () => { const x = makeTrack('supersaw', [0.4, 0.6, 0.5, 0, 0.1]); x.mute = true; return x; };
+  const p = makePattern([t, filler(), filler(), filler(), filler(), filler()], []);
+  p.bpm = 120;
+  const r = off.renderPattern(p, { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  const gz = (buf, f) => { const w = 2 * Math.PI * f / r.sampleRate, cc = 2 * Math.cos(w); let s1 = 0, s2 = 0; for (let i = 0; i < buf.length; i++) { const s0 = buf[i] + cc * s1 - s2; s2 = s1; s1 = s0; } return Math.sqrt(s1 * s1 + s2 * s2 - cc * s1 * s2) / buf.length; };
+  const C = gz(r.left, 261.6), E = gz(r.left, 329.6), G = gz(r.left, 392.0);
+  // A single-note lane would sound only C; three rows sound the whole C-E-G triad.
+  check('rows render a real C-E-G triad (3 voices)', C > 0.003 && E > 0.003 && G > 0.003, `C=${C.toFixed(3)} E=${E.toFixed(3)} G=${G.toFixed(3)}`);
+}
+
 console.log('== ms20 (Sallen-Key filter) ==');
 {
   const { MS20Voice } = await import('../src/core/worklet/engines/ms20.js');

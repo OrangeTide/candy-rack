@@ -14,7 +14,7 @@ import { Transport } from '../../core/transport.js';
 import { Clock } from '../../core/clock.js';
 import { engines, engineById } from '../../core/registry.js';
 import { defaultParams, defaultToggles } from '../../core/engines/drum-meta.js';
-import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, trackLanes, laneSteps, makeKitParts, SYNC_DIVS } from '../../core/sequencer.js';
+import { serialize, deserialize, makeRoute, PAGE, MAX_STEPS, isKit, isRows, trackLanes, laneSteps, makeKitParts, setRowCount, MAX_ROWS, SYNC_DIVS } from '../../core/sequencer.js';
 import { fxTypes, fxById, defaultFxParams, defaultFxToggles } from '../../core/fx/registry.js';
 import { algoById } from '../../core/fx/algorithms.js';
 import { fmtPan, fmtHz, fmtDb } from '../../core/format.js';
@@ -149,6 +149,22 @@ function scheduleTrackStep(t, absStep, time) {
     return;
   }
 
+  // Voice rows: fire each active row as its own note into the poly voice pool,
+  // so a column of rows sounds an N-note chord. For engines whose notesFor is a
+  // single note (sh101/supersaw/csaw/epiano/vowel/...), each row is one voice.
+  // Skipped for mono engines and CHORD (whose notesFor already makes a chord).
+  if (isRows(track) && !engineById(track.engine).mono && track.engine !== 'chord') {
+    for (const lane of trackLanes(track)) {
+      if (!startsNote(track, lane, pos)) continue;
+      const s = laneSteps(track, lane)[pos];
+      v.trigger(time, s.note, s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
+      modMatrix.onSourceTrigger(t, lane, time);
+      hit = true;
+    }
+    litByTrack[t].push({ pos, time, hit });
+    return;
+  }
+
   const m = track.main[pos];
   const a = track.alt[pos];
 
@@ -181,7 +197,7 @@ function scheduleTrackStep(t, absStep, time) {
 // voice holds it across the loop, so all-tied is one continuous drone, not
 // silence and not a re-attack every bar.
 function startsNote(track, lane, pos) {
-  const L = track[lane];
+  const L = laneSteps(track, lane);
   const s = L[pos];
   if (!s.on) return false;
   if (!s.tie || s.slide) return true;             // a trigger: non-tie, or slide wins over tie
@@ -202,7 +218,7 @@ function startsNote(track, lane, pos) {
 // the mono voice is still alive to glide from, and the slide step re-arms the
 // gate on arrival.
 function tiedGate(track, lane, pos, stepDur) {
-  const L = track[lane];
+  const L = laneSteps(track, lane);
   let span = 1;
   let p = pos;
   for (let i = 0; i < track.length; i++) {
@@ -884,6 +900,31 @@ function renderEditor() {
   }
   ed.append(switches);
 
+  // Voice rows: single-note poly engines can sequence N pitched rows, one voice
+  // per row, for a sequenced chord. A toggle enables it, a count picks 2..MAX_ROWS.
+  // Hidden for kit, mono engines, and CHORD (which voices chords via its Type knob).
+  if (!isKit(track) && !meta.mono && meta.id !== 'chord') {
+    const rowsCtl = el('div', 'rows-ctl');
+    const on = isRows(track);
+    const tog = el('button', 'rows-btn' + (on ? ' on' : ''), on ? 'ROWS ON' : 'ROWS');
+    tog.title = 'Sequence N pitched voice rows (a chord per step) instead of main/alt';
+    tog.onclick = () => {
+      if (isRows(track)) { track.rowMode = false; }
+      else { track.rowMode = true; setRowCount(track, Array.isArray(track.rows) && track.rows.length ? track.rows.length : 3); }
+      renderEditor(); renderGrid();
+    };
+    rowsCtl.append(tog);
+    if (on) {
+      rowsCtl.append(el('span', 'rows-lbl', 'voices'));
+      rowsCtl.append(pick(
+        Array.from({ length: MAX_ROWS - 1 }, (_, i) => [String(i + 2), String(i + 2)]),
+        String(track.rows.length),
+        (val) => { setRowCount(track, Number(val)); save(); renderEditor(); renderGrid(); }
+      ));
+    }
+    ed.append(rowsCtl);
+  }
+
   // Sequence bar above the step grid: page nav, then Speed, Length, and the
   // per-track Swing, so the controls that act on the strip sit right over it.
   // The usage instructions live once, below the grid (in the step editor).
@@ -965,6 +1006,8 @@ function renderGrid() {
       mb.onclick = (e) => { e.stopPropagation(); part.mute = !part.mute; save(); renderGrid(); };
       head.append(tagEl, mb);
       lane.append(head);
+    } else if (laneName.startsWith('row')) {
+      lane.append(el('div', 'lane-tag', 'V' + (li + 1)));
     } else {
       const isAccent = laneName === 'alt' && accentMode;
       lane.append(el('div', 'lane-tag' + (isAccent ? ' accent' : ''), isAccent ? 'accent' : laneName));
@@ -1342,6 +1385,9 @@ function flipEngine(t, id) {
   track.params = defaultParams(engineById(id));
   track.toggles = defaultToggles(engineById(id));
   if (id === 'kit' && !Array.isArray(track.parts)) track.parts = makeKitParts();
+  // Voice rows only apply to single-note poly engines; turn the mode off when
+  // flipping to a mono engine, the kit, or CHORD (its own chords).
+  if (track.rowMode && (id === 'kit' || id === 'chord' || engineById(id).mono)) track.rowMode = false;
   selectedPart = 0;
   if (voices[t]) {
     voices[t].dispose();
