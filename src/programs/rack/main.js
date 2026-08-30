@@ -1003,8 +1003,8 @@ function renderEditor() {
   if (!isKit(track) && !meta.mono && meta.id !== 'chord') {
     const rowsCtl = el('div', 'rows-ctl');
     const on = isRows(track);
-    const tog = el('button', 'rows-btn' + (on ? ' on' : ''), on ? 'ROWS ON' : 'ROWS');
-    tog.title = 'Sequence N pitched voice rows (a chord per step) instead of main/alt';
+    const tog = el('button', 'rows-btn' + (on ? ' on' : ''), on ? 'POLY ON' : 'POLY');
+    tog.title = 'Polyphonic mode: sequence N pitched voice rows (a chord per step) instead of main/alt';
     tog.onclick = () => {
       if (isRows(track)) { track.rowMode = false; }
       else { track.rowMode = true; setRowCount(track, Array.isArray(track.rows) && track.rows.length ? track.rows.length : 3); }
