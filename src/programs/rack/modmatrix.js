@@ -198,10 +198,27 @@ export class ModMatrix {
     for (const n of this.nodes) {
       if (!n.gen || n.route.src.type !== 'gen') continue;
       const r = n.route;
-      if (r.dest.param === 'note' && r.dest.track === track) off += q(n.gen.value, { polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves });
-      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === track) off += q(n.gen.valueY, r.y);
+      if (r.dest.param === 'note' && r.dest.track === track && r.src.root == null) off += q(n.gen.value, { polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves });
+      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === track && r.y.root == null) off += q(n.gen.valueY, r.y);
     }
     return off;
+  }
+
+  // Absolute pitch (MIDI note) from a GEN -> note route that carries its own root:
+  // root + the scale-quantized value, so the generator owns its key regardless of
+  // the track's lane. The first such route (X, then Y) wins; null if none.
+  genPitch(track) {
+    for (const n of this.nodes) {
+      if (!n.gen || n.route.src.type !== 'gen') continue;
+      const r = n.route;
+      if (r.dest.param === 'note' && r.dest.track === track && r.src.root != null) {
+        return r.src.root + (r.polarity < 0 ? -1 : 1) * quantizePitch(n.gen.value, r.src.scale || 'off', r.src.octaves || 2);
+      }
+      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === track && r.y.root != null) {
+        return r.y.root + (r.y.polarity < 0 ? -1 : 1) * quantizePitch(n.gen.valueY, r.y.scale || 'off', r.y.octaves || 2);
+      }
+    }
+    return null;
   }
 
   // Whether any GEN gate output (X or Y, thresholded at 0.5) targeting this track

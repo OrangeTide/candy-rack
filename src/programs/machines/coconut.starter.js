@@ -59,10 +59,10 @@ export function freshPattern() {
   const routes = [
     // Generative lead (T0): a Turing rhythm gates it, a Marbles melody pitches it.
     { src: { type: 'gen', mode: 'turing', length: 8, lock: 0.6 }, dest: { track: 0, param: 'gate' }, depth: 1, polarity: 1 },
-    { src: { type: 'gen', mode: 'marbles', length: 12, lock: 0.5, scale: 'minor', octaves: 2 }, dest: { track: 0, param: 'note' }, depth: 1, polarity: 1 },
+    { src: { type: 'gen', mode: 'marbles', length: 12, lock: 0.5, scale: 'minor', octaves: 2, root: 57 }, dest: { track: 0, param: 'note' }, depth: 1, polarity: 1 }, // A minor from A3
     // Generative counterpoint (T4): sparser, more locked rhythm; pentatonic melody.
     { src: { type: 'gen', mode: 'turing', length: 6, lock: 0.78 }, dest: { track: 4, param: 'gate' }, depth: 1, polarity: 1 },
-    { src: { type: 'gen', mode: 'marbles', length: 8, lock: 0.6, scale: 'pentaMin', octaves: 2 }, dest: { track: 4, param: 'note' }, depth: 1, polarity: 1 },
+    { src: { type: 'gen', mode: 'marbles', length: 8, lock: 0.6, scale: 'pentaMin', octaves: 2, root: 45 }, dest: { track: 4, param: 'note' }, depth: 1, polarity: 1 }, // A minor pentatonic from A2
     // A slow 4-bar synced LFO breathes the supersaw pad's filter open and shut.
     { src: { type: 'lfo', track: 0, lane: 'main', sync: 16, shape: 'tri' }, dest: { track: 3, param: 'cutoff' }, depth: 0.3, polarity: 1, decay: 0.16 },
   ];

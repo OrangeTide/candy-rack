@@ -138,7 +138,11 @@ function scheduleTrackStep(t, absStep, time) {
   // Advance any GEN sources clocked by this track's step (before notes fire, so a
   // GEN -> note route reads the fresh value). genOff shifts pitched notes below.
   modMatrix.advanceGen(t, time);
+  // A rooted GEN -> pitch route gives an absolute note (gp); it owns the pitch.
+  // genOff still adds any root-less pitch routes on top. genNote() picks it.
+  const gp = isKit(track) ? null : modMatrix.genPitch(t);
   const genOff = isKit(track) ? 0 : modMatrix.genNoteOffset(t);
+  const genNote = (laneNote) => (gp != null ? gp : laneNote);
 
   // Kit: fire each of the four part rows; each part is its own trigger source.
   if (isKit(track)) {
@@ -179,12 +183,12 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, xposed(track, m.note, genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
+    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, xposed(track, a.note, genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
+    v.trigger(time, xposed(track, genNote(a.note), genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
@@ -192,7 +196,7 @@ function scheduleTrackStep(t, absStep, time) {
   // trigger the voice at this step's programmed pitch (a generative rhythm). Pair
   // it with a GEN -> pitch route for a fully generative voice.
   if (!hit && modMatrix.genGate(t)) {
-    v.trigger(time, xposed(track, m.note, genOff), m.velocity, stepDur * 0.9, false, false, false);
+    v.trigger(time, xposed(track, genNote(m.note), genOff), m.velocity, stepDur * 0.9, false, false, false);
     hit = true;
   }
   litByTrack[t].push({ pos, time, hit });
@@ -1397,6 +1401,21 @@ function pick(options, value, onChange) {
   return s;
 }
 
+// Root (key) picker for a GEN pitch output: a pitch class + octave writing a MIDI
+// root note onto obj.root. Lets each generator set its own key (e.g. C major on
+// one, A minor on another). MIDI root = (octave + 1) * 12 + pitchClass.
+const PITCH_CLASSES = [['0', 'C'], ['1', 'C#'], ['2', 'D'], ['3', 'D#'], ['4', 'E'], ['5', 'F'], ['6', 'F#'], ['7', 'G'], ['8', 'G#'], ['9', 'A'], ['10', 'A#'], ['11', 'B']];
+function rootPick(obj, target) {
+  const root = obj.root == null ? 57 : obj.root;
+  target.append(el('span', 'rlbl', 'root'));
+  target.append(pick(PITCH_CLASSES, String(((root % 12) + 12) % 12), (v) => {
+    obj.root = Math.floor((obj.root == null ? 57 : obj.root) / 12) * 12 + Number(v); applyRoutes();
+  }));
+  target.append(pick([['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']], String(Math.max(2, Math.min(5, Math.floor(root / 12) - 1))), (v) => {
+    const r = obj.root == null ? 57 : obj.root; obj.root = (Number(v) + 1) * 12 + (((r % 12) + 12) % 12); applyRoutes();
+  }));
+}
+
 function renderMatrix() {
   const box = document.getElementById('matrix');
   if (!box) return;
@@ -1434,6 +1453,7 @@ function renderMatrix() {
         r.src.lock = r.src.lock == null ? 0.7 : r.src.lock;
         r.src.scale = r.src.scale || 'minor';
         r.src.octaves = r.src.octaves || 2;
+        r.src.root = r.src.root == null ? 57 : r.src.root; // A3; each GEN owns its key
       } else if (r.dest.param === 'note') {
         r.dest.param = 'cutoff'; // Pitch dest is gen-only
       }
@@ -1457,6 +1477,7 @@ function renderMatrix() {
       lk.oninput = () => { r.src.lock = Number(lk.value) / 100; lkV.textContent = lk.value + '%'; applyRoutes(); };
       genLine.append(lk, lkV);
       if (r.dest.param === 'note') {
+        rootPick(r.src, genLine);
         genLine.append(el('span', 'rlbl', 'scale'));
         genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.src.scale || 'minor', (v) => { r.src.scale = v; applyRoutes(); }));
         genLine.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.src.octaves || 2), (v) => { r.src.octaves = Number(v); applyRoutes(); }));
@@ -1469,7 +1490,7 @@ function renderMatrix() {
       yBtn.title = yOn ? 'Y output on -- a half-rate companion of X' : 'add a Y output (half-rate companion stream)';
       yBtn.onclick = () => {
         if (yOn) { r.y.on = false; }
-        else { r.y = Object.assign({ track: r.dest.track, param: 'cutoff', depth: 0.5, polarity: 1, scale: 'minor', octaves: 2 }, r.y || {}, { on: true }); }
+        else { r.y = Object.assign({ track: r.dest.track, param: 'cutoff', depth: 0.5, polarity: 1, scale: 'minor', octaves: 2, root: 57 }, r.y || {}, { on: true }); }
         applyRoutes(); renderMatrix();
       };
       genLine.append(yBtn);
@@ -1483,8 +1504,9 @@ function renderMatrix() {
         let yOpts;
         if (r.y.track === -1) yOpts = [['volume', 'Volume']];
         else { const ye = engineById(pattern.tracks[r.y.track].engine); yOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level'], ['note', 'Pitch'], ['gate', 'Gate']].concat(ye.params.map((p, i) => ['m' + i, p.label])); }
-        genLine.append(pick(yOpts, r.y.param, (v) => { r.y.param = v; applyRoutes(); renderMatrix(); }));
+        genLine.append(pick(yOpts, r.y.param, (v) => { r.y.param = v; if (v === 'note' && r.y.root == null) r.y.root = 57; applyRoutes(); renderMatrix(); }));
         if (r.y.param === 'note') {
+          rootPick(r.y, genLine);
           genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.y.scale || 'minor', (v) => { r.y.scale = v; applyRoutes(); }));
           genLine.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.y.octaves || 2), (v) => { r.y.octaves = Number(v); applyRoutes(); }));
         }
@@ -1555,7 +1577,7 @@ function renderMatrix() {
       destOpts = destOpts.concat(destEng.params.map((p, i) => ['m' + i, p.label]));
     }
     // renderMatrix re-run so the gen scale/octave controls appear/hide with Pitch.
-    row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; applyRoutes(); renderMatrix(); }));
+    row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; if (r.src.type === 'gen' && v === 'note' && r.src.root == null) r.src.root = 57; applyRoutes(); renderMatrix(); }));
 
     // Depth
     const depth = el('input', 'mini');

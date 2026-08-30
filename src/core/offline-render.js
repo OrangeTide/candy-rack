@@ -133,18 +133,22 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   // summed semitone offset from GEN -> note outputs on this track -- both X (dest)
   // and Y (route.y). Mirrors modmatrix advanceGen + genNoteOffset.
   const qPitch = (v, o) => (o.polarity < 0 ? -1 : 1) * quantizePitch(v, o.scale || 'off', o.octaves || 2);
+  // Advance GEN routes clocked by this track's step and return { off, pitch }:
+  // `off` sums root-less note offsets; `pitch` is the absolute note from a rooted
+  // GEN -> note route (or null). Mirrors modmatrix genNoteOffset + genPitch.
   function genStep(tIndex) {
-    let noteOff = 0;
+    let off = 0, pitch = null;
+    const take = (o, val) => { const so = qPitch(val, o); if (o.root != null) { if (pitch == null) pitch = o.root + so; } else off += so; };
     for (const r of routes) {
       if (!r._gen || r.src.type !== 'gen') continue;
       if (r.dest.track === tIndex) {
         genAdvance(r._gen, r.src.mode || 'turing', r.src.length || 8, r.src.lock == null ? 0.5 : r.src.lock);
         r._genVal = r._gen.value; r._genValY = r._gen.valueY;
-        if (r.dest.param === 'note') noteOff += qPitch(r._gen.value, { polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves });
+        if (r.dest.param === 'note') take({ polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves, root: r.src.root }, r._gen.value);
       }
-      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === tIndex) noteOff += qPitch(r._gen.valueY, r.y);
+      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === tIndex) take(r.y, r._gen.valueY);
     }
-    return noteOff;
+    return { off, pitch };
   }
 
   // Whether any GEN gate output (X or Y, > 0.5) targets this track this step.
@@ -174,8 +178,8 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     const track = node.track;
     // Advance GEN sources clocked by this step; gn() shifts a pitched note by the
     // summed GEN -> note offset (kit/drums are not shifted). Mirrors the app.
-    const genNoteOff = genStep(tIndex);
-    const gn = (n) => { const x = (n == null ? 60 : n) + genNoteOff; return x < 0 ? 0 : x > 127 ? 127 : x; };
+    const gs = genStep(tIndex); // { off, pitch }
+    const gn = (n) => { const base = gs.pitch != null ? gs.pitch : (n == null ? 60 : n); const x = base + gs.off; return x < 0 ? 0 : x > 127 ? 127 : x; };
     // Kit: each of the four part rows drives its own drum voice (fixed pool
     // slot), and each part is its own trigger source (part0..part3).
     if (node.kit) {
@@ -209,7 +213,8 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         }
         const gsteps = span - 1 + step.gateLen;
         const gateSec = Math.max(0.01, gsteps * node.stepDur);
-        const gnote = gn(step.note);
+        // Rows use the offset only (not an absolute rooted pitch), matching the app.
+        let gnote = (step.note == null ? 60 : step.note) + gs.off; gnote = gnote < 0 ? 0 : gnote > 127 ? 127 : gnote;
         const freq = 440 * Math.pow(2, (gnote - 69) / 12);
         allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         for (const r of routes) {

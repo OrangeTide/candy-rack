@@ -156,6 +156,29 @@ console.log('== GEN generative source ==');
   const silent = rms(off.renderPattern(mkGate(false), { sampleRate: 48000, engines: reg.engines, mode: 'loop' }).left);
   const gated = rms(off.renderPattern(mkGate(true), { sampleRate: 48000, engines: reg.engines, mode: 'loop' }).left);
   check('GEN gate fires an otherwise-silent track', silent < 1e-4 && gated > 0.01, `silent ${silent.toFixed(4)} gated ${gated.toFixed(3)}`);
+
+  // Per-route root: root + scale degrees = absolute notes in that key, so two
+  // generators can run different keys (C major on one, A minor on another).
+  const notesAt = (root, scale) => [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((v) => root + g.quantizePitch(v, scale, 1));
+  const cMaj = notesAt(60, 'major');
+  check('root sets the key (C major degrees)', cMaj.every((n) => [60, 62, 64, 65, 67, 69, 71].includes(n)));
+  check('a different root shifts the key', Math.min(...notesAt(57, 'minor')) < Math.min(...cMaj));
+  const mkRoots = () => {
+    const t0 = seqMod.makeTrack('sh101', P), t1r = seqMod.makeTrack('sh101', P);
+    const f = () => { const x = seqMod.makeTrack('sh101', P); x.mute = true; return x; };
+    const routes = [
+      { src: { type: 'gen', mode: 'turing', length: 8, lock: 0 }, dest: { track: 0, param: 'gate' }, depth: 1, polarity: 1 },
+      { src: { type: 'gen', mode: 'marbles', length: 8, lock: 0.5, scale: 'major', octaves: 1, root: 60 }, dest: { track: 0, param: 'note' }, depth: 1, polarity: 1 },
+      { src: { type: 'gen', mode: 'turing', length: 6, lock: 0 }, dest: { track: 1, param: 'gate' }, depth: 1, polarity: 1 },
+      { src: { type: 'gen', mode: 'marbles', length: 6, lock: 0.5, scale: 'minor', octaves: 1, root: 45 }, dest: { track: 1, param: 'note' }, depth: 1, polarity: 1 },
+    ];
+    const p = seqMod.makePattern([t0, t1r, f(), f(), f(), f()], routes); p.bpm = 120; return p;
+  };
+  const rr1 = off.renderPattern(mkRoots(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  const rr2 = off.renderPattern(mkRoots(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  let rp = 0, rn = false, rs = true;
+  for (let i = 0; i < rr1.left.length; i++) { const s = rr1.left[i]; if (Number.isNaN(s)) rn = true; rp = Math.max(rp, Math.abs(s)); if (s !== rr2.left[i]) rs = false; }
+  check('GEN two-root render is bounded + deterministic', !rn && rp <= 1.0 && rs, `peak ${rp.toFixed(3)}`);
 }
 
 console.log('== poly cross-loop hold ==');
