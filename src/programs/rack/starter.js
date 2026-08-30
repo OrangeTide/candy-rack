@@ -4,7 +4,7 @@
 // "Planet Rock" / Cybotron "Clear" mold. A mechanical 808/909 backbone (kick,
 // snare, clap straight; hats and percussion lightly swung) under a syncopated
 // 303 square bass, a staccato DX-style solid-bass double, offset FM sci-fi
-// stabs, and a sparse orchestra-hit. The 16-step drums loop twice under the
+// stabs, and a muted vocoder hook to bring in. The 16-step drums loop twice under the
 // 32-step synths, so the synth phrases shift against the beat. Kept free of any
 // DOM or audio dependency so both the UI (main.js) and the offline mix renderer
 // build the same groove.
@@ -97,12 +97,19 @@ export function freshPattern() {
     const s = t4.main[+pos]; s.on = true; s.note = note; s.gateLen = 0.2; s.velocity = 90;
   }
 
-  // --- T5 ORCHESTRA HIT (CHORD, 32 steps): the iconic electro stab. A sparse Cm
-  // hit on the down-beat of each 2-bar phrase plus a pick-up, bright and detuned,
-  // drenched in the reverb for the "Trans-Europe Express" flourish. ---
-  const t5 = makeTrack('chord', [0.09, 0.5, 0.3, 0.35, 0.25]); // min (idx 1/16)
-  t5.length = 32;
-  paint(t5, 'main', [0, 16, 30], { note: 48, gate: 0.3, vel: 100 }); // C3 root
+  // --- T6 VOCODER HOOK (VOWEL, starts MUTED): the electro-funk talkbox, kept as
+  // a variation to bring in. Four held notes tied across four steps each; the
+  // auto-vowel LFO sweeps the formant a-e-i-o-u so it "sings" a robotic hook over
+  // the sustain. Unmute T6 to bring in the vocoder. ---
+  const t5 = makeTrack('vowel', [0.3, 0.5, 0.65, 0.45, 0.3]);
+  t5.mute = true;
+  for (const [start, note] of [[0, 60], [4, 63], [8, 67], [12, 65]]) { // C4 Eb4 G4 F4
+    for (let i = 0; i < 4; i++) {
+      const s = t5.main[start + i];
+      s.on = true; s.note = note; s.gateLen = 0.9; s.velocity = 96;
+      if (i > 0) s.tie = true;
+    }
+  }
 
   // Output stage. Bass and drums punchy and dry; stabs pushed into the space.
   t0.output.send = 0;
@@ -110,7 +117,7 @@ export function freshPattern() {
   t2.output.hp = 0.05; t2.output.send = 0.05;  // high-pass the 303 out of the kick's way
   t3.output.send = 0;  t3.output.vca = 0.85;   // solid bass tight and dry
   t4.output.cutoff = 0.7; t4.output.pan = 0.25; t4.output.send = 0.55; // FM stabs right, echoed
-  t5.output.cutoff = 0.7; t5.output.pan = -0.2; t5.output.send = 0.6; t5.output.vca = 0.8; // orchestra hit left
+  t5.output.cutoff = 0.62; t5.output.pan = -0.2; t5.output.send = 0.4; // vocoder left, some space
 
   const routes = [
     // The kick ducks the 303 bass (T2) VCA: the four-on-the-floor sidechain pump.
@@ -119,6 +126,10 @@ export function freshPattern() {
     // A slow 2-bar synced LFO sweeps the FM stab filter for a futuristic shimmer.
     { src: { type: 'lfo', track: 0, lane: 'main', sync: 8, shape: 'tri' },
       dest: { track: 4, param: 'cutoff' }, depth: 0.25, polarity: 1, decay: 0.16 },
+    // Auto-vowel: a 1-bar synced LFO sweeps the muted vocoder hook (T6) through
+    // a-e-i-o-u so it talks across the held notes. m0 is the Vowel knob.
+    { src: { type: 'lfo', track: 0, lane: 'main', sync: 4, shape: 'sine' },
+      dest: { track: 5, param: 'm0' }, depth: 0.9, polarity: 1, decay: 0.16 },
   ];
 
   const p = makePattern([t0, t1, t2, t3, t4, t5], routes);
