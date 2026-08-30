@@ -66,9 +66,18 @@ export function freshPattern() {
   lockRange(t2, 8, 4, 1, ARP_MAJ);  // G chord = major arp
   t2.output.send = 0.3; t2.output.vca = 0.7;
 
-  // --- T3 melody (PULSE): a catchy A-minor-pentatonic lead, 25% duty ---
+  // --- T3 melody (PULSE, 32 steps): a catchy lead, 25% duty. Extended to two bars
+  // over the repeating Am-F-G chord loop: bar 1 states the hook, bar 2 answers it,
+  // lifting an octave and resolving back to A, so the phrase finishes its thought. ---
   const t3 = makeTrack('pulse', [0.25, 0.0, 0.5, 0.5, 0.05]);
-  paintMap(t3, { 0: [69, 95], 2: [72, 82], 4: [74, 86], 7: [72, 78], 8: [69, 88], 10: [67, 80], 12: [64, 82], 14: [69, 84] }, 0.4);
+  t3.length = 32;
+  paintMap(t3, {
+    // bar 1: the statement
+    0: [69, 95], 2: [72, 82], 4: [74, 86], 7: [72, 78], 8: [69, 88], 10: [67, 80], 12: [64, 82], 14: [69, 84],
+    // bar 2: the answer, up an octave then a stepwise descent home to A
+    16: [76, 88], 18: [81, 92], 20: [79, 82], 21: [77, 80], 23: [72, 78], 24: [74, 84],
+    26: [71, 80], 27: [67, 78], 28: [72, 84], 29: [71, 80], 30: [69, 88],
+  }, 0.4);
   t3.output.pan = -0.15; t3.output.send = 0.4;
 
   // --- T4 sparkle arp (PULSE, Arp = min): a higher, quieter chord arp, panned
