@@ -328,6 +328,9 @@ let pageByTrack = new Array(TRACKS).fill(0);
 // selAnchor is the most recently selected step, used to seed the control values.
 let selSteps = new Set();
 let selAnchor = null;
+// EDIT mode: a sticky alternative to long-press for entering step-edit. When on,
+// a plain tap selects a step (to edit it) instead of toggling it on/off.
+let editMode = false;
 
 function stepKey(lane, pos) { return lane + ':' + pos; }
 
@@ -970,6 +973,18 @@ function renderEditor() {
   swingWrap.append(swingRow);
   seqBar.append(swingWrap);
 
+  // EDIT toggle: a sticky shortcut into step-edit mode (an alternative to long-
+  // press). When on, tapping a step selects it for the Note/Velocity/Gate
+  // controls instead of placing/clearing it; turning it off deselects.
+  const editBtn = el('button', 'edit-btn' + (editMode ? ' on' : ''), 'EDIT');
+  editBtn.title = 'Tap-to-edit steps (instead of long-press)';
+  editBtn.onclick = () => {
+    editMode = !editMode;
+    if (!editMode) { selSteps.clear(); selAnchor = null; }
+    renderGrid();
+  };
+  seqBar.append(editBtn);
+
   ed.append(seqBar);
 
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
@@ -988,6 +1003,19 @@ function renderGrid() {
   const plbl = document.getElementById('pglbl');
   if (plbl) plbl.textContent = `page ${page + 1} / ${maxPage(track) + 1}`;
   grid.innerHTML = '';
+
+  // Step-number header: the absolute step positions for this page (01..16,
+  // 17..32, ...), aligned over the cell columns with a spacer for the lane tag.
+  const nums = el('div', 'step-nums');
+  nums.append(el('div', 'lane-tag', ''));
+  const numCells = el('div', 'cells');
+  for (let i = 0; i < PAGE; i++) {
+    const pos = page * PAGE + i;
+    const cls = 'stepnum' + (i % 4 === 0 ? ' beat' : '') + (pos >= track.length ? ' disabled' : '');
+    numCells.append(el('div', cls, String(pos + 1).padStart(2, '0')));
+  }
+  nums.append(numCells);
+  grid.append(nums);
 
   const accentMode = engineById(track.engine).altMode === 'accent';
   const kit = isKit(track);
@@ -1079,9 +1107,10 @@ function attachCellGestures(cell, laneName, pos) {
     active = false;
     clearTimer();
     if (longFired) return;
-    // Trigger mode (nothing selected): tap places or clears the step. Edit mode
-    // (a selection exists): tap moves the selection to just this step.
-    if (selSteps.size === 0) toggleStep(cell, laneName, pos);
+    // Trigger mode (nothing selected, EDIT off): tap places or clears the step.
+    // Edit mode (a selection exists, or EDIT is on): tap selects/moves to this
+    // step so the Note/Velocity/Gate controls act on it.
+    if (selSteps.size === 0 && !editMode) toggleStep(cell, laneName, pos);
     else selectOnly(laneName, pos);
   });
   cell.addEventListener('pointercancel', () => { active = false; clearTimer(); });
@@ -1142,7 +1171,7 @@ function renderStepEditor() {
   box.innerHTML = '';
 
   if (selSteps.size === 0 || !selAnchor) {
-    box.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step to edit it: then tap to move the selection, long-press to add or drop steps. Deselect all to place steps again.'));
+    box.append(el('div', 'hint', 'Tap a step to place or clear it. Long-press a step (or turn on EDIT) to edit it: then tap to move the selection, long-press to add or drop steps. Deselect all (or turn off EDIT) to place steps again.'));
     return;
   }
 

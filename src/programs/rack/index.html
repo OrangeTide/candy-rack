@@ -479,6 +479,15 @@
   }
   .rows-btn.on { color: #06210b; background: linear-gradient(180deg, #b6f58a, var(--lime)); border-color: var(--lime); box-shadow: 0 0 10px rgba(158,245,58,.45); }
   .rows-lbl { font-family: var(--tech); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--m-ink-mute); }
+
+  /* EDIT toggle in the sequence bar: sticky tap-to-edit for steps. */
+  .edit-btn {
+    align-self: flex-end; font-family: var(--disp); font-weight: 800; font-size: 12px; letter-spacing: 1px;
+    color: var(--m-ink-dim); background: linear-gradient(180deg, var(--m-well-2), var(--m-well));
+    border: 1px solid #000; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,.5) inset;
+  }
+  .edit-btn.on { color: #06210b; background: linear-gradient(180deg, #7fe6ff, var(--cyan)); border-color: var(--cyan); box-shadow: 0 0 10px rgba(53,232,255,.45); }
   .lane-tag.partsel { color: var(--amber); text-shadow: 0 0 8px rgba(255,179,46,.6); }
   .lane[data-lane^="part"] .lane-tag { cursor: pointer; }
   /* Part selector + its Type, side by side, with room before the knobs. */
@@ -572,6 +581,12 @@
 
   /* ---- step grid ---- */
   .grid { display: flex; flex-direction: column; gap: 12px; }
+  /* Step-number header row: same lane-tag(40px) + 16-col cells layout as a lane,
+     but no lane background, so the numbers sit directly over the columns. */
+  .step-nums { display: flex; align-items: center; gap: 12px; padding: 0 12px; margin-bottom: -4px; }
+  .stepnum { text-align: center; font-family: var(--tech); font-size: 9px; color: var(--m-ink-mute); opacity: .6; }
+  .stepnum.beat { color: var(--m-ink-dim); opacity: .9; }
+  .stepnum.disabled { opacity: .18; }
   .lane {
     display: flex; align-items: center; gap: 12px;
     background: linear-gradient(180deg, var(--m-well), var(--m-well-2));

@@ -156,6 +156,16 @@ Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
   - [x] put the swing control next to the page next/prev control above the step sequencer.
 - [x] move the speed and length controls to be above the step sequencer as well.
 - [x] peppermint should be red+white, not green+white
-- [ ] add step labels over each step 01-16,17-32,...
-- [ ] use the 4 step track for polyphonic instruments. with the ALT track offering an emphasis / mod-wheel impact on the step.
-- [ ] for the step mode, add an EDIT button that shortcuts the same trigger/edit state modes that are currently handled by the long press state machine.
+- [x] add step labels over each step 01-16,17-32,... DONE 2026-08-29: a step-number
+      header row over the grid (renderGrid), absolute positions per page, beats
+      brighter, disabled steps dimmed.
+- [x] use the 4 step track for polyphonic instruments. DONE 2026-08-29 via the
+      voice-rows feature (track.rowMode + N rows, one poly voice per row = a
+      sequenced chord). Implemented as N dedicated pitched rows rather than the
+      ALT-emphasis sketch here. The separate "ALT lane = per-step emphasis/mod-
+      wheel" idea is NOT done; accent-mode engines already use ALT as accent, so a
+      general per-step mod on ALT would be its own small feature if wanted.
+- [x] for the step mode, add an EDIT button that shortcuts the long-press state
+      machine. DONE 2026-08-29: a sticky EDIT toggle in the seq-bar; when on, a
+      tap selects a step for editing instead of placing/clearing it (off = back to
+      trigger mode, deselects).
