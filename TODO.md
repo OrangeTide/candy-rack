@@ -119,9 +119,10 @@ machine framework (build/<name>.html from a machine config) makes each new
 content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
 spirit), Strawberry (bubblegum rave), Blueberry (space jazz), Blackberry (dungeon
-synth), Coconut (generative ambient), Guinep (dub techno). Remaining backlog:
-sunshine breaks (gated on sampler), gothic-industrial / Licorice (has
-distortion/ringmod now via the FX rack; wants a Rings-style engine).
+synth), Coconut (generative ambient), Guinep (dub techno), Peach (vaporwave),
+Plum (trip-hop), Orange (sunshine breaks). Remaining backlog: gothic-industrial /
+Licorice (has distortion/ringmod now via the FX rack; wants a Rings-style engine),
+Peppermint (chiptune, needs a pulse/arp engine).
 
 Cheapest (content + existing engines):
 
@@ -163,6 +164,12 @@ Was gated on the sampler (now built):
       stabs, a pitched Choir pad, a wordless VOWEL lead, a Crackle bed, into
       Dimension -> Echo -> dark room. Sidechain via a silent-slice alt-lane trigger
       ducking the sub. plum.js + plum.starter.js.
+- [x] Orange: sunshine breaks (warm tangerine). BUILT 2026-08-29 as the bright
+      counterpart to Plum on the same chopped-break engine: C major, 108 bpm, a
+      busy full-tempo SAMPLE Break chop, a bouncy FM BASS, bright CHORD 6/9 organ
+      stabs, a sunny EPIANO hook, a SUPERSAW wash, and a KIT latin-percussion layer
+      (congas/cowbell/shaker) over the top, into Dimension -> bright Echo -> a short
+      room. Light silent-slice sidechain pump. orange.js + orange.starter.js.
 
 Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
 

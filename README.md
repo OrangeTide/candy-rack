@@ -8,7 +8,7 @@ into a standalone `.html` file with no runtime dependencies.
 
 Every program is a candy-colored imaginary groovebox, branded by a fruit flavor.
 One shared app is reskinned per machine from a small config (brand, palette,
-starter pattern). Six machines are built so far:
+starter pattern). Ten machines are built so far:
 
 - **Grape**, funky electro
 - **Lemon**, acid squelch (hard techno)
@@ -16,6 +16,10 @@ starter pattern). Six machines are built so far:
 - **Blueberry**, space jazz
 - **Blackberry**, dungeon synth
 - **Coconut**, generative ambient
+- **Guinep**, dub techno
+- **Peach**, vaporwave
+- **Plum**, trip-hop
+- **Orange**, sunshine breaks
 
 More flavors fill out the rainbow over time, for example a gothic-industrial
 machine would be Licorice.
@@ -36,12 +40,18 @@ machine would be Licorice.
   spirit of the 303 and SH-101 keyboard perform. Play it from the computer
   keyboard or the on-screen piano; the same keys set a selected step's note while
   editing.
-- **Sixteen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
+- **Seventeen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
   MS-20 with its screaming Sallen-Key filter), FM (2-operator, a DX7 6-operator
   core behind E.PIANO and FM BASS, and the DX100 "Lately Bass"), a stereo
-  SUPERSAW, a CHORD generator, a VOWEL formant/talkbox, DTMF, and drum and
-  percussion voices. Each engine has the same five normalized controls with
-  per-engine labels, plus up to three toggles.
+  SUPERSAW, a CHORD generator, a VOWEL formant/talkbox, DTMF, drum and
+  percussion voices, and a SAMPLE ROMpler. Each engine has the same five
+  normalized controls with per-engine labels, plus up to three toggles.
+- **SAMPLE.** A primitive ROMpler in the SP-404 spirit. Its factory samples are
+  synthesized in code at load (a maj9 pad, a choir, a Rhodes, vinyl crackle, and
+  a drum break), so they are small, copyright-free, and deterministic, and a
+  starter that plays the sampler renders identically offline. The played note
+  pitches the sample; in Slice mode the note picks one of 16 slices to chop a
+  break. A lo-fi Tone and Crush give the SP-404 grit.
 - **KIT.** A four-part drum machine on one track (freely assigned kick, snare,
   hat, clap, cowbell voices in 808 and 909 flavors), so a whole kit stays one
   mixer channel.
@@ -65,6 +75,48 @@ machine would be Licorice.
 The DSP runs in AudioWorklets, reimplemented rather than ported. The sequencer
 runs on the main thread with a lookahead scheduler that hands the worklets
 sample-accurate trigger times.
+
+## Sidechain and pumping
+
+The modulation matrix has no dedicated sidechain control. The pump is built from
+the ordinary parts: a trigger source drives a track's Level with negative
+polarity. This note records the two patterns the machines use, since the second
+one is not obvious.
+
+Standard pump. Route a trigger to the target track's Level (VCA) with a negative
+polarity and a short decay. The trigger fires an offset that dips the level on
+each hit and recovers over the decay time. A kick part triggering the bass VCA is
+the classic four-on-the-floor duck. In a starter route it looks like this:
+
+```js
+{ src: { type: 'trig', track: 0, lane: 'part0' },   // the kit's kick part
+  dest: { track: 1, param: 'vca' }, depth: 0.5, polarity: -1, decay: 0.16 }
+```
+
+Grape, Guinep, and Coconut pump this way.
+
+Sidechain from a chopped break (the silent-slice trick). When the kick lives
+inside a sampled break played by the SAMPLE engine in Slice mode, there is no
+separate kick lane to trigger from, and the break's main lane fires on every chop
+step, not just the down-beats. The trick: put triggers on the track's ALT lane at
+the down-beats, and point them at a slice of the break that is silent (an empty
+16th with no drum hit). The alt voice fires that silent slice, so it adds no
+audible sound, but it still fires the modulation matrix's trigger source, which
+ducks the bass. In the Plum and Orange starters:
+
+```js
+// T0 is the SAMPLE engine in Slice mode; note 60 + sliceIndex picks a slice.
+// Slice 3 of the factory Break is silent, so note 63 is an inaudible trigger.
+paint(t0, 'alt', [0, 8], { note: 63, gate: 0.1, vel: 1 });   // down-beats only
+// ...then route the alt lane's trigger to the bass Level:
+{ src: { type: 'trig', track: 0, lane: 'alt' },
+  dest: { track: 1, param: 'vca' }, depth: 0.3, polarity: -1, decay: 0.16 }
+```
+
+One caveat when testing a sidechain headless: a muted source track does not fire
+its trigger source in the offline renderer, so isolating the bass by muting the
+break turns the duck off and hides it. Compare the full mix with and without the
+route instead.
 
 ## Build and run
 
