@@ -151,10 +151,33 @@ Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
       but SUPERSAW/CHORD are poly, so the long-tie drones re-attack every loop
       until the poly cross-loop hold lands. Best built after item 4.
 
-## Modulation Rack Row
+## Generative modulation source (GEN)
 
-- [ ] create a 3U x 40 HP eurorack row. the goal is to hold Maths, Tides, Turing Machine, or Marbles
-- [ ] TODO: how to assign inputs/outputs. Obvious is to draw cables, with a top row of jacks for outputs and a bottom row of inputs. The available ports would mirror what the mod-matrix already supports.
+Reframed 2026-08-29 (was "Modulation Rack Row"). A full eurorack row with patch
+cables was dropped: its ports would only mirror routing the mod matrix already
+does, and it adds a second modulation paradigm + a heavy patchbay UI against the
+groovebox's simplicity. Maths/Tides largely duplicate the existing LFO/env
+sources. The genuinely new value is the GENERATIVE algorithms, delivered as a
+mod-matrix source instead of a module row. Full spec: docs/GEN-SOURCE-DESIGN.md.
+
+- [ ] GEN source (Turing Machine + Marbles hybrid). A new `src.type='gen'` next
+      to trig/lfo/env, with a REAL-TIME-SWITCHABLE mode (TURING shift-register /
+      MARBLES statistical random+deja-vu / WALK / S&H) sharing one clock + loop, so
+      switching algorithm live morphs the sequence. Shared params mode/clock(tempo
+      -synced via SYNC_DIVS or per-step)/length/lock(deja-vu)/range/quantize/smooth.
+      Routed through the existing matrix (dest + depth + polarity), several at once.
+- [ ] NEW mod destination: PITCH (note offset). dest.param='note' makes GEN a
+      melodic step sequencer -- the scheduler samples the gen value at the track's
+      trigger, quantizes to semitones, and offsets the note (beside xposed()). This
+      is the standout feature and the one new mechanism (scheduler-time read, not an
+      AudioParam). Also usable by any source (an LFO -> pitch vibrato, etc.).
+- [ ] Determinism: seed each route's RNG so the offline/WAV render matches live;
+      a reseed/mutate perform action later.
+- [ ] v2: WALK/S&H modes, mode as a mod destination, a gate output for trigger
+      destinations, clock-from-track, per-route value meter.
+- [ ] (Optional, cosmetic) render matrix routes as little patch-cord graphics for
+      the modular LOOK, without making them free-patchable -- flavor over the same
+      matrix, if the eurorack aesthetic is wanted.
 
 ## Other
 
