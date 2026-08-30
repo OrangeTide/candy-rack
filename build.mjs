@@ -29,6 +29,7 @@ const MACHINES = [
   { name: 'coconut', config: 'src/programs/machines/coconut.js' },
   { name: 'guinep', config: 'src/programs/machines/guinep.js' },
   { name: 'peach', config: 'src/programs/machines/peach.js' },
+  { name: 'plum', config: 'src/programs/machines/plum.js' },
 ];
 
 const APP = {

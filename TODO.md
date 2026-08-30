@@ -157,8 +157,12 @@ Was gated on the sampler (now built):
       two octaves, a Rhodes-sample melody, a warm sub, a lazy swung beat, a vinyl
       Crackle bed, into Dimension -> VaporCloud -> big hall. 65 bpm, chrome light
       skin. peach.js + peach.starter.js.
-- [ ] Plum: trip-hop / downtempo (bruised purple-red). FM BASS, dusty EPIANO,
-      swing, sidechain; chop the SAMPLE Break in Slice mode (now available).
+- [x] Plum: trip-hop / downtempo (bruised purple-red). BUILT 2026-08-29: D minor,
+      86 bpm, heavy swing. The SAMPLE Break chopped in Slice mode (re-sequenced
+      slices with a stutter + ghost snares), a deep FM BASS sub, dusty EPIANO
+      stabs, a pitched Choir pad, a wordless VOWEL lead, a Crackle bed, into
+      Dimension -> Echo -> dark room. Sidechain via a silent-slice alt-lane trigger
+      ducking the sub. plum.js + plum.starter.js.
 
 Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
 
