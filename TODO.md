@@ -58,6 +58,14 @@ so this record's palette is fully covered by the Grape machine.
 
 ## Sequencer
 
+- [x] Performance transpose. DONE 2026-08-29. A live semitone shift of the whole
+      playing sequence (pitched tracks only; drums never transpose), like the
+      303/SH-101 keyboard perform. An Xpose LCD in the transport (steppers latch
+      +/-24, click to reset, glows amber when shifted); holding the A-row piano
+      keys (A W S E D F T G Y H U J K = 0..+12) transposes momentarily and
+      releasing returns to the latched shift. Applied in scheduleTrackStep via
+      xposed(); NOT stored in the pattern and NOT applied to the offline/WAV
+      render (a realtime jam control).
 - [x] Cross-loop hold (tie continuity) for POLY engines. DONE 2026-08-29. The
       poly path (runtime.fire + offline allocFor) now finds the voice already
       sounding a tied note (by voice.note) and regates it (hold, no re-attack)

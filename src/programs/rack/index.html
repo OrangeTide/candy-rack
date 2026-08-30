@@ -216,6 +216,10 @@
   .lcd-val:focus { outline: none; }
   .lcd-val::-webkit-inner-spin-button, .lcd-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .lcd-unit { font-family: var(--tech); font-size: 11px; letter-spacing: 1px; color: #45c7a6; text-shadow: 0 0 6px rgba(69,199,166,.5); }
+  /* Performance-transpose LCD: narrower value; glows amber when shifted off 0. */
+  .xpose .lcd-val { width: 52px; }
+  .xpose.active .lcd-val { color: var(--amber); text-shadow: 0 0 10px rgba(255,179,46,.75), 0 0 2px rgba(255,179,46,.9); }
+  .xpose.active .lcd-cap, .xpose.active .lcd-unit { color: var(--amber); text-shadow: 0 0 6px rgba(255,179,46,.5); }
   .lcd-steppers { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
   .lcd-btn {
     font-family: var(--disp); font-weight: 700; font-size: 9px; line-height: 1; color: var(--m-btn-ink);

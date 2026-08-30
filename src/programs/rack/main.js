@@ -157,7 +157,7 @@ function scheduleTrackStep(t, absStep, time) {
     for (const lane of trackLanes(track)) {
       if (!startsNote(track, lane, pos)) continue;
       const s = laneSteps(track, lane)[pos];
-      v.trigger(time, s.note, s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
+      v.trigger(time, xposed(track, s.note), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
       modMatrix.onSourceTrigger(t, lane, time);
       hit = true;
     }
@@ -174,12 +174,12 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, m.note, m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
+    v.trigger(time, xposed(track, m.note), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, a.note, a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
+    v.trigger(time, xposed(track, a.note), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
@@ -332,6 +332,30 @@ let selAnchor = null;
 // a plain tap selects a step (to edit it) instead of toggling it on/off.
 let editMode = false;
 
+// Performance transpose: a live semitone shift of the whole sequence at play
+// time (pitched tracks only; drums are never transposed), like the 303/SH-101
+// keyboard perform. It is NOT stored in the pattern and NOT applied to the
+// offline/WAV render -- a realtime jam control only. A held keyboard key
+// (xposeKey) momentarily overrides the latched xposeBase set from the transport.
+const XPOSE_RANGE = 24; // +/- 2 octaves on the latched control
+let xposeBase = 0;
+let xposeKey = null;
+function xposeAmount() { return xposeKey !== null ? xposeKey : xposeBase; }
+function xposed(track, note) {
+  if (isKit(track)) return note;
+  const n = note + xposeAmount();
+  return n < 0 ? 0 : n > 127 ? 127 : n;
+}
+function fmtXpose(n) { return (n > 0 ? '+' : '') + n; }
+function setXposeBase(n) {
+  xposeBase = n < -XPOSE_RANGE ? -XPOSE_RANGE : n > XPOSE_RANGE ? XPOSE_RANGE : n;
+  updateXposeReadout();
+}
+function updateXposeReadout() {
+  const e = document.getElementById('xpose-val'); if (e) e.textContent = fmtXpose(xposeAmount());
+  const p = document.getElementById('xpose'); if (p) p.classList.toggle('active', xposeAmount() !== 0);
+}
+
 function stepKey(lane, pos) { return lane + ':' + pos; }
 
 // After removing steps, keep selAnchor pointing at a still-selected step.
@@ -415,11 +439,31 @@ function render() {
   steppers.append(up, down);
   lcd.append(screen, steppers);
 
+  // Performance transpose: a live semitone shift of the whole sequence. The
+  // readout shows the current shift; the steppers latch it, clicking it resets
+  // to 0, and holding a keyboard key (A row = a piano) transposes momentarily.
+  const xp = el('div', 'lcd xpose'); xp.id = 'xpose';
+  const xscreen = el('div', 'lcd-screen');
+  xscreen.append(el('span', 'lcd-cap', 'Xpose'));
+  const xval = el('span', 'lcd-val'); xval.id = 'xpose-val'; xval.textContent = fmtXpose(xposeAmount());
+  xval.title = 'Transpose (click to reset). Hold A W S E D F T G Y H U J K to play in another key.';
+  xval.style.cursor = 'pointer';
+  xval.onclick = () => setXposeBase(0);
+  xscreen.append(xval, el('span', 'lcd-unit', 'ST'));
+  const xsteppers = el('div', 'lcd-steppers');
+  const xup = el('button', 'lcd-btn', '▲');
+  const xdown = el('button', 'lcd-btn', '▼');
+  xup.onclick = () => setXposeBase(xposeBase + 1);
+  xdown.onclick = () => setXposeBase(xposeBase - 1);
+  xsteppers.append(xup, xdown);
+  xp.append(xscreen, xsteppers);
+  if (xposeAmount() !== 0) xp.classList.add('active');
+
   // Swing moved to a per-track control in the sequence bar above the step grid.
   playBtn = el('button', 'play', playing ? 'Stop' : 'Play');
   playBtn.onclick = togglePlay;
 
-  right.append(lcd, playBtn);
+  right.append(lcd, xp, playBtn);
   head.append(right);
   app.append(head);
 
@@ -1527,7 +1571,20 @@ function pct(v) { return Math.round(v * 100) + '%'; }
 
 render();
 if (!AUDIO_SUPPORTED) showUnsupported();
+// Performance-transpose keyboard: the A row laid out as a piano, one octave, so
+// holding a key transposes the whole playing sequence to that interval (0..+12)
+// and releasing returns to the latched shift -- the 303/SH-101 keyboard perform.
+const XPOSE_KEYS = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12 };
+let heldXposeKey = null;
+
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); togglePlay(); }
-  if (e.key >= '1' && e.key <= '6' && e.target === document.body) selectTrack(Number(e.key) - 1);
+  if (e.target !== document.body) return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+  if (e.key >= '1' && e.key <= '6') { selectTrack(Number(e.key) - 1); return; }
+  const k = e.key.toLowerCase();
+  if (!e.repeat && k in XPOSE_KEYS) { heldXposeKey = k; xposeKey = XPOSE_KEYS[k]; updateXposeReadout(); }
+});
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === heldXposeKey) { heldXposeKey = null; xposeKey = null; updateXposeReadout(); }
 });
