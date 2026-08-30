@@ -14,6 +14,22 @@ import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { execSync } from 'node:child_process';
+
+// Version stamped into every built rack page. package.json is the source of
+// truth; git describe refines it so a build past the release tag reads, e.g.,
+// 1.0.0-3-gabc1234 (and -dirty for a modified tree). A tagless or git-less build
+// falls back to the bare package.json version. The leading v is stripped so the
+// page can render it as "v" + version.
+function resolveVersion() {
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+  let v = pkg.version;
+  try {
+    const desc = execSync("git describe --tags --dirty --match 'v*'", { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    if (desc) v = desc.replace(/^v/, '');
+  } catch (_) { /* no git or no tag: keep the package.json version */ }
+  return v;
+}
 
 // Static favicon assets copied verbatim into build/ so the pages' relative
 // <link rel="icon"> hrefs resolve when the build directory is served.
@@ -85,6 +101,7 @@ console.log(`built build/${LANDING.name}.html`);
 // The worklet is identical across machines: bundle it once.
 const template = readFileSync(APP.html, 'utf8');
 const workletB64 = Buffer.from(await bundle(APP.worklet), 'utf8').toString('base64');
+const version = resolveVersion();
 
 for (const machine of MACHINES) {
   const configPath = resolve(machine.config);
@@ -92,6 +109,7 @@ for (const machine of MACHINES) {
   const mainSrc = await bundle(APP.main, { alias: { 'machine-config': configPath } });
 
   let html = fillTemplate(template, cfg.brand, cfg.palette);
+  html = html.replace(/__VERSION__/g, () => version);
   html = html.replace('__WORKLET_B64__', () => workletB64);
   html = html.replace('__MAIN_SRC__', () => mainSrc);
 
