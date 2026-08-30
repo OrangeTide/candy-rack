@@ -1413,6 +1413,11 @@ function renderMatrix() {
     const led = el('div', 'route-led'); led.dataset.ri = String(idx); led.title = 'live mod value';
     row.append(led);
 
+    // GEN lays its generative controls on a dedicated second line (built here,
+    // appended after the routing controls), so a wide GEN route never pushes the
+    // remove button onto its own line -- and it leaves room for Marbles X/Y later.
+    let genLine = null;
+
     // Source. Env taps a track's engine mod output; Gen is a generative sequencer.
     row.append(pick([['trig', 'Trig'], ['lfo', 'LFO'], ['env', 'Env'], ['gen', 'Gen']], r.src.type, (v) => {
       r.src.type = v;
@@ -1428,20 +1433,26 @@ function renderMatrix() {
       applyRoutes(); renderMatrix();
     }));
     if (r.src.type === 'gen') {
-      // Mode is live-switchable (the headline). Length + Lock (deja-vu: 1 = locked
-      // loop, 0 = random). For the Pitch dest, a scale + octave span.
-      row.append(pick([['turing', 'Turing'], ['marbles', 'Marbles']], r.src.mode || 'turing', (v) => { r.src.mode = v; applyRoutes(); }));
+      // Generative controls on the second line. Mode is live-switchable (the
+      // headline). Length + Lock (deja-vu: 1 = locked loop, 0 = random). For the
+      // Pitch dest, a scale + octave span.
+      genLine = el('div', 'gen-line');
+      genLine.append(el('span', 'gen-tag', 'GEN'));
+      genLine.append(pick([['turing', 'Turing'], ['marbles', 'Marbles']], r.src.mode || 'turing', (v) => { r.src.mode = v; applyRoutes(); }));
+      genLine.append(el('span', 'rlbl', 'len'));
       const len = el('input', 'mini'); len.type = 'range'; len.min = 1; len.max = 16; len.value = r.src.length || 8; len.title = 'loop length';
       const lenV = el('span', 'rv', String(r.src.length || 8));
       len.oninput = () => { r.src.length = Number(len.value); lenV.textContent = len.value; applyRoutes(); };
-      row.append(len, lenV);
+      genLine.append(len, lenV);
+      genLine.append(el('span', 'rlbl', 'lock'));
       const lk = el('input', 'mini'); lk.type = 'range'; lk.min = 0; lk.max = 100; lk.value = Math.round((r.src.lock == null ? 0.7 : r.src.lock) * 100); lk.title = 'lock / deja-vu (100% = locked loop, 0% = random)';
       const lkV = el('span', 'rv', Math.round((r.src.lock == null ? 0.7 : r.src.lock) * 100) + '%');
       lk.oninput = () => { r.src.lock = Number(lk.value) / 100; lkV.textContent = lk.value + '%'; applyRoutes(); };
-      row.append(lk, lkV);
+      genLine.append(lk, lkV);
       if (r.dest.param === 'note') {
-        row.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.src.scale || 'minor', (v) => { r.src.scale = v; applyRoutes(); }));
-        row.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.src.octaves || 2), (v) => { r.src.octaves = Number(v); applyRoutes(); }));
+        genLine.append(el('span', 'rlbl', 'scale'));
+        genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.src.scale || 'minor', (v) => { r.src.scale = v; applyRoutes(); }));
+        genLine.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.src.octaves || 2), (v) => { r.src.octaves = Number(v); applyRoutes(); }));
       }
     } else if (r.src.type === 'trig') {
       row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); renderMatrix(); }));
@@ -1533,6 +1544,8 @@ function renderMatrix() {
     const rm = el('button', 'rm', '✕');
     rm.onclick = () => { pattern.routes.splice(idx, 1); applyRoutes(); renderMatrix(); };
     row.append(rm);
+
+    if (genLine) row.append(genLine); // second line: generative controls
 
     box.append(row);
   });

@@ -739,6 +739,13 @@
     box-shadow: 0 1px 2px rgba(0,0,0,.6) inset;
   }
   .route .mini { width: 76px; }
+  /* GEN's generative controls on a dedicated second line inside the route. */
+  .gen-line {
+    flex-basis: 100%; display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.12);
+  }
+  .gen-tag { font-family: var(--tech); font-size: 10px; letter-spacing: 1.5px; font-weight: 700; color: var(--amber); }
+  .gen-line .rlbl { color: var(--m-ink-mute); }
   .arrow { color: var(--lime); font-weight: 800; margin: 0 2px; text-shadow: 0 0 8px rgba(195,255,62,.5); }
   .rlbl { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--m-ink-mute); }
   .rv { font-family: var(--tech); font-size: 11px; color: var(--amber); width: 26px; text-align: right; }
