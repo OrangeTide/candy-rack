@@ -3,12 +3,18 @@
 // Peppermint starter: chiptune / bitpop, all six channels on the PULSE engine like
 // an NES with expansion chips. LFSR noise drums, a quantised triangle bass, an
 // arpeggiated pulse chord channel (the fast arp faking a chord), a pentatonic
-// pulse melody, a higher sparkle arp, and a soft square pad. An A-minor i-iv-v
-// (Am-Dm-Em) vamp, tight and fast at 150 bpm. DOM-free so the app and offline
-// renderer share it.
+// pulse melody, a higher sparkle arp, and a soft square pad. An A-minor i-VI-VII
+// (Am-F-G) vamp, tight and fast at 150 bpm. The arp channels are one fixed shape
+// per track, so the F and G chords (which are MAJOR) use a per-step parameter lock
+// on the Arp knob to switch that step's chord from minor to major. DOM-free so the
+// app and offline renderer share it.
 import { makeTrack, makePattern } from '../../core/sequencer.js';
 
 export const TRACKS = 6;
+
+// The Arp knob (PULSE param 1) picks a chord shape by floor(value * 8) over
+// ['off','oct','5th','maj','min',...]: 0.44 lands on 'maj', 0.5 on 'min'.
+const ARP_MAJ = 0.44;
 
 function paintMap(track, map, gate) {
   for (const [pos, nv] of Object.entries(map)) {
@@ -27,6 +33,12 @@ function holdRange(track, start, count, note, vel) {
   }
 }
 
+// Lock an engine param on a run of steps (only the firing step actually reads it,
+// but locking the whole held run mirrors how it looks in the editor).
+function lockRange(track, start, count, paramIdx, value) {
+  for (let i = 0; i < count; i++) track.main[start + i].locks[paramIdx] = value;
+}
+
 export function freshPattern() {
   // --- T0 drums (PULSE Noise): the LFSR noise channel. Low note = kick, mid =
   // snare, high = hat, all short. ---
@@ -39,17 +51,19 @@ export function freshPattern() {
   // line following Am -> Dm -> Em -> Am ---
   const t1 = makeTrack('pulse', [0.5, 0.0, 0.5, 0.4, 0.0]);
   t1.toggles = [true, false, false]; // Tri
-  paintMap(t1, { 0: [33, 100], 2: [45, 80], 4: [38, 95], 6: [50, 78], 8: [40, 95], 10: [52, 78], 12: [33, 98], 14: [45, 80] }, 0.35);
+  paintMap(t1, { 0: [33, 100], 2: [45, 80], 4: [41, 95], 6: [53, 78], 8: [43, 95], 10: [55, 78], 12: [33, 98], 14: [45, 80] }, 0.35); // A F G A
   t1.output.vca = 0.9;
 
   // --- T2 chord arp (PULSE, Arp = min): the signature. Each chord root is held
   // while the arpeggiator cycles the minor triad fast, so the mono channel reads
   // as a chord. A thin 12.5%-ish duty for the classic nasal lead. ---
-  const t2 = makeTrack('pulse', [0.15, 0.5, 0.85, 0.85, 0.08]); // Arp knob 0.5 -> 'min'
-  holdRange(t2, 0, 4, 57, 84);  // Am (A3)
-  holdRange(t2, 4, 4, 62, 82);  // Dm (D4)
-  holdRange(t2, 8, 4, 64, 82);  // Em (E4)
-  holdRange(t2, 12, 4, 57, 84); // Am (A3)
+  const t2 = makeTrack('pulse', [0.15, 0.5, 0.85, 0.85, 0.08]); // Arp knob 0.5 -> 'min' (the base)
+  holdRange(t2, 0, 4, 57, 84);  // Am (A3), minor: no lock
+  holdRange(t2, 4, 4, 53, 82);  // F  (F3): p-lock the arp to MAJOR
+  holdRange(t2, 8, 4, 55, 82);  // G  (G3): p-lock the arp to MAJOR
+  holdRange(t2, 12, 4, 57, 84); // Am (A3), minor: no lock
+  lockRange(t2, 4, 4, 1, ARP_MAJ);  // F chord = major arp
+  lockRange(t2, 8, 4, 1, ARP_MAJ);  // G chord = major arp
   t2.output.send = 0.3; t2.output.vca = 0.7;
 
   // --- T3 melody (PULSE): a catchy A-minor-pentatonic lead, 25% duty ---
@@ -60,18 +74,20 @@ export function freshPattern() {
   // --- T4 sparkle arp (PULSE, Arp = min): a higher, quieter chord arp, panned
   // right, a very thin duty and a faster rate ---
   const t4 = makeTrack('pulse', [0.1, 0.5, 0.95, 0.7, 0.0]);
-  holdRange(t4, 0, 4, 69, 60);  // A4
-  holdRange(t4, 4, 4, 74, 58);  // D5
-  holdRange(t4, 8, 4, 76, 58);  // E5
-  holdRange(t4, 12, 4, 69, 60); // A4
+  holdRange(t4, 0, 4, 69, 60);  // A4 (minor)
+  holdRange(t4, 4, 4, 65, 58);  // F4 (major, locked below)
+  holdRange(t4, 8, 4, 67, 58);  // G4 (major, locked below)
+  holdRange(t4, 12, 4, 69, 60); // A4 (minor)
+  lockRange(t4, 4, 4, 1, ARP_MAJ);  // match T2: F chord major
+  lockRange(t4, 8, 4, 1, ARP_MAJ);  // match T2: G chord major
   t4.output.vca = 0.4; t4.output.pan = 0.3; t4.output.send = 0.5;
 
   // --- T5 pad (PULSE, 50% square): a soft, dark sustained root under it all,
   // panned left for body ---
   const t5 = makeTrack('pulse', [0.5, 0.0, 0.5, 0.7, 0.0]);
   holdRange(t5, 0, 4, 45, 46);  // A2
-  holdRange(t5, 4, 4, 50, 44);  // D3
-  holdRange(t5, 8, 4, 52, 44);  // E3
+  holdRange(t5, 4, 4, 41, 44);  // F2
+  holdRange(t5, 8, 4, 43, 44);  // G2
   holdRange(t5, 12, 4, 45, 46); // A2
   t5.output.cutoff = 0.6; t5.output.vca = 0.35; t5.output.pan = -0.25; t5.output.send = 0.3;
 
