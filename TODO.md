@@ -27,8 +27,13 @@ more than its backlog position suggests.
    the acid/sh101 platform with a 2-pole self-oscillating SVF whose loud resonant
    peak overdrives the output stage = the MS-20 scream. Params Cutoff/Peak/Env
    Mod/Decay/Drive; toggles Pulse/Sub/Scream. Roster now 16.
-6. Sampler (SP-404 / MC-303 style). Big, but the single largest unlock: gates
-   Peach, Plum, and sunshine-breaks all at once.
+6. [DONE 2026-08-29] Sampler (SP-404 / MC-303 style). A `sample` ROMpler engine
+   whose factory ROM is synthesised in code at load (CC0, deterministic, so
+   offline renders match): Mall maj9 chord, Choir aah, Rhodes bell, vinyl Crackle,
+   and a 1-bar drum Break. Varispeed pitch by note, Slice mode (note picks 1 of 16
+   slices to chop the break), lo-fi Tone + Crush, Loop/Reverse. sample.js +
+   sample-meta.js, both registries. Built Peach (vaporwave) on it; Plum and
+   sunshine-breaks are now unblocked.
 
 Everything else (PPG wavetable, Peppermint's pulse/arp engine, poly chord rows,
 the remaining genre content) trails these; details in the sections below.
@@ -145,12 +150,15 @@ One small engine:
       fruit). Bit-crushed pulses (SUPERSAW Decimate already exists), needs a
       pulse/duty engine + arpeggiator.
 
-Gated on the sampler:
+Was gated on the sampler (now built):
 
-- [ ] Peach: vaporwave / mallsoft (pastel pink-orange, chrome). Pitched-down
-      EPIANO, heavy swing, slow.
+- [x] Peach: vaporwave / mallsoft (pastel pink-orange, chrome). BUILT 2026-08-29
+      as the SAMPLE showcase: the Mall maj9 and Choir samples looped and dropped
+      two octaves, a Rhodes-sample melody, a warm sub, a lazy swung beat, a vinyl
+      Crackle bed, into Dimension -> VaporCloud -> big hall. 65 bpm, chrome light
+      skin. peach.js + peach.starter.js.
 - [ ] Plum: trip-hop / downtempo (bruised purple-red). FM BASS, dusty EPIANO,
-      swing, sidechain; needs chopped breaks.
+      swing, sidechain; chop the SAMPLE Break in Slice mode (now available).
 
 Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
 

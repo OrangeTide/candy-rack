@@ -17,6 +17,7 @@ import { Acid303Voice } from './engines/acid.js';
 import { SH101Voice } from './engines/sh101.js';
 import { MS20Voice } from './engines/ms20.js';
 import { ClapVoice, CowbellVoice, KickVoice, SnareVoice, HatVoice } from './engines/percussion.js';
+import { SampleVoice } from './engines/sample.js';
 
 const mono = () => [0];
 
@@ -46,4 +47,5 @@ export const engines = {
   acid: { Voice: Acid303Voice, notesFor: mono, defaults: [0.35, 0.60, 0.50, 0.40, 0.30], mono: true, altMode: 'accent' },
   ms20: { Voice: MS20Voice, notesFor: mono, defaults: [0.45, 0.65, 0.55, 0.40, 0.25], mono: true, altMode: 'accent' },
   sh101: { Voice: SH101Voice, notesFor: mono, defaults: [0.45, 0.35, 0.50, 0.40, 0.50] },
+  sample: { Voice: SampleVoice, notesFor: mono, defaults: [0.00, 0.00, 0.50, 0.60, 0.00] },
 };

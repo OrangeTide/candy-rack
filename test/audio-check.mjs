@@ -242,6 +242,40 @@ console.log('== ms20 (Sallen-Key filter) ==');
   check('ms20 is finite and bounded', !lo.nan && !hi.nan && hi.peak <= 1.0, `peak ${hi.peak.toFixed(3)}`);
 }
 
+console.log('== sample (ROMpler) ==');
+{
+  const { SampleVoice, SAMPLE_SLOTS } = await import('../src/core/worklet/engines/sample.js');
+  const play = (params, toggles, opts = {}) => {
+    const v = new SampleVoice(SR), b = new Float32Array(SR * 2);
+    const note = opts.note ?? 48;
+    v.noteOn({ freq: 261.6256 * Math.pow(2, (note - 60) / 12), note, vel: 110, gateSec: opts.gate ?? 1.5, params, toggles });
+    let peak = 0, nan = false, i = 0;
+    for (; i < b.length && v.active; i++) { b[i] = v.render(); if (Number.isNaN(b[i])) nan = true; peak = Math.max(peak, Math.abs(b[i])); }
+    return { buf: b, frames: i, peak, nan, active: v.active };
+  };
+  // every ROM slot renders audible, finite, bounded audio
+  for (let s = 0; s < SAMPLE_SLOTS.length; s++) {
+    const r = play([(s + 0.5) / SAMPLE_SLOTS.length, 0, 0.9, 0.6, 0.2], [false, false, false]);
+    check(`sample slot ${SAMPLE_SLOTS[s]} renders, finite, bounded`, r.peak > 0.02 && r.peak <= 1.001 && !r.nan, `peak ${r.peak.toFixed(3)}`);
+  }
+  // the ROM is deterministic: two fresh voices produce identical output
+  const a = play([0.0, 0, 0.9, 0.6, 0.2], [false, false, false]);
+  const b2 = play([0.0, 0, 0.9, 0.6, 0.2], [false, false, false]);
+  let same = a.frames === b2.frames;
+  for (let i = 0; same && i < a.frames; i++) if (a.buf[i] !== b2.buf[i]) same = false;
+  check('sample ROM is deterministic (offline == live)', same);
+  // Slice mode: a hit-bearing break slice sounds and stops near the slice length,
+  // an empty slice is silent (no bleed from neighbours)
+  const hit = play([0.9, 0, 0.3, 0.9, 0], [false, false, true], { note: 60, gate: 0.3 });   // slice 0: kick+hat
+  const empty = play([0.9, 0, 0.3, 0.9, 0], [false, false, true], { note: 63, gate: 0.3 }); // slice 3: no hit
+  check('sample slice mode plays a hit-bearing slice', hit.peak > 0.2, `peak ${hit.peak.toFixed(3)}`);
+  check('sample empty slice is silent (no bleed)', empty.peak < 0.05, `peak ${empty.peak.toFixed(3)}`);
+  check('sample slice stops near its length (no run-on)', hit.frames < SR * 0.5, `${(hit.frames / SR * 1000 | 0)}ms`);
+  // Loop mode sustains a texture indefinitely
+  const loop = play([0.65, 0, 0.9, 0.5, 0.1], [true, false, false], { note: 60, gate: 100 });
+  check('sample loop mode sustains (still active at 2s)', loop.active && loop.frames >= SR * 2 - 2);
+}
+
 console.log('== tempo-synced LFO ==');
 {
   const { lfoHz } = await import('../src/core/sequencer.js');
