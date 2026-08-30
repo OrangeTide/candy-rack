@@ -9,8 +9,8 @@ the dub-techno and Coconut/ambient programs; and the poly cross-loop hold gap no
 gates the QUALITY of any poly drone/pad (they re-attack every bar), so it matters
 more than its backlog position suggests.
 
-1. Richer chord Type sets (min7/dom7/dim/9th). Small. Unblocks Blueberry and
-   lifts CHORD everywhere (jazz, dub, ambient). Cheapest high-leverage win.
+1. [DONE 2026-08-29] Richer chord Type sets (min7/dom7/dim/9th). 8->16 voicings,
+   named Type readout. Unblocked Blueberry; lifts CHORD everywhere.
 2. Tempo-synced LFO in the mod matrix. Small-to-medium. Unblocks Blackberry's
    tape-wobble, pairs with VaporCloud for vaporwave, useful in every machine.
 3. dub-techno machine. Content-ready now (chord -> Dimension -> Reverb chain
@@ -91,16 +91,18 @@ Each program is a standalone fruit-branded machine. Grouped by build cost. The
 machine framework (build/<name>.html from a machine config) makes each new
 content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
-spirit), Strawberry (bubblegum rave). Remaining backlog: sunshine breaks
+spirit), Strawberry (bubblegum rave), Blueberry (space jazz). Remaining backlog:
+sunshine breaks
 (gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
 gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
 a Rings-style engine).
 
 Cheapest (content + existing engines):
 
-- [ ] Blueberry: space jazz / electronic blues (midnight blue). EPIANO Rhodes,
-      FM BASS walking lines, CHORD 7th/9th voicings. Wants richer chord Type sets
-      (min7/dom7/dim). Closest to free.
+- [x] Blueberry: space jazz / electronic blues (midnight indigo). BUILT
+      2026-08-29: D-dorian modal vamp, brushed jazz kit + swing, walking FM BASS,
+      Dm9 CHORD comp (new min9 voicing), sparse E.PIANO Rhodes, VOWEL choir +
+      SUPERSAW pad bed into Dimension->Reverb. blueberry.js + blueberry.starter.js.
 - [ ] Blackberry: dungeon synth / electronic-folk (deep desaturated indigo).
       Detuned CHORD pads, VOWEL choir/monk drone, EPIANO as bell/harpsichord.
       Wants the tempo-synced tape-wobble LFO.
