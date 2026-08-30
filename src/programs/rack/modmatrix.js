@@ -13,6 +13,7 @@
 // exact AudioContext time the source step fires, matching the note it rides on.
 
 import { lfoHz } from '../../core/sequencer.js';
+import { makeGen, genAdvance, quantizePitch } from '../../core/gen.js';
 
 const SHAPES = { sine: 'sine', tri: 'triangle', saw: 'sawtooth', square: 'square' };
 
@@ -63,14 +64,33 @@ export class ModMatrix {
     for (const route of this.routes) this.buildRoute(route, ctx);
   }
 
+  // Deterministic per-route seed so a locked loop repeats and the offline WAV
+  // matches playback.
+  seedFor(route) { return ((this.routes.indexOf(route) + 1) * 0x9E3779B1) >>> 0; }
+
   buildRoute(route, ctx) {
+    // Generative source into the PITCH (note-offset) destination: there is no
+    // AudioParam for note pitch, so no audio node -- the scheduler samples the
+    // gen value at trigger time via genNoteOffset(). Keep only the gen state.
+    if (route.src.type === 'gen' && route.dest.param === 'note') {
+      this.nodes.push({ route, gen: makeGen(this.seedFor(route)) });
+      return;
+    }
     const param = this.destParam(route);
     if (!param) return;
     const gain = ctx.createGain();
     gain.gain.value = (route.polarity < 0 ? -1 : 1) * route.depth;
     gain.connect(param);
 
-    if (route.src.type === 'env') {
+    if (route.src.type === 'gen') {
+      // Generative source to a param destination: a ConstantSource the scheduler
+      // steps at each dest-track step (advanceGen), held between steps.
+      const cs = ctx.createConstantSource();
+      cs.offset.value = 0;
+      cs.connect(gain);
+      cs.start();
+      this.nodes.push({ route, gain, cs, gen: makeGen(this.seedFor(route)) });
+    } else if (route.src.type === 'env') {
       // Engine mod output: tap the source track's voice node output 1 (the
       // amp-envelope follower). A gate-aware, engine-agnostic mod source.
       const src = this.voices[route.src.track];
@@ -109,6 +129,33 @@ export class ModMatrix {
       off.linearRampToValueAtTime(1, time + atk);
       off.linearRampToValueAtTime(0, time + atk + dec);
     }
+  }
+
+  // Advance every GEN route clocked by this track's step (dest track == track),
+  // once per step, and hold the new value on its ConstantSource (param dests).
+  // Called from the scheduler at each step, before the notes fire, so a note
+  // (pitch dest) reads the freshly generated value.
+  advanceGen(track, time) {
+    for (const n of this.nodes) {
+      if (!n.gen || n.route.src.type !== 'gen' || n.route.dest.track !== track) continue;
+      const s = n.route.src;
+      const v = genAdvance(n.gen, s.mode || 'turing', s.length || 8, s.lock == null ? 0.5 : s.lock);
+      if (n.cs) n.cs.offset.setValueAtTime(v, time);
+    }
+  }
+
+  // Summed semitone offset from GEN -> note routes targeting this track, read
+  // from the values last produced by advanceGen(). 0 when none.
+  genNoteOffset(track) {
+    let off = 0;
+    for (const n of this.nodes) {
+      if (!n.gen || n.route.src.type !== 'gen') continue;
+      const d = n.route.dest, s = n.route.src;
+      if (d.param !== 'note' || d.track !== track) continue;
+      const semis = quantizePitch(n.gen.value, s.scale || 'off', s.octaves || 2);
+      off += (n.route.polarity < 0 ? -1 : 1) * semis;
+    }
+    return off;
   }
 
   teardown() {

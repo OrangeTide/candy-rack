@@ -15,6 +15,7 @@ import { kitPartVoice } from './worklet/registry.js';
 import { fxVoice } from './fx/voices.js';
 import { algoById, chainOrder } from './fx/algorithms.js';
 import { lfoHz, isRows, trackLanes, laneSteps } from './sequencer.js';
+import { makeGen, genAdvance, quantizePitch } from './gen.js';
 
 const POLY = 8;
 
@@ -120,10 +121,29 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   const anySolo = pattern.tracks.some((t) => t.solo);
   const audible = (track) => !track.mute && (!anySolo || track.solo);
 
-  const routes = (pattern.routes || []).map((r) => ({
+  const routes = (pattern.routes || []).map((r, i) => ({
     ...r, _phase: 0, _env: 0,
     _decayCoef: Math.exp(-1 / (Math.max(0.02, r.decay || 0.15) * SR)),
+    // GEN state, seeded to match modmatrix.seedFor() so the WAV matches playback.
+    _gen: r.src && r.src.type === 'gen' ? makeGen(((i + 1) * 0x9E3779B1) >>> 0) : null,
+    _genVal: 0,
   }));
+
+  // Advance GEN routes clocked by this track's step and return the summed
+  // semitone offset from GEN -> note routes (mirrors modmatrix advanceGen +
+  // genNoteOffset). Called once per step, before firing the notes.
+  function genStep(tIndex) {
+    let noteOff = 0;
+    for (const r of routes) {
+      if (!r._gen || r.src.type !== 'gen' || r.dest.track !== tIndex) continue;
+      r._genVal = genAdvance(r._gen, r.src.mode || 'turing', r.src.length || 8, r.src.lock == null ? 0.5 : r.src.lock);
+      if (r.dest.param === 'note') {
+        const semis = quantizePitch(r._genVal, r.src.scale || 'off', r.src.octaves || 2);
+        noteOff += (r.polarity < 0 ? -1 : 1) * semis;
+      }
+    }
+    return noteOff;
+  }
 
   function alloc(node) {
     for (const v of node.pool) if (!v.active) return v;
@@ -140,6 +160,10 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
   }
   function fireStep(node, tIndex, pos) {
     const track = node.track;
+    // Advance GEN sources clocked by this step; gn() shifts a pitched note by the
+    // summed GEN -> note offset (kit/drums are not shifted). Mirrors the app.
+    const genNoteOff = genStep(tIndex);
+    const gn = (n) => { const x = (n == null ? 60 : n) + genNoteOff; return x < 0 ? 0 : x > 127 ? 127 : x; };
     // Kit: each of the four part rows drives its own drum voice (fixed pool
     // slot), and each part is its own trigger source (part0..part3).
     if (node.kit) {
@@ -173,8 +197,9 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         }
         const gsteps = span - 1 + step.gateLen;
         const gateSec = Math.max(0.01, gsteps * node.stepDur);
-        const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
-        allocFor(node, step.note, !!step.tie).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
+        const gnote = gn(step.note);
+        const freq = 440 * Math.pow(2, (gnote - 69) / 12);
+        allocFor(node, gnote, !!step.tie).noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         for (const r of routes) {
           if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
           if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
@@ -208,16 +233,17 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       if (nxt.on && nxt.slide) gsteps = Math.max(gsteps, span + 0.05);
       const gateSec = Math.max(0.01, gsteps * node.stepDur);
       const accent = accentMode ? !!track.alt[pos].on : false;
-      const offsets = node.desc.notesFor(step.note, node.params);
+      const gnote = gn(step.note);
+      const offsets = node.desc.notesFor(gnote, node.params);
       if (node.desc.mono) {
         // One reused voice so slide steps glide legato, mirroring the runtime.
         const off = offsets.length ? offsets[0] : 0;
-        const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
-        node.pool[0].noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
+        const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
+        node.pool[0].noteOn({ freq, note: gnote, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
       } else {
         for (const off of offsets) {
-          const noteVal = (step.note ?? 60) + off;
-          const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
+          const noteVal = gnote + off;
+          const freq = 440 * Math.pow(2, (gnote - 69 + off) / 12);
           allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         }
       }
@@ -270,12 +296,15 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
       } else if (r.src.type === 'env') {
         const sn = nodes[r.src.track];
         val = sn ? sn.envFollow : 0; // last sample's follower (1-sample delay)
+      } else if (r.src.type === 'gen') {
+        val = r._genVal; // held between steps; note dests are applied in fireStep
       } else {
         val = r._env;
         r._env *= r._decayCoef;
       }
       const c = r.depth * r.polarity * val;
       const p = r.dest.param;
+      if (r.src.type === 'gen' && p === 'note') continue; // pitch handled in fireStep
       if (r.dest.track === -1) {
         if (p === 'volume') mMasterVol += c;   // master mixer target
       } else if (p === 'cutoff') modCut[r.dest.track] += c;

@@ -135,6 +135,11 @@ function scheduleTrackStep(t, absStep, time) {
   const v = voices[t];
   let hit = false;
 
+  // Advance any GEN sources clocked by this track's step (before notes fire, so a
+  // GEN -> note route reads the fresh value). genOff shifts pitched notes below.
+  modMatrix.advanceGen(t, time);
+  const genOff = isKit(track) ? 0 : modMatrix.genNoteOffset(t);
+
   // Kit: fire each of the four part rows; each part is its own trigger source.
   if (isKit(track)) {
     for (let part = 0; part < 4; part++) {
@@ -157,7 +162,7 @@ function scheduleTrackStep(t, absStep, time) {
     for (const lane of trackLanes(track)) {
       if (!startsNote(track, lane, pos)) continue;
       const s = laneSteps(track, lane)[pos];
-      v.trigger(time, xposed(track, s.note), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
+      v.trigger(time, xposed(track, s.note, genOff), s.velocity, tiedGate(track, lane, pos, stepDur), false, false, s.tie);
       modMatrix.onSourceTrigger(t, lane, time);
       hit = true;
     }
@@ -174,12 +179,12 @@ function scheduleTrackStep(t, absStep, time) {
   const accent = engineById(track.engine).altMode === 'accent';
 
   if (startsNote(track, 'main', pos)) {
-    v.trigger(time, xposed(track, m.note), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
+    v.trigger(time, xposed(track, m.note, genOff), m.velocity, tiedGate(track, 'main', pos, stepDur), m.slide, accent && a.on, m.tie);
     modMatrix.onSourceTrigger(t, 'main', time);
     hit = true;
   }
   if (!accent && startsNote(track, 'alt', pos)) {
-    v.trigger(time, xposed(track, a.note), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
+    v.trigger(time, xposed(track, a.note, genOff), a.velocity, tiedGate(track, 'alt', pos, stepDur), a.slide, false, a.tie);
     modMatrix.onSourceTrigger(t, 'alt', time);
     hit = true;
   }
@@ -341,9 +346,9 @@ const XPOSE_RANGE = 24; // +/- 2 octaves on the latched control
 let xposeBase = 0;
 let xposeKey = null;
 function xposeAmount() { return xposeKey !== null ? xposeKey : xposeBase; }
-function xposed(track, note) {
+function xposed(track, note, extra = 0) {
   if (isKit(track)) return note;
-  const n = note + xposeAmount();
+  const n = note + xposeAmount() + extra;
   return n < 0 ? 0 : n > 127 ? 127 : n;
 }
 function fmtXpose(n) { return (n > 0 ? '+' : '') + n; }
@@ -1405,9 +1410,37 @@ function renderMatrix() {
   pattern.routes.forEach((r, idx) => {
     const row = el('div', 'route');
 
-    // Source. Env taps a track's engine mod output (its amp-envelope follower).
-    row.append(pick([['trig', 'Trig'], ['lfo', 'LFO'], ['env', 'Env']], r.src.type, (v) => { r.src.type = v; applyRoutes(); renderMatrix(); }));
-    if (r.src.type === 'trig') {
+    // Source. Env taps a track's engine mod output; Gen is a generative sequencer.
+    row.append(pick([['trig', 'Trig'], ['lfo', 'LFO'], ['env', 'Env'], ['gen', 'Gen']], r.src.type, (v) => {
+      r.src.type = v;
+      if (v === 'gen') { // seed sensible generative defaults
+        r.src.mode = r.src.mode || 'turing';
+        r.src.length = r.src.length || 8;
+        r.src.lock = r.src.lock == null ? 0.7 : r.src.lock;
+        r.src.scale = r.src.scale || 'minor';
+        r.src.octaves = r.src.octaves || 2;
+      } else if (r.dest.param === 'note') {
+        r.dest.param = 'cutoff'; // Pitch dest is gen-only
+      }
+      applyRoutes(); renderMatrix();
+    }));
+    if (r.src.type === 'gen') {
+      // Mode is live-switchable (the headline). Length + Lock (deja-vu: 1 = locked
+      // loop, 0 = random). For the Pitch dest, a scale + octave span.
+      row.append(pick([['turing', 'Turing'], ['marbles', 'Marbles']], r.src.mode || 'turing', (v) => { r.src.mode = v; applyRoutes(); }));
+      const len = el('input', 'mini'); len.type = 'range'; len.min = 1; len.max = 16; len.value = r.src.length || 8; len.title = 'loop length';
+      const lenV = el('span', 'rv', String(r.src.length || 8));
+      len.oninput = () => { r.src.length = Number(len.value); lenV.textContent = len.value; applyRoutes(); };
+      row.append(len, lenV);
+      const lk = el('input', 'mini'); lk.type = 'range'; lk.min = 0; lk.max = 100; lk.value = Math.round((r.src.lock == null ? 0.7 : r.src.lock) * 100); lk.title = 'lock / deja-vu (100% = locked loop, 0% = random)';
+      const lkV = el('span', 'rv', Math.round((r.src.lock == null ? 0.7 : r.src.lock) * 100) + '%');
+      lk.oninput = () => { r.src.lock = Number(lk.value) / 100; lkV.textContent = lk.value + '%'; applyRoutes(); };
+      row.append(lk, lkV);
+      if (r.dest.param === 'note') {
+        row.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.src.scale || 'minor', (v) => { r.src.scale = v; applyRoutes(); }));
+        row.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.src.octaves || 2), (v) => { r.src.octaves = Number(v); applyRoutes(); }));
+      }
+    } else if (r.src.type === 'trig') {
       row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); renderMatrix(); }));
       // A kit source track taps a part row; a melodic one taps main/alt.
       const laneOpts = isKit(pattern.tracks[r.src.track])
@@ -1464,10 +1497,12 @@ function renderMatrix() {
       destOpts = [['volume', 'Volume']];
     } else {
       const destEng = engineById(pattern.tracks[r.dest.track].engine);
-      destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']]
-        .concat(destEng.params.map((p, i) => ['m' + i, p.label]));
+      destOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level']];
+      if (r.src.type === 'gen') destOpts.push(['note', 'Pitch']); // generative note sequencer
+      destOpts = destOpts.concat(destEng.params.map((p, i) => ['m' + i, p.label]));
     }
-    row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; applyRoutes(); }));
+    // renderMatrix re-run so the gen scale/octave controls appear/hide with Pitch.
+    row.append(pick(destOpts, r.dest.param, (v) => { r.dest.param = v; applyRoutes(); renderMatrix(); }));
 
     // Depth
     const depth = el('input', 'mini');

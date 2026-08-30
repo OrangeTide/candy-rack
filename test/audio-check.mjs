@@ -89,6 +89,38 @@ check('starter chord Type values read maj/maj/min7',
   typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
   `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
+console.log('== GEN generative source ==');
+{
+  const g = await import('../src/core/gen.js');
+  const seq = (mode, lock) => { const s = g.makeGen(42); const o = []; for (let i = 0; i < 16; i++) o.push(+g.genAdvance(s, mode, 4, lock).toFixed(4)); return o; };
+  const locked = seq('turing', 1);
+  check('GEN locked loop repeats every length', locked.slice(0, 4).join() === locked.slice(4, 8).join() && locked.slice(4, 8).join() === locked.slice(8, 12).join());
+  const rnd = seq('marbles', 0);
+  check('GEN lock=0 does not repeat', rnd.slice(0, 4).join() !== rnd.slice(4, 8).join());
+  const a = seq('turing', 0.5), b = seq('turing', 0.5);
+  check('GEN is deterministic (same seed)', a.join() === b.join());
+  check('GEN pitch quantizes to the scale', g.quantizePitch(0.5, 'minor', 2) % 12 !== undefined && [0, 2, 3, 5, 7, 8, 10].includes(g.quantizePitch(0.5, 'minor', 2) % 12));
+
+  // Offline integration: a GEN -> note route renders bounded and deterministic.
+  const seqMod = await import('../src/core/sequencer.js');
+  const off = await import('../src/core/offline-render.js');
+  const reg = await import('../src/core/worklet/registry.js');
+  const P = [0.5, 0.4, 0.4, 0.6, 0.5];
+  const mk = () => {
+    const t = seqMod.makeTrack('sh101', P);
+    for (let i = 0; i < 16; i++) { const s = t.main[i]; s.on = true; s.note = 48; s.gateLen = 0.5; s.velocity = 100; }
+    const f = () => { const x = seqMod.makeTrack('sh101', P); x.mute = true; return x; };
+    const routes = [{ src: { type: 'gen', mode: 'turing', length: 8, lock: 1, scale: 'minor', octaves: 2 }, dest: { track: 0, param: 'note' }, depth: 1, polarity: 1 }];
+    const p = seqMod.makePattern([t, f(), f(), f(), f(), f()], routes); p.bpm = 120; return p;
+  };
+  const r1 = off.renderPattern(mk(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  const r2 = off.renderPattern(mk(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  let peak = 0, nan = false, same = true;
+  for (let i = 0; i < r1.left.length; i++) { const s = r1.left[i]; if (Number.isNaN(s)) nan = true; peak = Math.max(peak, Math.abs(s)); if (s !== r2.left[i]) same = false; }
+  check('GEN offline render is bounded', !nan && peak <= 1.0, `peak ${peak.toFixed(3)}`);
+  check('GEN offline render is deterministic', same);
+}
+
 console.log('== poly cross-loop hold ==');
 {
   const { SupersawVoice } = await import('../src/core/worklet/engines/supersaw.js');

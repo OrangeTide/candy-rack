@@ -160,6 +160,14 @@ groovebox's simplicity. Maths/Tides largely duplicate the existing LFO/env
 sources. The genuinely new value is the GENERATIVE algorithms, delivered as a
 mod-matrix source instead of a module row. Full spec: docs/GEN-SOURCE-DESIGN.md.
 
+- [x] GEN v1 DONE 2026-08-29. src/core/gen.js (deterministic Turing + Marbles +
+      quantize), src.type='gen' in modmatrix (ConstantSource for param dests,
+      advanceGen/genNoteOffset), scheduler advances per dest-track step + offsets
+      pitched notes, offline-render mirrors it (seeded to match), matrix route row
+      UI (mode live-switch / length / lock / scale / octaves) + Pitch dest.
+      Verified: locked loops repeat, lock=0 random, deterministic, offline bounded,
+      and the full UI + live mode switch in-browser (CDP). Remaining v1 polish:
+      route row is wide (may wrap); a per-route value meter is v2.
 - [ ] GEN source (Turing Machine + Marbles hybrid). A new `src.type='gen'` next
       to trig/lfo/env, with a REAL-TIME-SWITCHABLE mode (TURING shift-register /
       MARBLES statistical random+deja-vu / WALK / S&H) sharing one clock + loop, so
