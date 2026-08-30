@@ -52,15 +52,57 @@ docs/GEN-SOURCE-DESIGN.md. Still open:
 
 ## Recording
 
-- [ ] add a real-time recording option.
-  - recording time limited by RAM size / max allocation in a browser
-  - can record the master out only (2 channel) or multitrack
-  - 9-10 minutes at 16-bit mono at 44.1 kHz is about 50MB per track (not exactly).
-  - For multitrack that is 6 mono channels + the stereo FX return, or about 400 MB needed for a reasonable song or short jam session.
+Offline WAV export already exists (`record.js` bounces the pattern to a 16-bit
+stereo WAV). The new capability is capturing a live take, including the
+performance moves the offline render leaves out on purpose: transpose, live
+mutes, knob tweaks, and GEN mode switches. Frame it as bounce (Export) versus
+jam (Record) so the two WAV paths do not confuse the user.
+
+- [ ] Live recording (master out, 2 channel). Tap the master bus and capture the
+      live performance to a downloadable file.
+  - Label it "Live" (or "Record") next to the existing Export so the difference
+    is obvious: Export bounces the pattern deterministically, Live captures what
+    you actually played.
+  - Capture is Float32 at the AudioContext rate (48 kHz), so budget the RAM in
+    that format, not 16-bit at 44.1 kHz. A stereo minute is about 23 MB held
+    live; convert to 16-bit at encode time.
+  - Impose a hard time cap with a visible remaining-time readout, and stop
+    cleanly before the tab runs out of memory. An unbounded record that OOMs
+    loses the whole take.
+  - A `MediaStreamDestination` plus `MediaRecorder` is the cheap path for a
+    master-only tap. Decide whether the download is WAV (needs a PCM tap and our
+    own encoder) or the browser's compressed default.
+
+### Multitrack recording (aspirational)
+
+- [ ] Capture the mixer channels as separate stems (6 mono channels plus the
+      stereo FX return), delivered as a ZIP of per-channel WAVs.
+  - A different, heavier mechanism than the master tap: per-channel AudioWorklet
+    taps writing into growing buffers, then stitching and encoding N files.
+  - The RAM cost is real. Eight channels of Float32 at 48 kHz for a 10-minute
+    jam is roughly 900 MB held live, about 460 MB if down-converted to 16-bit
+    per block during capture. Both are heavy for a browser tab.
+  - Deferred until Live recording proves the capture path.
 
 ## Sequencing
 
-- [ ] design a sequencer that is not quantized to 16 steps. (it will be 256 instead)
-  - imagine a row that can have the same candy button shape triggers placed on it, but more freely. with 16 possible sub-steps for the button. 
-  - if clicking on the row normally, the buttons are places in their usual 16 steps per track position
-  - in micro timing editing, the buttons can be dragged or stretch. they are actually gate markings that just happened to look like a traditional 16 button interface when the default gate length and size is used.
+Per-step micro-timing shipped as a p-lock, not a sequencer rebuild. Each step
+carries a `nudge` value (a fraction of a step, -0.5 to 0.5) that shifts the
+note's onset off the grid while the sequencer keeps clocking on the grid. It is
+edited from the Nudge slider in the step editor, works on every lane including
+drum parts, and mirrors in the offline WAV render. Gate length already provides
+the duration bump. The grid stays 16-per-page with variable length up to 256
+steps, so "256 steps" keeps its existing meaning (pattern length, not timing
+resolution).
+
+Still open:
+
+- [ ] QUANTIZE toggle, a lamp beside EDIT, on by default. Off, dragging a placed
+      step on the grid edits its nudge and gate directly, so micro-timing gets a
+      hands-on editor in addition to the slider. On, steps stay locked to the
+      grid and the drag does nothing. This is the one place a drag gesture
+      belongs, so it does not collide with tap-to-place or tap-to-select.
+- [ ] A visible off-grid marker on nudged steps, so micro-timing is never hidden
+      state. Useful with the slider alone, and required before the drag UI.
+- [ ] Confirm how nudge composes with per-track swing. They add today; check the
+      clamp keeps a nudged off-beat from crossing into the next step.
