@@ -1056,6 +1056,9 @@ function renderEditor() {
   editBtn.title = 'Tap-to-edit steps (instead of long-press)';
   editBtn.onclick = () => {
     editMode = !editMode;
+    // The seq-bar is not rebuilt by renderGrid, so toggle the button's own state
+    // here for immediate feedback (otherwise the button looks dead).
+    editBtn.classList.toggle('on', editMode);
     if (!editMode) { selSteps.clear(); selAnchor = null; }
     renderGrid();
   };
