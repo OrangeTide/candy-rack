@@ -2,7 +2,7 @@
 
 // Blueberry starter: space jazz / electronic blues. A swung, midnight modal vamp
 // in D dorian: brushed ride drums, a walking FM upright bass, a soft Dm9 comp on
-// the new extended CHORD voicings, a sparse Rhodes melody, and a choir + saw pad
+// the new extended CHORD voicings, a four-bar Rhodes solo, and a choir + saw pad
 // bed floating in a big hall. DOM-free so the app and offline renderer share it.
 import { makeTrack, makePattern } from '../../core/sequencer.js';
 
@@ -59,17 +59,29 @@ export function freshPattern() {
   t2.output.cutoff = 0.55;   // mellow
   t2.output.send = 0.6;
 
-  // --- Rhodes melody (E.PIANO): a sparse, dreamy D dorian phrase that leaves
-  // space, resolving to a held D. ---
+  // --- Rhodes solo (E.PIANO, 64 steps): a four-bar D dorian phrase that breathes.
+  // A rising statement, an answer that descends through a chromatic F# passing
+  // tone, a lift into the upper register, then a resolution to a held D that
+  // leaves space before the loop. Extended to 64 steps so it is a full jazz
+  // phrase, not a one-bar motif. Each entry is [note, velocity, gate]. ---
   const t3 = makeTrack('epiano', [0.52, 0.50, 0.15, 0.62, 0.10]);
-  paint(t3, 'main', [0], { note: 69, gate: 0.5, vel: 92 });   // A4
-  paint(t3, 'main', [3], { note: 71, gate: 0.4, vel: 82 });   // B4
-  paint(t3, 'main', [4], { note: 69, gate: 0.4, vel: 80 });   // A4
-  paint(t3, 'main', [7], { note: 67, gate: 0.4, vel: 84 });   // G4
-  paint(t3, 'main', [8], { note: 65, gate: 0.5, vel: 86 });   // F4
-  paint(t3, 'main', [11], { note: 64, gate: 0.4, vel: 78 });  // E4
-  paint(t3, 'main', [12], { note: 62, gate: 0.95, vel: 88 }); // D4, held...
-  paint(t3, 'main', [13, 14, 15], { tie: true });             // ...through the bar end
+  t3.length = 64;
+  const rhodes = {
+    // bar 1: a rising statement that lands and rests
+    0: [69, 90, 0.45], 3: [71, 80, 0.35], 4: [74, 86, 0.40], 7: [72, 78, 0.35],
+    8: [69, 82, 0.50], 11: [67, 74, 0.40], 14: [65, 70, 0.30],
+    // bar 2: the answer descends through a chromatic F# (66) passing tone
+    16: [64, 82, 0.40], 18: [65, 76, 0.30], 19: [67, 80, 0.35], 22: [69, 84, 0.40],
+    24: [67, 78, 0.45], 27: [66, 72, 0.30], 28: [65, 76, 0.50], 31: [64, 70, 0.30],
+    // bar 3: the solo lifts into the upper register
+    32: [74, 88, 0.40], 34: [76, 82, 0.35], 35: [77, 80, 0.35], 38: [76, 78, 0.40],
+    40: [72, 84, 0.40], 42: [69, 80, 0.45], 44: [71, 76, 0.40], 47: [69, 72, 0.30],
+    // bar 4: resolve back down to a held D, then space
+    48: [67, 82, 0.40], 50: [65, 78, 0.40], 51: [64, 74, 0.35], 54: [62, 80, 0.50],
+    56: [64, 70, 0.30], 58: [62, 84, 0.95],
+  };
+  for (const [i, v] of Object.entries(rhodes)) paint(t3, 'main', [+i], { note: v[0], vel: v[1], gate: v[2] });
+  paint(t3, 'main', [59, 60, 61, 62, 63], { tie: true }); // hold the final D through the bar into the loop
   t3.output.send = 0.4;
 
   // --- choir pad (VOWEL): a held "aah" fifth (A3), the auto-vowel LFO sweeping
