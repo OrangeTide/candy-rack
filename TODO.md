@@ -16,11 +16,16 @@ more than its backlog position suggests.
    shared by realtime + offline; retunes live with tempo. Unblocked Blackberry.
 3. dub-techno machine. Content-ready now (chord -> Dimension -> Reverb chain
    exists). A new fruit machine is cheap: config + starter + build entry + card.
+   FRUIT (user-assigned 2026-08-29): GUINEP (Spanish lime / mamoncillo) -- a
+   partially peeled guinep: green rind, pale orange-salmon lychee-like flesh.
+   Palette leans green rind + salmon flesh; distinct from Lime.
 4. Cross-loop hold for POLY engines (see Sequencer). Medium, high leverage: fixes
    drones/pads re-attacking each loop on ALL poly engines, which gates Coconut and
    any pad-heavy program's quality. Also warms up the offline loop render.
-5. MS-20 Sallen-Key filter engine. Medium. Breaks the ladder-filter monoculture;
-   industrial/acid/techno leads and timbral variety.
+5. [DONE 2026-08-29] MS-20 Sallen-Key filter engine. Mono lead (slide+accent) on
+   the acid/sh101 platform with a 2-pole self-oscillating SVF whose loud resonant
+   peak overdrives the output stage = the MS-20 scream. Params Cutoff/Peak/Env
+   Mod/Decay/Drive; toggles Pulse/Sub/Scream. Roster now 16.
 6. Sampler (SP-404 / MC-303 style). Big, but the single largest unlock: gates
    Peach, Plum, and sunshine-breaks all at once.
 
@@ -77,11 +82,11 @@ so this record's palette is fully covered by the Grape machine.
       idle. Two detuned 2-op stacks with op2 feedback = the "Lately Bass" FM bass.
       Mono with slide + accent; Harmonic/Timbre/Feedback/Decay/Drive + Sub/Bright
       toggles. Inherits the FM 2x oversampling.
-- [ ] MS-20 Sallen-Key filter monosynth: a distinct SECOND filter character (a
-      2-pole screaming-resonance Sallen-Key). Every subtractive engine (acid,
-      sh101, csaw) currently uses the same Moog-style ladder, so this adds real
-      timbral variety. Aggressive acid/techno/industrial leads. Could also do
-      the miniKORG 700 "Traveler" (series LP+HP sweepable bandpass) variant.
+- [x] MS-20 Sallen-Key filter monosynth: DONE 2026-08-29 (ms20.js / MS20Voice +
+      ms20-meta.js). A distinct SECOND filter character: a 2-pole self-oscillating
+      SVF whose loud resonant peak overdrives the output tanh = the MS-20 scream,
+      vs the roster's 4-pole ladder. Mono lead, slide+accent. Future variant idea:
+      the miniKORG 700 "Traveler" (series LP+HP sweepable bandpass).
 - [ ] PPG Wave / wavetable engine: a wavetable oscillator with a scannable wave
       position (a good mod-matrix destination). Bigger (wavetable data +
       interpolation). Not needed for acid house; good for the pad/lead genres.
@@ -142,3 +147,6 @@ Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
   - [x] put the swing control next to the page next/prev control above the step sequencer.
 - [x] move the speed and length controls to be above the step sequencer as well.
 - [x] peppermint should be red+white, not green+white
+- [ ] add step labels over each step 01-16,17-32,...
+- [ ] use the 4 step track for polyphonic instruments. with the ALT track offering an emphasis / mod-wheel impact on the step.
+- [ ] for the step mode, add an EDIT button that shortcuts the same trigger/edit state modes that are currently handled by the long press state machine.

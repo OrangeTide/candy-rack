@@ -89,6 +89,25 @@ check('starter chord Type values read maj/maj/min7',
   typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
   `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
+console.log('== ms20 (Sallen-Key filter) ==');
+{
+  const { MS20Voice } = await import('../src/core/worklet/engines/ms20.js');
+  const goertzel = (buf, f) => {
+    const w = 2 * Math.PI * f / SR, coeff = 2 * Math.cos(w); let s1 = 0, s2 = 0;
+    for (let i = 0; i < buf.length; i++) { const s0 = buf[i] + coeff * s1 - s2; s2 = s1; s1 = s0; }
+    return Math.sqrt(s1 * s1 + s2 * s2 - coeff * s1 * s2) / buf.length;
+  };
+  const run = (reso) => {
+    const v = new MS20Voice(SR), b = new Float32Array(SR); let peak = 0, nan = false;
+    v.noteOn({ freq: 110, vel: 110, gateSec: 1.0, params: [0.35, reso, 0.0, 0.9, 0.2], toggles: [false, false, false] });
+    for (let i = 0; i < SR; i++) { b[i] = v.render(); if (Number.isNaN(b[i])) nan = true; peak = Math.max(peak, Math.abs(b[i])); }
+    return { h3: goertzel(b, 330), peak, nan }; // 330 Hz = 3rd harmonic, at the ~328 Hz cutoff
+  };
+  const lo = run(0.10), hi = run(0.90);
+  check('ms20 resonance boosts the peak at cutoff', hi.h3 > lo.h3 * 2.5, `x${(hi.h3 / lo.h3).toFixed(1)}`);
+  check('ms20 is finite and bounded', !lo.nan && !hi.nan && hi.peak <= 1.0, `peak ${hi.peak.toFixed(3)}`);
+}
+
 console.log('== tempo-synced LFO ==');
 {
   const { lfoHz } = await import('../src/core/sequencer.js');

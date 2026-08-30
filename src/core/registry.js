@@ -15,11 +15,12 @@ import { vowelMeta } from './engines/vowel-meta.js';
 import { dtmfMeta } from './engines/dtmf-meta.js';
 import { acidMeta } from './engines/acid-meta.js';
 import { sh101Meta } from './engines/sh101-meta.js';
+import { ms20Meta } from './engines/ms20-meta.js';
 import { kitMeta } from './engines/kit-meta.js';
 import { clapMeta } from './engines/clap-meta.js';
 import { cowbellMeta } from './engines/cowbell-meta.js';
 
-export const engines = [kitMeta, drumMeta, clapMeta, cowbellMeta, fm2Meta, chordMeta, csawMeta, supersawMeta, epianoMeta, fmbassMeta, dx100Meta, vowelMeta, dtmfMeta, acidMeta, sh101Meta];
+export const engines = [kitMeta, drumMeta, clapMeta, cowbellMeta, fm2Meta, chordMeta, csawMeta, supersawMeta, epianoMeta, fmbassMeta, dx100Meta, vowelMeta, dtmfMeta, acidMeta, sh101Meta, ms20Meta];
 
 export function engineById(id) {
   return engines.find((e) => e.id === id) || engines[0];
