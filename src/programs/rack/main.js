@@ -1438,7 +1438,7 @@ function renderMatrix() {
       // Pitch dest, a scale + octave span.
       genLine = el('div', 'gen-line');
       genLine.append(el('span', 'gen-tag', 'GEN'));
-      genLine.append(pick([['turing', 'Turing'], ['marbles', 'Marbles']], r.src.mode || 'turing', (v) => { r.src.mode = v; applyRoutes(); }));
+      genLine.append(pick([['turing', 'Turing'], ['marbles', 'Marbles'], ['walk', 'Walk'], ['sh', 'S&H']], r.src.mode || 'turing', (v) => { r.src.mode = v; applyRoutes(); }));
       genLine.append(el('span', 'rlbl', 'len'));
       const len = el('input', 'mini'); len.type = 'range'; len.min = 1; len.max = 16; len.value = r.src.length || 8; len.title = 'loop length';
       const lenV = el('span', 'rv', String(r.src.length || 8));
@@ -1453,6 +1453,38 @@ function renderMatrix() {
         genLine.append(el('span', 'rlbl', 'scale'));
         genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.src.scale || 'minor', (v) => { r.src.scale = v; applyRoutes(); }));
         genLine.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.src.octaves || 2), (v) => { r.src.octaves = Number(v); applyRoutes(); }));
+      }
+
+      // Y output: a half-rate companion stream routable to its own destination
+      // (Marbles X/Y). +Y enables it; then its own track / param / depth.
+      const yOn = !!(r.y && r.y.on);
+      const yBtn = el('button', 'pol' + (yOn ? ' on' : ''), 'Y');
+      yBtn.title = yOn ? 'Y output on -- a half-rate companion of X' : 'add a Y output (half-rate companion stream)';
+      yBtn.onclick = () => {
+        if (yOn) { r.y.on = false; }
+        else { r.y = Object.assign({ track: r.dest.track, param: 'cutoff', depth: 0.5, polarity: 1, scale: 'minor', octaves: 2 }, r.y || {}, { on: true }); }
+        applyRoutes(); renderMatrix();
+      };
+      genLine.append(yBtn);
+      if (yOn) {
+        genLine.append(el('span', 'gen-tag', 'Y→'));
+        const yt = el('select', 'sel sm');
+        const ymst = el('option', null, 'MST'); ymst.value = '-1'; if (r.y.track === -1) ymst.selected = true; yt.append(ymst);
+        for (let tt = 0; tt < TRACKS; tt++) { const o = el('option', null, 'T' + (tt + 1)); o.value = String(tt); if (tt === r.y.track) o.selected = true; yt.append(o); }
+        yt.onchange = () => { r.y.track = Number(yt.value); r.y.param = r.y.track === -1 ? 'volume' : 'cutoff'; applyRoutes(); renderMatrix(); };
+        genLine.append(yt);
+        let yOpts;
+        if (r.y.track === -1) yOpts = [['volume', 'Volume']];
+        else { const ye = engineById(pattern.tracks[r.y.track].engine); yOpts = [['cutoff', 'Filter'], ['hp', 'Hi-Pass'], ['vca', 'Level'], ['note', 'Pitch']].concat(ye.params.map((p, i) => ['m' + i, p.label])); }
+        genLine.append(pick(yOpts, r.y.param, (v) => { r.y.param = v; applyRoutes(); renderMatrix(); }));
+        if (r.y.param === 'note') {
+          genLine.append(pick([['off', 'chrom'], ['major', 'maj'], ['minor', 'min'], ['pentaMin', 'pent']], r.y.scale || 'minor', (v) => { r.y.scale = v; applyRoutes(); }));
+          genLine.append(pick([['1', '1oct'], ['2', '2oct'], ['3', '3oct'], ['4', '4oct']], String(r.y.octaves || 2), (v) => { r.y.octaves = Number(v); applyRoutes(); }));
+        }
+        const yd = el('input', 'mini'); yd.type = 'range'; yd.min = 0; yd.max = 100; yd.value = Math.round((r.y.depth == null ? 0.5 : r.y.depth) * 100);
+        const ydV = el('span', 'rv', Math.round((r.y.depth == null ? 0.5 : r.y.depth) * 100) + '%');
+        yd.oninput = () => { r.y.depth = Number(yd.value) / 100; ydV.textContent = yd.value + '%'; applyRoutes(); };
+        genLine.append(el('span', 'rlbl', 'amt'), yd, ydV);
       }
     } else if (r.src.type === 'trig') {
       row.append(trackSelect(r.src.track, (v) => { r.src.track = v; applyRoutes(); renderMatrix(); }));

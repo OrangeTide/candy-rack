@@ -42,16 +42,18 @@ export class ModMatrix {
     }
   }
 
-  destParam(route) {
-    // Master targets use dest.track === -1. Master Volume is masterVol.gain, an
-    // AudioParam the mod sums on top of the base volume, like a track's cutoff.
-    if (route.dest.track === -1) {
-      if (route.dest.param === 'volume' && this.host.masterVol) return this.host.masterVol.gain;
+  destParam(route) { return this.destParamOf(route.dest); }
+
+  // The AudioParam for a {track, param} destination. Master (track -1) exposes
+  // Volume; a track exposes its output stage + engine params.
+  destParamOf(dest) {
+    if (dest.track === -1) {
+      if (dest.param === 'volume' && this.host.masterVol) return this.host.masterVol.gain;
       return null;
     }
-    const v = this.voices[route.dest.track];
+    const v = this.voices[dest.track];
     if (!v) return null;
-    return v.param(route.dest.param);
+    return v.param(dest.param);
   }
 
   // Rebuild the whole graph from the current route list. Cheap enough to call on
@@ -102,29 +104,37 @@ export class ModMatrix {
     return 0;
   }
 
+  // One generative source drives two outputs: X (route.dest) and an optional Y
+  // (route.y), a half-rate companion. A param dest gets a ConstantSource stepped
+  // by advanceGen(); a note dest has no node (the scheduler reads gen.value /
+  // gen.valueY via genNoteOffset). The gen clocks on the X dest track's steps.
+  buildGenRoute(route, ctx) {
+    const node = { route, gen: makeGen(this.seedFor(route)) };
+    const mkOut = (dest, depth, polarity, out) => {
+      if (!dest || dest.param === 'note') return; // note: read by the scheduler
+      const param = this.destParamOf(dest);
+      if (!param) return;
+      const gain = ctx.createGain();
+      gain.gain.value = (polarity < 0 ? -1 : 1) * (depth == null ? 0.5 : depth);
+      gain.connect(param);
+      const cs = ctx.createConstantSource();
+      cs.offset.value = 0; cs.connect(gain); cs.start();
+      node['gain' + out] = gain; node['cs' + out] = cs;
+    };
+    mkOut(route.dest, route.depth, route.polarity, 'X');
+    if (route.y && route.y.on) mkOut(route.y, route.y.depth, route.y.polarity, 'Y');
+    this.nodes.push(node);
+  }
+
   buildRoute(route, ctx) {
-    // Generative source into the PITCH (note-offset) destination: there is no
-    // AudioParam for note pitch, so no audio node -- the scheduler samples the
-    // gen value at trigger time via genNoteOffset(). Keep only the gen state.
-    if (route.src.type === 'gen' && route.dest.param === 'note') {
-      this.nodes.push({ route, gen: makeGen(this.seedFor(route)) });
-      return;
-    }
+    if (route.src.type === 'gen') { this.buildGenRoute(route, ctx); return; }
     const param = this.destParam(route);
     if (!param) return;
     const gain = ctx.createGain();
     gain.gain.value = (route.polarity < 0 ? -1 : 1) * route.depth;
     gain.connect(param);
 
-    if (route.src.type === 'gen') {
-      // Generative source to a param destination: a ConstantSource the scheduler
-      // steps at each dest-track step (advanceGen), held between steps.
-      const cs = ctx.createConstantSource();
-      cs.offset.value = 0;
-      cs.connect(gain);
-      cs.start();
-      this.nodes.push({ route, gain, cs, gen: makeGen(this.seedFor(route)) });
-    } else if (route.src.type === 'env') {
+    if (route.src.type === 'env') {
       // Engine mod output: tap the source track's voice node output 1 (the
       // amp-envelope follower). A gate-aware, engine-agnostic mod source.
       const src = this.voices[route.src.track];
@@ -173,34 +183,33 @@ export class ModMatrix {
     for (const n of this.nodes) {
       if (!n.gen || n.route.src.type !== 'gen' || n.route.dest.track !== track) continue;
       const s = n.route.src;
-      const v = genAdvance(n.gen, s.mode || 'turing', s.length || 8, s.lock == null ? 0.5 : s.lock);
-      if (n.cs) n.cs.offset.setValueAtTime(v, time);
+      genAdvance(n.gen, s.mode || 'turing', s.length || 8, s.lock == null ? 0.5 : s.lock);
+      if (n.csX) n.csX.offset.setValueAtTime(n.gen.value, time);   // X
+      if (n.csY) n.csY.offset.setValueAtTime(n.gen.valueY, time);  // Y (held between)
     }
   }
 
   // Summed semitone offset from GEN -> note routes targeting this track, read
-  // from the values last produced by advanceGen(). 0 when none.
+  // from the values last produced by advanceGen(). Covers both X (dest) and Y
+  // (route.y) note outputs. 0 when none.
   genNoteOffset(track) {
     let off = 0;
+    const q = (value, o) => (o.polarity < 0 ? -1 : 1) * quantizePitch(value, o.scale || 'off', o.octaves || 2);
     for (const n of this.nodes) {
       if (!n.gen || n.route.src.type !== 'gen') continue;
-      const d = n.route.dest, s = n.route.src;
-      if (d.param !== 'note' || d.track !== track) continue;
-      const semis = quantizePitch(n.gen.value, s.scale || 'off', s.octaves || 2);
-      off += (n.route.polarity < 0 ? -1 : 1) * semis;
+      const r = n.route;
+      if (r.dest.param === 'note' && r.dest.track === track) off += q(n.gen.value, { polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves });
+      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === track) off += q(n.gen.valueY, r.y);
     }
     return off;
   }
 
   teardown() {
     for (const n of this.nodes) {
-      try { if (n.osc) n.osc.stop(); } catch (_) {}
-      try { if (n.cs) n.cs.stop(); } catch (_) {}
-      try { if (n.osc) n.osc.disconnect(); } catch (_) {}
-      try { if (n.cs) n.cs.disconnect(); } catch (_) {}
+      for (const c of [n.cs, n.csX, n.csY, n.osc]) { try { if (c) c.stop(); } catch (_) {} try { if (c) c.disconnect(); } catch (_) {} }
       try { if (n.envNode) n.envNode.disconnect(n.gain); } catch (_) {}
       try { if (n.analyser) n.analyser.disconnect(); } catch (_) {}
-      try { n.gain.disconnect(); } catch (_) {}
+      for (const g of [n.gain, n.gainX, n.gainY]) { try { if (g) g.disconnect(); } catch (_) {} }
     }
     this.nodes = [];
   }

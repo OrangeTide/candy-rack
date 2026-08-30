@@ -181,8 +181,13 @@ mod-matrix source instead of a module row. Full spec: docs/GEN-SOURCE-DESIGN.md.
       AudioParam). Also usable by any source (an LFO -> pitch vibrato, etc.).
 - [ ] Determinism: seed each route's RNG so the offline/WAV render matches live;
       a reseed/mutate perform action later.
-- [ ] v2: WALK/S&H modes, mode as a mod destination, a gate output for trigger
-      destinations, clock-from-track, per-route value meter.
+- [x] v2 (partial) DONE 2026-08-29: WALK + S&H modes (gen.js, in the mode picker);
+      per-route value LED (green/red meter); Marbles X/Y outputs -- a GEN drives an
+      X output (route.dest) and an optional half-rate Y companion (route.y) with its
+      own dest/param/depth (+Y on the gen line), both to params or Pitch, mirrored
+      offline. Verified in-browser + checks. STILL OPEN: mode as a mod destination,
+      a gate output for trigger destinations, a free-running tempo-synced clock
+      (currently clocks per X-dest-track step), a Y value LED.
 - [ ] (Optional, cosmetic) render matrix routes as little patch-cord graphics for
       the modular LOOK, without making them free-patchable -- flavor over the same
       matrix, if the eurorack aesthetic is wanted.

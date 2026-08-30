@@ -126,21 +126,23 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     _decayCoef: Math.exp(-1 / (Math.max(0.02, r.decay || 0.15) * SR)),
     // GEN state, seeded to match modmatrix.seedFor() so the WAV matches playback.
     _gen: r.src && r.src.type === 'gen' ? makeGen(((i + 1) * 0x9E3779B1) >>> 0) : null,
-    _genVal: 0,
+    _genVal: 0, _genValY: 0,
   }));
 
-  // Advance GEN routes clocked by this track's step and return the summed
-  // semitone offset from GEN -> note routes (mirrors modmatrix advanceGen +
-  // genNoteOffset). Called once per step, before firing the notes.
+  // Advance GEN routes clocked by this track's step (X dest track) and return the
+  // summed semitone offset from GEN -> note outputs on this track -- both X (dest)
+  // and Y (route.y). Mirrors modmatrix advanceGen + genNoteOffset.
+  const qPitch = (v, o) => (o.polarity < 0 ? -1 : 1) * quantizePitch(v, o.scale || 'off', o.octaves || 2);
   function genStep(tIndex) {
     let noteOff = 0;
     for (const r of routes) {
-      if (!r._gen || r.src.type !== 'gen' || r.dest.track !== tIndex) continue;
-      r._genVal = genAdvance(r._gen, r.src.mode || 'turing', r.src.length || 8, r.src.lock == null ? 0.5 : r.src.lock);
-      if (r.dest.param === 'note') {
-        const semis = quantizePitch(r._genVal, r.src.scale || 'off', r.src.octaves || 2);
-        noteOff += (r.polarity < 0 ? -1 : 1) * semis;
+      if (!r._gen || r.src.type !== 'gen') continue;
+      if (r.dest.track === tIndex) {
+        genAdvance(r._gen, r.src.mode || 'turing', r.src.length || 8, r.src.lock == null ? 0.5 : r.src.lock);
+        r._genVal = r._gen.value; r._genValY = r._gen.valueY;
+        if (r.dest.param === 'note') noteOff += qPitch(r._gen.value, { polarity: r.polarity, scale: r.src.scale, octaves: r.src.octaves });
       }
+      if (r.y && r.y.on && r.y.param === 'note' && r.y.track === tIndex) noteOff += qPitch(r._gen.valueY, r.y);
     }
     return noteOff;
   }
@@ -302,9 +304,18 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         val = r._env;
         r._env *= r._decayCoef;
       }
+      // GEN Y output to a param destination (X is the route's own dest below).
+      if (r.src.type === 'gen' && r.y && r.y.on && r.y.param !== 'note') {
+        const cy = (r.y.depth == null ? 0.5 : r.y.depth) * (r.y.polarity < 0 ? -1 : 1) * (r._genValY || 0);
+        const py = r.y.param, ty = r.y.track;
+        if (ty === -1) { if (py === 'volume') mMasterVol += cy; }
+        else if (py === 'cutoff') modCut[ty] += cy;
+        else if (py === 'vca') modVca[ty] += cy;
+        else if (py[0] === 'm') modParam[ty][+py[1]] += cy;
+      }
       const c = r.depth * r.polarity * val;
       const p = r.dest.param;
-      if (r.src.type === 'gen' && p === 'note') continue; // pitch handled in fireStep
+      if (r.src.type === 'gen' && p === 'note') continue; // X pitch handled in fireStep
       if (r.dest.track === -1) {
         if (p === 'volume') mMasterVol += c;   // master mixer target
       } else if (p === 'cutoff') modCut[r.dest.track] += c;

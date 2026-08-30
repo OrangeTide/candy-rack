@@ -119,6 +119,29 @@ console.log('== GEN generative source ==');
   for (let i = 0; i < r1.left.length; i++) { const s = r1.left[i]; if (Number.isNaN(s)) nan = true; peak = Math.max(peak, Math.abs(s)); if (s !== r2.left[i]) same = false; }
   check('GEN offline render is bounded', !nan && peak <= 1.0, `peak ${peak.toFixed(3)}`);
   check('GEN offline render is deterministic', same);
+
+  // v2: WALK is a bounded contiguous walk; S&H is memoryless random; Y is half-rate.
+  const walk = (() => { const s = g.makeGen(3); let mn = 1, mx = 0, maxStep = 0, prev = g.genAdvance(s, 'walk', 4, 0.9); for (let i = 0; i < 300; i++) { const v = g.genAdvance(s, 'walk', 4, 0.9); mn = Math.min(mn, v); mx = Math.max(mx, v); maxStep = Math.max(maxStep, Math.abs(v - prev)); prev = v; } return { mn, mx, maxStep }; })();
+  check('WALK stays in range with small steps', walk.mn >= 0 && walk.mx <= 1 && walk.maxStep < 0.12, `step ${walk.maxStep.toFixed(3)}`);
+  const sh = (() => { const s = g.makeGen(5); const o = []; for (let i = 0; i < 8; i++) o.push(+g.genAdvance(s, 'sh', 4, 1).toFixed(3)); return o; })();
+  check('S&H is memoryless random (ignores lock)', new Set(sh).size >= 6);
+  const gy = g.makeGen(9); const ys = []; for (let i = 0; i < 6; i++) { g.genAdvance(gy, 'turing', 8, 0.5); ys.push(+gy.valueY.toFixed(4)); }
+  check('GEN Y is a half-rate companion', ys[0] === ys[1] && ys[2] === ys[3] && ys[4] === ys[5]);
+
+  // Y output routes offline: X -> note, Y -> cutoff, both render bounded + deterministic.
+  const mkY = () => {
+    const t = seqMod.makeTrack('sh101', P);
+    for (let i = 0; i < 16; i++) { const s = t.main[i]; s.on = true; s.note = 48; s.gateLen = 0.5; s.velocity = 100; }
+    const f = () => { const x = seqMod.makeTrack('sh101', P); x.mute = true; return x; };
+    const routes = [{ src: { type: 'gen', mode: 'marbles', length: 8, lock: 0.6, scale: 'minor', octaves: 2 }, dest: { track: 0, param: 'note' }, depth: 1, polarity: 1, y: { on: true, track: 0, param: 'cutoff', depth: 0.5, polarity: 1 } }];
+    const p = seqMod.makePattern([t, f(), f(), f(), f(), f()], routes); p.bpm = 120; return p;
+  };
+  const y1 = off.renderPattern(mkY(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  const y2 = off.renderPattern(mkY(), { sampleRate: 48000, engines: reg.engines, mode: 'loop' });
+  let yPeak = 0, yNan = false, ySame = true;
+  for (let i = 0; i < y1.left.length; i++) { const s = y1.left[i]; if (Number.isNaN(s)) yNan = true; yPeak = Math.max(yPeak, Math.abs(s)); if (s !== y2.left[i]) ySame = false; }
+  check('GEN X-note + Y-param renders bounded', !yNan && yPeak <= 1.0, `peak ${yPeak.toFixed(3)}`);
+  check('GEN X/Y render is deterministic', ySame);
 }
 
 console.log('== poly cross-loop hold ==');
