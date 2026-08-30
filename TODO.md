@@ -113,7 +113,7 @@ machine framework (build/<name>.html from a machine config) makes each new
 content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
 spirit), Strawberry (bubblegum rave), Blueberry (space jazz), Blackberry (dungeon
-synth). Remaining backlog: sunshine breaks
+synth), Coconut (generative ambient). Remaining backlog: sunshine breaks
 (gated on sampler), dub techno (chorus->reverb pedals now exist; content-ready),
 gothic-industrial / Licorice (has distortion/ringmod now via the FX rack; wants
 a Rings-style engine).
@@ -146,10 +146,13 @@ Gated on the sampler:
 
 Ungated (FX-send now exists), quality-gated on poly cross-loop hold:
 
-- [ ] Coconut: ambient (pale bone-white). SUPERSAW + CHORD drones, long ties,
-      slow filter LFOs. The FX send rack now exists, so this is content-ready,
-      but SUPERSAW/CHORD are poly, so the long-tie drones re-attack every loop
-      until the poly cross-loop hold lands. Best built after item 4.
+- [x] Coconut: generative ambient (pale bone-white). BUILT 2026-08-29 as the GEN
+      showcase: TWO fully generative voices (E.PIANO + SH-101) with empty lanes
+      driven by a GEN -> gate (Turing rhythm) + GEN -> pitch (Marbles melody, minor
+      & pentatonic) each, over an SH-101 sub drone, an Am9 CHORD pad, a SUPERSAW pad
+      breathed by a 4-bar synced LFO, and a VOWEL choir, into Dimension -> big hall.
+      The one LIGHT skin (cream/brown). Poly cross-loop hold keeps the drones smooth.
+      coconut.js + coconut.starter.js.
 
 ## Generative modulation source (GEN)
 

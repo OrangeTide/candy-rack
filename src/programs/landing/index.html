@@ -34,6 +34,7 @@
     --blackberry: #6a45c4;
     --licorice: #2a2436;
     --peppermint: #ff3b47;
+    --coconut: #c9b997;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -144,6 +145,7 @@
   .card.blackberry { --accent: var(--blackberry); }
   .card.licorice { --accent: var(--licorice); }
   .card.peppermint { --accent: var(--peppermint); }
+  .card.coconut { --accent: var(--coconut); }
 
   .foot { text-align: center; margin-top: 46px; color: var(--ink-mute); font-size: 11px; letter-spacing: 1px; }
   .foot a { color: var(--ink-dim); }
@@ -365,6 +367,26 @@
       <div class="m-name">Blackberry</div>
       <div class="m-flavor">dungeon synth</div>
       <div class="m-model">BK-6</div>
+      <div class="status open">Open &#9656;</div>
+    </a>
+
+    <a class="card coconut live" href="coconut.html">
+      <svg class="fruit-svg" viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="cocoHuskC" cx="36%" cy="30%" r="80%">
+            <stop offset="0" stop-color="#8a6a44"/><stop offset="60%" stop-color="#6b4e30"/><stop offset="100%" stop-color="#3e2c18"/>
+          </radialGradient>
+          <radialGradient id="cocoFleshC" cx="42%" cy="38%" r="70%">
+            <stop offset="0" stop-color="#fffaf0"/><stop offset="100%" stop-color="#e6d8c0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="32" cy="40" r="24" fill="url(#cocoHuskC)" stroke="rgba(0,0,0,.2)" stroke-width="1"/>
+        <ellipse cx="30" cy="40" rx="15" ry="17" fill="url(#cocoFleshC)"/>
+        <g fill="#4e3620"><circle cx="41" cy="30" r="2"/><circle cx="46" cy="37" r="2"/><circle cx="43" cy="45" r="2"/></g>
+      </svg>
+      <div class="m-name">Coconut</div>
+      <div class="m-flavor">generative ambient</div>
+      <div class="m-model">CN-6</div>
       <div class="status open">Open &#9656;</div>
     </a>
 
