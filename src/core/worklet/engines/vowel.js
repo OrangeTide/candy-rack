@@ -65,13 +65,19 @@ export class VowelVoice {
     this.lastKey = -1;
   }
 
-  noteOn({ freq, vel, gateSec, params }) {
+  noteOn({ freq, note, vel, gateSec, params, tie }) {
     this.p = params;
+    const hold = !!tie && this.active && !this.env.done; // held note carries across the loop
+    this.note = note;
     this.freq = freq;
     this.vel = (vel ?? 100) / 127;
-    this.phase = 0;
-    this.env.trigger(gateSec, params[3]);
-    this.lastKey = -1; // force filter recompute
+    if (hold) {
+      this.env.hold(gateSec);
+    } else {
+      this.phase = 0;
+      this.env.trigger(gateSec, params[3]);
+      this.lastKey = -1; // force filter recompute
+    }
     this.active = true;
   }
 

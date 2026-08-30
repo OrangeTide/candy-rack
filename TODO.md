@@ -58,16 +58,18 @@ so this record's palette is fully covered by the Grape machine.
 
 ## Sequencer
 
-- [ ] Cross-loop hold (tie/slide continuity) for POLY engines. tie=gate /
-      slide=pitch and the wrap-around drone now work for the MONO engines
-      (acid, dx100, fmbass): the voice regates instead of re-attacking across
-      the loop. Poly engines (sh101, supersaw, chord, epiano) still allocate a
-      fresh voice per trigger, so a held/drone note re-attacks every bar. Needs
-      the poly path (runtime.fire + offline-render) to find the voice already
-      playing a tied note and regate it (hold), and glide it on slide, rather
-      than allocating a new one. Also: the offline 'loop' render is one cold
-      pass, so a recorded drone still attacks at the tile start even for mono;
-      a warm-up pass would fix the WAV.
+- [x] Cross-loop hold (tie continuity) for POLY engines. DONE 2026-08-29. The
+      poly path (runtime.fire + offline allocFor) now finds the voice already
+      sounding a tied note (by voice.note) and regates it (hold, no re-attack)
+      instead of allocating fresh; every poly voice stores this.note and its
+      noteOn takes tie (sh101/supersaw hold inline, the shared Env got a hold()
+      method for chord/csaw/fm2/vowel/dtmf, epiano/FM6 already held). Verified:
+      a supersaw tie holds at 92% of sustain across the loop vs 10% on re-attack.
+      Voice rows benefit too (they fire with tie). REMAINING (deferred): slide
+      continuity on poly (poly glide is ambiguous; tie/hold is the drone win),
+      and the offline warm-up pass so an EXPORTED drone WAV does not attack at
+      the tile start (realtime is seamless; only the recorded first loop cold-
+      starts). A two-pass render would fix the WAV.
 - [x] Polyphonic chord rows on poly engines. DONE 2026-08-29. A single-note poly
       track can enable voice-rows mode (track.rowMode + track.rows[N] lanes, 2..6
       via setRowCount): trackLanes/laneSteps return row0..rowN-1, the scheduler

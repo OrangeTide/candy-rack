@@ -124,9 +124,16 @@ class VoiceProcessor extends AudioWorkletProcessor {
       return;
     }
     for (const off of offsets) {
+      const noteVal = (ev.note ?? 60) + off;
       const freq = 440 * Math.pow(2, (ev.note - 69 + off) / 12);
-      const v = this.alloc();
-      v.noteOn({ freq, note: ev.note, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles });
+      // Poly cross-loop hold: a tied trigger reuses the voice already sounding
+      // this exact note (regate/hold, no re-attack) so a drone or held chord
+      // sustains across the loop instead of re-plucking every bar. Only when one
+      // is actually still playing; otherwise allocate fresh.
+      let v = null;
+      if (ev.tie) { for (const pv of this.pool) { if (pv.active && pv.note === noteVal) { v = pv; break; } } }
+      if (!v) v = this.alloc();
+      v.noteOn({ freq, note: noteVal, vel: ev.velocity, gateSec, params: this.params, toggles: this.toggles, tie: !!ev.tie });
     }
   }
 

@@ -131,6 +131,13 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
     node.rr += 1;
     return v;
   }
+  // Poly cross-loop hold: on a tied trigger, reuse the voice already sounding
+  // this note (it will regate/hold, no re-attack); otherwise allocate fresh.
+  // Mirrors the worklet runtime's poly path.
+  function allocFor(node, noteVal, tie) {
+    if (tie) { for (const v of node.pool) if (v.active && v.note === noteVal) return v; }
+    return alloc(node);
+  }
   function fireStep(node, tIndex, pos) {
     const track = node.track;
     // Kit: each of the four part rows drives its own drum voice (fixed pool
@@ -167,7 +174,7 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         const gsteps = span - 1 + step.gateLen;
         const gateSec = Math.max(0.01, gsteps * node.stepDur);
         const freq = 440 * Math.pow(2, ((step.note ?? 60) - 69) / 12);
-        alloc(node).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles });
+        allocFor(node, step.note, !!step.tie).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         for (const r of routes) {
           if (r.src.type !== 'trig' || r.src.track !== tIndex) continue;
           if (r.src.lane !== 'both' && r.src.lane !== lane) continue;
@@ -209,8 +216,9 @@ export function renderPattern(pattern, { sampleRate = 48000, engines, mode = 'lo
         node.pool[0].noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, slide: !!step.slide, accent, tie: !!step.tie });
       } else {
         for (const off of offsets) {
+          const noteVal = (step.note ?? 60) + off;
           const freq = 440 * Math.pow(2, (step.note - 69 + off) / 12);
-          alloc(node).noteOn({ freq, note: step.note, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles });
+          allocFor(node, noteVal, !!step.tie).noteOn({ freq, note: noteVal, vel: step.velocity, gateSec, params: node.params, toggles: node.toggles, tie: !!step.tie });
         }
       }
       for (const r of routes) {

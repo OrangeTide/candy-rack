@@ -89,6 +89,27 @@ check('starter chord Type values read maj/maj/min7',
   typeFmt(0.00) === 'maj' && typeFmt(0.05) === 'maj' && typeFmt(0.59) === 'min7',
   `${typeFmt(0.00)} ${typeFmt(0.05)} ${typeFmt(0.59)}`);
 
+console.log('== poly cross-loop hold ==');
+{
+  const { SupersawVoice } = await import('../src/core/worklet/engines/supersaw.js');
+  const params = [0.4, 0.6, 0.5, 0.0, 0.1];
+  const level = (tie) => {
+    const v = new SupersawVoice(SR);
+    v.noteOn({ freq: 220, note: 57, vel: 100, gateSec: 0.4, params });
+    const smp = () => { v.renderStereo(); return v.outL; };
+    for (let i = 0; i < Math.floor(0.4 * SR); i++) smp();
+    let ps = 0; for (let i = 0; i < 800; i++) { const s = smp(); ps += s * s; }
+    const sustain = Math.sqrt(ps / 800);
+    // re-trigger the same note (the loop-boundary event) with/without tie
+    v.noteOn({ freq: 220, note: 57, vel: 100, gateSec: 0.4, params, tie });
+    let e = 0, n = Math.floor(0.010 * SR); for (let i = 0; i < n; i++) { const s = smp(); e += s * s; }
+    return Math.sqrt(e / n) / sustain; // 1.0 = held through, ~0 = re-attacked from zero
+  };
+  const hold = level(true), reattack = level(false);
+  check('poly tie holds across the loop (no re-attack)', hold > 0.8, `held ${(hold * 100).toFixed(0)}% of sustain`);
+  check('poly non-tie re-attacks', reattack < 0.4, `re-attack ${(reattack * 100).toFixed(0)}%`);
+}
+
 console.log('== voice rows (poly chord sequencing) ==');
 {
   const seq = await import('../src/core/sequencer.js');

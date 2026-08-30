@@ -97,27 +97,35 @@ export class SupersawVoice {
     this._cachedWaves = n;
   }
 
-  noteOn({ freq, vel, gateSec, params }) {
+  noteOn({ freq, note, vel, gateSec, params, tie }) {
     this.p = params;
+    // Cross-loop hold: a tied trigger on an already-sounding voice keeps the
+    // phases, filter, and envelope and just re-arms the gate, so a held pad or
+    // drone sustains across the loop instead of re-attacking every bar.
+    const hold = !!tie && this.active && !this.envDone;
+    this.note = note;
     this.freq = freq;
     this.vel = (vel ?? 100) / 127;
-    for (let i = 0; i < MAX_WAVES; i++) this.phases[i] = Math.random();
     this._cachedDetune = -1; // force recompute against the new base freq
     this.recompute();
 
-    this.lpL = 0;
-    this.lpR = 0;
-    this.decimCount = 0;
-    this.decimHoldL = 0;
-    this.decimHoldR = 0;
-
-    this.envV = 0;
-    this.envStage = 'a';
-    this.envDone = false;
-    this.envT = 0;
     this.atkInc = 1 / (0.025 * this.sr);
     this.relCoef = Math.exp(-1 / (0.9 * this.sr));
+    this.envT = 0;
     this.gateSamples = Math.max(1, Math.floor((gateSec ?? 0.1) * this.sr));
+    if (!hold) {
+      for (let i = 0; i < MAX_WAVES; i++) this.phases[i] = Math.random();
+      this.lpL = 0;
+      this.lpR = 0;
+      this.decimCount = 0;
+      this.decimHoldL = 0;
+      this.decimHoldR = 0;
+      this.envV = 0;
+      this.envStage = 'a';
+      this.envDone = false;
+    } else if (this.envStage === 'r') {
+      this.envStage = 's'; // was releasing; resume the sustain
+    }
     this.active = true;
   }
 

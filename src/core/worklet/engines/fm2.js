@@ -22,14 +22,20 @@ export class FM2Voice {
     this.p = [0.5, 0.4, 0.2, 0.5, 0.2];
   }
 
-  noteOn({ freq, vel, gateSec, params }) {
+  noteOn({ freq, note, vel, gateSec, params, tie }) {
     this.p = params;
+    const hold = !!tie && this.active && !this.env.done; // held note carries across the loop
+    this.note = note;
     this.freq = freq;
     this.vel = (vel ?? 100) / 127;
-    this.cphase = 0;
-    this.mphase = 0;
-    this.lastMod = 0;
-    this.env.trigger(gateSec, params[3]);
+    if (hold) {
+      this.env.hold(gateSec);
+    } else {
+      this.cphase = 0;
+      this.mphase = 0;
+      this.lastMod = 0;
+      this.env.trigger(gateSec, params[3]);
+    }
     this.active = true;
   }
 

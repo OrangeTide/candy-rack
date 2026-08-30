@@ -28,6 +28,17 @@ export class Env {
     this.released = false;
   }
 
+  // Re-arm the gate for a tied continuation without re-attacking: keep the
+  // current stage and level, just extend the gate and clear the release so a
+  // held/drone note sustains seamlessly across the loop instead of re-plucking.
+  hold(gateSec) {
+    this.gateSamples = Math.max(1, Math.floor(gateSec * this.sr));
+    this.t = 0;
+    this.released = false;
+    if (this.stage === 'r') this.stage = 'd'; // was releasing; resume the body
+    this.done = false;
+  }
+
   process() {
     this.t += 1;
     if (!this.released && this.t >= this.gateSamples) {

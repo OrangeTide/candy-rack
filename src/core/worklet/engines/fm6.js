@@ -193,8 +193,9 @@ export class FM6Voice {
     this.ops = cfg.ops;
   }
 
-  noteOn({ freq, vel, gateSec, params, slide, accent, toggles, tie }) {
+  noteOn({ freq, note, vel, gateSec, params, slide, accent, toggles, tie }) {
     this.p = params;
+    this.note = note; // stored so the poly path can find this voice for cross-loop hold
     if (toggles) this.tog = toggles; // read by subclasses that use switches (DX100)
     // Accent (a coincident alt-lane trigger) makes the note louder and, via a
     // higher modulation index, brighter, standing in for a 303 accent opening

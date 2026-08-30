@@ -35,12 +35,15 @@ export class SH101Voice {
     this.sustain = 0.7;
   }
 
-  noteOn({ freq, vel, gateSec, params, toggles }) {
+  noteOn({ freq, note, vel, gateSec, params, toggles, tie }) {
     this.p = params;
     if (toggles) { this.wave = !!toggles[0]; this.sub = !!toggles[1]; this.slow = !!toggles[2]; }
+    // Cross-loop hold: a tied trigger on an already-sounding voice re-arms the
+    // gate without re-attacking (keep phase + envelope), so a held/drone note
+    // sustains seamlessly across the loop instead of re-plucking.
+    const hold = !!tie && this.active && this.env > 2e-3;
+    this.note = note;
     this.freq = freq;
-    this.phase = 0;
-    this.subPhase = 0;
     this.vel = (vel ?? 100) / 127;
     this.gateSamples = Math.max(1, Math.floor((gateSec || 0.1) * this.sr));
     this.t = 0;
@@ -51,8 +54,14 @@ export class SH101Voice {
     const decSec = 0.02 + (params[3] || 0) * 1.5;
     this.decCoef = Math.exp(-1 / (decSec * this.sr));
     this.relCoef = Math.exp(-1 / (0.15 * this.sr)); // ~150 ms release, frees promptly
-    this.env = 0;
-    this.stage = 'a';
+    if (!hold) {
+      this.phase = 0;
+      this.subPhase = 0;
+      this.env = 0;
+      this.stage = 'a';
+    } else if (this.stage === 'r') {
+      this.stage = 'd'; // was releasing; resume toward sustain
+    }
     this.active = true;
   }
 

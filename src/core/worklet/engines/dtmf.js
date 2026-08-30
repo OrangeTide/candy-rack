@@ -60,10 +60,13 @@ export class DtmfVoice {
     this.p = [0.50, 0.50, 0.30, 0.40, 0.35];
   }
 
-  noteOn({ freq, vel, gateSec, params, toggles }) {
+  noteOn({ freq, note, vel, gateSec, params, toggles, tie }) {
     this.p = params;
+    const hold = !!tie && this.active && !this.env.done; // held note carries across the loop
+    this.note = note;
     this.freq = freq;
     this.vel = (vel ?? 100) / 127;
+    if (hold) { this.env.hold(gateSec); this.active = true; return; }
     this.p1 = 0;
     this.p2 = 0;
     this.decHold = 0;

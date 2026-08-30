@@ -59,12 +59,20 @@ export class ChordVoice {
     this.p = [0.0, 0.2, 0.3, 0.5, 0.2];
   }
 
-  noteOn({ freq, vel, gateSec, params }) {
+  noteOn({ freq, note, vel, gateSec, params, tie }) {
     this.p = params;
+    // Cross-loop hold: a tied trigger on a still-sounding voice extends the gate
+    // without re-attacking, so a held note carries across the loop.
+    const hold = !!tie && this.active && !this.env.done;
+    this.note = note;
     this.freq = freq;
     this.vel = (vel ?? 100) / 127;
-    this.phase = 0;
-    this.env.trigger(gateSec, params[3]);
+    if (hold) {
+      this.env.hold(gateSec);
+    } else {
+      this.phase = 0;
+      this.env.trigger(gateSec, params[3]);
+    }
     this.active = true;
   }
 
