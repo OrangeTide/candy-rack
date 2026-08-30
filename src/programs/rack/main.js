@@ -1409,6 +1409,9 @@ function renderMatrix() {
 
   pattern.routes.forEach((r, idx) => {
     const row = el('div', 'route');
+    // Live value LED: green (positive) / red (negative), brightness by magnitude.
+    const led = el('div', 'route-led'); led.dataset.ri = String(idx); led.title = 'live mod value';
+    row.append(led);
 
     // Source. Env taps a track's engine mod output; Gen is a generative sequencer.
     row.append(pick([['trig', 'Trig'], ['lfo', 'LFO'], ['env', 'Env'], ['gen', 'Gen']], r.src.type, (v) => {
@@ -1533,6 +1536,28 @@ function renderMatrix() {
 
     box.append(row);
   });
+  startMeters();
+}
+
+// A single animation loop paints every route's live-value LED: green for a
+// positive contribution, red for negative, brightness by magnitude. Runs while
+// the app is up; does nothing when no matrix LEDs are on screen.
+let metersRunning = false;
+function startMeters() {
+  if (metersRunning) return;
+  metersRunning = true;
+  const tick = () => {
+    const leds = document.querySelectorAll('.route-led');
+    for (const led of leds) {
+      const v = modMatrix.routeValue(+led.dataset.ri);
+      const mag = Math.min(1, Math.abs(v));
+      const col = v >= 0 ? '90,240,120' : '255,90,90';
+      led.style.background = `rgba(${col},${0.12 + mag * 0.88})`;
+      led.style.boxShadow = mag > 0.03 ? `0 0 ${2 + mag * 9}px rgba(${col},${mag})` : 'none';
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 function field(label, control, valEl) {

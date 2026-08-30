@@ -61,12 +61,46 @@ export class ModMatrix {
     this.routes = routes || [];
     const ctx = this.host.ctx;
     if (!ctx) return;
+    // A silent sink the per-route meter analysers connect to, so they are pulled
+    // (rendered) even though their reading is never heard. Created once.
+    if (!this.meterSink && ctx.createAnalyser && ctx.destination) {
+      this.meterSink = ctx.createGain(); this.meterSink.gain.value = 0; this.meterSink.connect(ctx.destination);
+    }
     for (const route of this.routes) this.buildRoute(route, ctx);
   }
 
   // Deterministic per-route seed so a locked loop repeats and the offline WAV
   // matches playback.
   seedFor(route) { return ((this.routes.indexOf(route) + 1) * 0x9E3779B1) >>> 0; }
+
+  // Tap a source node with an analyser (pre-depth, so the meter shows the source
+  // regardless of depth) into the silent sink. `out` is the source output index.
+  tap(ctx, srcNode, out = 0) {
+    if (!ctx.createAnalyser || !this.meterSink) return null; // e.g. the headless test mock
+    const an = ctx.createAnalyser();
+    an.fftSize = 32;
+    try { srcNode.connect(an, out); } catch (_) { srcNode.connect(an); }
+    an.connect(this.meterSink);
+    return an;
+  }
+
+  // The current value of a route for the meter LED, in ~[-1,1], with polarity
+  // applied (so green = positive, red = negative). GEN reads its live main-thread
+  // value; other sources read their analyser's latest sample.
+  routeValue(idx) {
+    const route = this.routes[idx];
+    if (!route) return 0;
+    const n = this.nodes.find((x) => x.route === route);
+    if (!n) return 0;
+    const sign = route.polarity < 0 ? -1 : 1;
+    if (n.gen) return n.gen.value * sign;
+    if (n.analyser) {
+      const b = this._meterBuf || (this._meterBuf = new Float32Array(32));
+      n.analyser.getFloatTimeDomainData(b);
+      return b[b.length - 1] * sign;
+    }
+    return 0;
+  }
 
   buildRoute(route, ctx) {
     // Generative source into the PITCH (note-offset) destination: there is no
@@ -96,20 +130,20 @@ export class ModMatrix {
       const src = this.voices[route.src.track];
       if (!src || !src.node) { try { gain.disconnect(); } catch (_) {} return; }
       src.node.connect(gain, 1);
-      this.nodes.push({ route, gain, envNode: src.node });
+      this.nodes.push({ route, gain, envNode: src.node, analyser: this.tap(ctx, src.node, 1) });
     } else if (route.src.type === 'lfo') {
       const osc = ctx.createOscillator();
       osc.type = SHAPES[route.src.shape] || 'sine';
       osc.frequency.value = lfoHz(route.src, this.bpm);
       osc.connect(gain);
       osc.start();
-      this.nodes.push({ route, gain, osc });
+      this.nodes.push({ route, gain, osc, analyser: this.tap(ctx, osc) });
     } else {
       const cs = ctx.createConstantSource();
       cs.offset.value = 0;
       cs.connect(gain);
       cs.start();
-      this.nodes.push({ route, gain, cs });
+      this.nodes.push({ route, gain, cs, analyser: this.tap(ctx, cs) });
     }
   }
 
@@ -165,6 +199,7 @@ export class ModMatrix {
       try { if (n.osc) n.osc.disconnect(); } catch (_) {}
       try { if (n.cs) n.cs.disconnect(); } catch (_) {}
       try { if (n.envNode) n.envNode.disconnect(n.gain); } catch (_) {}
+      try { if (n.analyser) n.analyser.disconnect(); } catch (_) {}
       try { n.gain.disconnect(); } catch (_) {}
     }
     this.nodes = [];

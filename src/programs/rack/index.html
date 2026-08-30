@@ -732,6 +732,12 @@
     border: 1px solid #000; border-radius: 11px; box-shadow: 0 2px 6px rgba(0,0,0,.5) inset;
   }
   .sel.sm { width: auto; padding: 4px 6px; font-size: 12px; }
+  /* Live value LED at the head of each route row (painted by the meter loop). */
+  .route-led {
+    flex: none; width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(120,120,140,.15);
+    box-shadow: 0 1px 2px rgba(0,0,0,.6) inset;
+  }
   .route .mini { width: 76px; }
   .arrow { color: var(--lime); font-weight: 800; margin: 0 2px; text-shadow: 0 0 8px rgba(195,255,62,.5); }
   .rlbl { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--m-ink-mute); }
