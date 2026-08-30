@@ -656,6 +656,30 @@
   .ed-title .state.placed { background: rgba(195,255,62,.18); color: var(--lime); border: 1px solid rgba(195,255,62,.4); }
   .ed-title .state.empty { background: rgba(0,0,0,.28); color: var(--m-ink-mute); border: 1px solid #2c2048; }
 
+  /* Transpose piano beneath the step area: white keys flex to fill, black keys
+     positioned by percent over them. A key lights amber for the current shift. */
+  .piano { margin-top: 16px; }
+  .piano-keys { position: relative; display: flex; height: 92px; user-select: none; -webkit-user-select: none; touch-action: none; }
+  .pkey { cursor: pointer; display: flex; align-items: flex-end; justify-content: center; }
+  .pkey.white {
+    flex: 1; margin: 0 1px; border-radius: 0 0 7px 7px; color: #5a4b78;
+    background: linear-gradient(180deg, #efe9fb, #cfc6e2);
+    box-shadow: 0 3px 6px rgba(0,0,0,.45), 0 -1px 0 rgba(255,255,255,.7) inset;
+  }
+  .pkey.black {
+    position: absolute; top: 0; width: 9%; height: 58%; z-index: 2; color: #b7a9d6;
+    border-radius: 0 0 5px 5px;
+    background: linear-gradient(180deg, #3a3350, #14101f);
+    box-shadow: 0 3px 6px rgba(0,0,0,.6), 0 -2px 0 rgba(255,255,255,.12) inset;
+  }
+  .pkey:active { transform: translateY(1px); }
+  .pkey.active.white { color: #3a2705; background: linear-gradient(180deg, #ffe6a0, var(--amber)); box-shadow: 0 0 12px rgba(255,179,46,.65), 0 3px 6px rgba(0,0,0,.4); }
+  .pkey.active.black { color: #3a2705; background: linear-gradient(180deg, #ffcf6a, #e0900c); box-shadow: 0 0 12px rgba(255,179,46,.7); }
+  .pk-lbl { display: none; font-family: var(--tech); font-size: 11px; padding-bottom: 8px; pointer-events: none; text-transform: uppercase; }
+  .pkey.black .pk-lbl { font-size: 10px; padding-bottom: 6px; }
+  /* Show the desktop shortcut letters only on hover/fine-pointer devices. */
+  @media (hover: hover) and (pointer: fine) { .pk-lbl { display: block; } }
+
   /* Instruction hints */
   .hint {
     font-family: var(--tech); font-size: 11px; line-height: 1.55; color: var(--m-ink-dim);

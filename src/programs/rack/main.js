@@ -351,9 +351,41 @@ function setXposeBase(n) {
   xposeBase = n < -XPOSE_RANGE ? -XPOSE_RANGE : n > XPOSE_RANGE ? XPOSE_RANGE : n;
   updateXposeReadout();
 }
+function setXposeKey(off) { xposeKey = off; updateXposeReadout(); }
+function clearXposeKey() { xposeKey = null; updateXposeReadout(); }
 function updateXposeReadout() {
-  const e = document.getElementById('xpose-val'); if (e) e.textContent = fmtXpose(xposeAmount());
-  const p = document.getElementById('xpose'); if (p) p.classList.toggle('active', xposeAmount() !== 0);
+  const amt = xposeAmount();
+  const e = document.getElementById('xpose-val'); if (e) e.textContent = fmtXpose(amt);
+  const p = document.getElementById('xpose'); if (p) p.classList.toggle('active', amt !== 0);
+  document.querySelectorAll('#piano .pkey').forEach((k) => k.classList.toggle('active', Number(k.dataset.off) === amt));
+}
+
+// One-octave transpose piano: each key is a semitone offset (0..12) matching the
+// A-row keyboard perform (label = its desktop shortcut). White keys flex to fill;
+// black keys are positioned by percent over the boundaries. Pressing a key
+// transposes momentarily (like holding the shortcut), so touch users get the
+// same perform control, and the current shift lights its key.
+const PIANO_WHITE = [[0, 'A'], [2, 'S'], [4, 'D'], [5, 'F'], [7, 'G'], [9, 'H'], [11, 'J'], [12, 'K']];
+const PIANO_BLACK = [[1, 'W', 8.0], [3, 'E', 20.5], [6, 'T', 45.5], [8, 'Y', 58.0], [10, 'U', 70.5]];
+
+function makePiano() {
+  const piano = el('div', 'piano'); piano.id = 'piano';
+  const keys = el('div', 'piano-keys');
+  const mk = (off, label, cls, leftPct) => {
+    const k = el('div', 'pkey ' + cls); k.dataset.off = String(off);
+    if (leftPct != null) k.style.left = leftPct + '%';
+    k.append(el('span', 'pk-lbl', label));
+    if (off === xposeAmount()) k.classList.add('active');
+    const up = () => { if (xposeKey === off) clearXposeKey(); };
+    k.addEventListener('pointerdown', (e) => { e.preventDefault(); setXposeKey(off); try { k.setPointerCapture(e.pointerId); } catch (_) {} });
+    k.addEventListener('pointerup', up);
+    k.addEventListener('pointercancel', up);
+    return k;
+  };
+  PIANO_WHITE.forEach(([off, label]) => keys.append(mk(off, label, 'white')));
+  PIANO_BLACK.forEach(([off, label, left]) => keys.append(mk(off, label, 'black', left)));
+  piano.append(keys);
+  return piano;
 }
 
 function stepKey(lane, pos) { return lane + ':' + pos; }
@@ -1033,6 +1065,7 @@ function renderEditor() {
 
   const grid = el('div', 'grid'); grid.id = 'grid'; ed.append(grid);
   const stepEd = el('div', 'stepedit'); stepEd.id = 'stepedit'; ed.append(stepEd);
+  ed.append(makePiano()); // transpose piano beneath the step area
 
   renderGrid();
 }
@@ -1582,9 +1615,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   if (e.key >= '1' && e.key <= '6') { selectTrack(Number(e.key) - 1); return; }
   const k = e.key.toLowerCase();
-  if (!e.repeat && k in XPOSE_KEYS) { heldXposeKey = k; xposeKey = XPOSE_KEYS[k]; updateXposeReadout(); }
+  if (!e.repeat && k in XPOSE_KEYS) { heldXposeKey = k; setXposeKey(XPOSE_KEYS[k]); }
 });
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
-  if (k === heldXposeKey) { heldXposeKey = null; xposeKey = null; updateXposeReadout(); }
+  if (k === heldXposeKey) { heldXposeKey = null; clearXposeKey(); }
 });
