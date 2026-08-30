@@ -276,6 +276,32 @@ console.log('== sample (ROMpler) ==');
   check('sample loop mode sustains (still active at 2s)', loop.active && loop.frames >= SR * 2 - 2);
 }
 
+console.log('== pulse (chiptune) ==');
+{
+  const { PulseVoice, ARP_SHAPES } = await import('../src/core/worklet/engines/pulse.js');
+  const freq = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  const play = (note, params, toggles, secs = 0.5) => {
+    const v = new PulseVoice(SR), b = new Float32Array(Math.floor(SR * secs));
+    v.noteOn({ freq: freq(note), note, vel: 110, gateSec: secs, params, toggles });
+    let peak = 0, nan = false;
+    for (let i = 0; i < b.length && v.active; i++) { b[i] = v.render(); if (Number.isNaN(b[i])) nan = true; peak = Math.max(peak, Math.abs(b[i])); }
+    return { buf: b, peak, nan };
+  };
+  const zc = (buf) => { let z = 0; for (let i = 1; i < buf.length; i++) if ((buf[i - 1] < 0) !== (buf[i] < 0)) z++; return z / 2 / (buf.length / SR); };
+  const pulse = play(57, [0.25, 0, 0.5, 0.5, 0], [false, false, false]);
+  check('pulse renders, finite, bounded', pulse.peak > 0.05 && pulse.peak <= 1.001 && !pulse.nan, `peak ${pulse.peak.toFixed(3)}`);
+  check('pulse tracks pitch (A3 ~220 Hz)', Math.abs(zc(pulse.buf) - 220) < 15, `${zc(pulse.buf) | 0} Hz`);
+  const tri = play(33, [0.5, 0, 0.5, 0.5, 0], [true, false, false]);
+  check('tri mode renders at the note (A1 ~55 Hz)', Math.abs(zc(tri.buf) - 55) < 8 && !tri.nan, `${zc(tri.buf) | 0} Hz`);
+  const noise = play(84, [0.5, 0, 0.5, 0.2, 0], [false, true, false]);
+  check('noise mode renders, bounded', noise.peak > 0.05 && noise.peak <= 1.001 && !noise.nan, `peak ${noise.peak.toFixed(3)}`);
+  // the arpeggiator cycles the pitch through the chord shape (min = 3 pitches)
+  const arp = play(57, [0.25, 0.5, 0.9, 0.9, 0], [false, false, false], 1.0);
+  const win = Math.floor(SR * 0.02), buckets = new Set();
+  for (let w = 0; w + win < arp.buf.length; w += win) buckets.add(Math.round(zc(arp.buf.subarray(w, w + win)) / 15) * 15);
+  check('arp cycles pitch through the chord shape', buckets.size >= 3, `${buckets.size} distinct pitch windows`);
+}
+
 console.log('== tempo-synced LFO ==');
 {
   const { lfoHz } = await import('../src/core/sequencer.js');

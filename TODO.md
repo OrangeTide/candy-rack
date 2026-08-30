@@ -147,9 +147,14 @@ Cheapest (content + existing engines):
 
 One small engine:
 
-- [ ] Peppermint: chiptune / bitpop (red/white, an oddball candy not a
-      fruit). Bit-crushed pulses (SUPERSAW Decimate already exists), needs a
-      pulse/duty engine + arpeggiator.
+- [x] Peppermint: chiptune / bitpop (red/white, an oddball candy not a fruit).
+      BUILT 2026-08-29. Added the PULSE engine (NES 2A03 style: band-limited
+      variable-duty pulse, quantised triangle, LFSR noise, plus a built-in
+      ARPEGGIATOR that cycles a chord shape fast to fake polyphony). Toggles
+      Tri/Noise/Sub, knobs Duty/Arp/Rate/Decay/Vibrato. Peppermint runs all six
+      channels on PULSE: noise drums, triangle bass, arp chords, a pentatonic
+      melody, a sparkle arp, and a square pad. A minor i-iv-v, 150 bpm, red-white
+      candy skin. pulse.js + pulse-meta.js + peppermint.js + peppermint.starter.js.
 
 Was gated on the sampler (now built):
 

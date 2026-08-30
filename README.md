@@ -8,7 +8,7 @@ into a standalone `.html` file with no runtime dependencies.
 
 Every program is a candy-colored imaginary groovebox, branded by a fruit flavor.
 One shared app is reskinned per machine from a small config (brand, palette,
-starter pattern). Ten machines are built so far:
+starter pattern). Eleven machines are built so far:
 
 - **Grape**, funky electro
 - **Lemon**, acid squelch (hard techno)
@@ -20,6 +20,7 @@ starter pattern). Ten machines are built so far:
 - **Peach**, vaporwave
 - **Plum**, trip-hop
 - **Orange**, sunshine breaks
+- **Peppermint**, chiptune
 
 More flavors fill out the rainbow over time, for example a gothic-industrial
 machine would be Licorice.
@@ -40,12 +41,16 @@ machine would be Licorice.
   spirit of the 303 and SH-101 keyboard perform. Play it from the computer
   keyboard or the on-screen piano; the same keys set a selected step's note while
   editing.
-- **Seventeen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
+- **Eighteen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
   MS-20 with its screaming Sallen-Key filter), FM (2-operator, a DX7 6-operator
   core behind E.PIANO and FM BASS, and the DX100 "Lately Bass"), a stereo
-  SUPERSAW, a CHORD generator, a VOWEL formant/talkbox, DTMF, drum and
-  percussion voices, and a SAMPLE ROMpler. Each engine has the same five
-  normalized controls with per-engine labels, plus up to three toggles.
+  SUPERSAW, a CHORD generator, a VOWEL formant/talkbox, DTMF, a PULSE chiptune
+  voice, drum and percussion voices, and a SAMPLE ROMpler. Each engine has the
+  same five normalized controls with per-engine labels, plus up to three toggles.
+- **PULSE.** A chiptune voice in the NES 2A03 spirit: a band-limited
+  variable-duty pulse, a quantized triangle, and an LFSR noise mode, plus a
+  built-in arpeggiator that cycles a chord shape fast so one channel reads as a
+  chord.
 - **SAMPLE.** A primitive ROMpler in the SP-404 spirit. Its factory samples are
   synthesized in code at load (a maj9 pad, a choir, a Rhodes, vinyl crackle, and
   a drum break), so they are small, copyright-free, and deterministic, and a
