@@ -8,7 +8,7 @@ into a standalone `.html` file with no runtime dependencies.
 
 Every program is a candy-colored imaginary groovebox, branded by a fruit flavor.
 One shared app is reskinned per machine from a small config (brand, palette,
-starter pattern). Eleven machines are built so far:
+starter pattern). Twelve machines are built so far:
 
 - **Grape**, funky electro
 - **Lemon**, acid squelch (hard techno)
@@ -21,9 +21,9 @@ starter pattern). Eleven machines are built so far:
 - **Plum**, trip-hop
 - **Orange**, sunshine breaks
 - **Peppermint**, chiptune
+- **Licorice**, gothic industrial
 
-More flavors fill out the rainbow over time, for example a gothic-industrial
-machine would be Licorice.
+More flavors fill out the rainbow over time as new engines land.
 
 ## What it does
 
@@ -41,12 +41,17 @@ machine would be Licorice.
   spirit of the 303 and SH-101 keyboard perform. Play it from the computer
   keyboard or the on-screen piano; the same keys set a selected step's note while
   editing.
-- **Eighteen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
+- **Nineteen engine types.** Subtractive (ACID/TB-303, SH-101, CS-SAW, and the
   MS-20 with its screaming Sallen-Key filter), FM (2-operator, a DX7 6-operator
   core behind E.PIANO and FM BASS, and the DX100 "Lately Bass"), a stereo
   SUPERSAW, a CHORD generator, a VOWEL formant/talkbox, DTMF, a PULSE chiptune
-  voice, drum and percussion voices, and a SAMPLE ROMpler. Each engine has the
-  same five normalized controls with per-engine labels, plus up to three toggles.
+  voice, a RINGS modal resonator, drum and percussion voices, and a SAMPLE
+  ROMpler. Each engine has the same five normalized controls with per-engine
+  labels, plus up to three toggles.
+- **RINGS.** A modal resonator in the Mutable Instruments Rings spirit: a bank
+  of tuned resonators, excited by a strike or bowed continuously, whose partials
+  morph from harmonic (a string) to inharmonic (a bell or metal bar), with a
+  ring-mod option for clangorous metallic tones.
 - **PULSE.** A chiptune voice in the NES 2A03 spirit: a band-limited
   variable-duty pulse, a quantized triangle, and an LFSR noise mode, plus a
   built-in arpeggiator that cycles a chord shape fast so one channel reads as a

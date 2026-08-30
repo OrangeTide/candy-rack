@@ -120,9 +120,9 @@ content-ready program cheap: a config + a starter + a build entry + a landing
 card. BUILT: Grape (funky electro), Lemon (acid squelch, Pump Panel "Confusion"
 spirit), Strawberry (bubblegum rave), Blueberry (space jazz), Blackberry (dungeon
 synth), Coconut (generative ambient), Guinep (dub techno), Peach (vaporwave),
-Plum (trip-hop), Orange (sunshine breaks). Remaining backlog: gothic-industrial /
-Licorice (has distortion/ringmod now via the FX rack; wants a Rings-style engine),
-Peppermint (chiptune, needs a pulse/arp engine).
+Plum (trip-hop), Orange (sunshine breaks), Peppermint (chiptune, on the new PULSE
+engine), Licorice (gothic industrial, on the new RINGS engine). Every genre on the
+original board is now built. Remaining backlog is open-ended (new genres/engines).
 
 Cheapest (content + existing engines):
 

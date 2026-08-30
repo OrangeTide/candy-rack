@@ -32,6 +32,7 @@ const MACHINES = [
   { name: 'plum', config: 'src/programs/machines/plum.js' },
   { name: 'orange', config: 'src/programs/machines/orange.js' },
   { name: 'peppermint', config: 'src/programs/machines/peppermint.js' },
+  { name: 'licorice', config: 'src/programs/machines/licorice.js' },
 ];
 
 const APP = {

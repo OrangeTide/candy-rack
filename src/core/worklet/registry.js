@@ -19,6 +19,7 @@ import { MS20Voice } from './engines/ms20.js';
 import { ClapVoice, CowbellVoice, KickVoice, SnareVoice, HatVoice } from './engines/percussion.js';
 import { SampleVoice } from './engines/sample.js';
 import { PulseVoice } from './engines/pulse.js';
+import { RingsVoice } from './engines/rings.js';
 
 const mono = () => [0];
 
@@ -50,4 +51,5 @@ export const engines = {
   sh101: { Voice: SH101Voice, notesFor: mono, defaults: [0.45, 0.35, 0.50, 0.40, 0.50] },
   sample: { Voice: SampleVoice, notesFor: mono, defaults: [0.00, 0.00, 0.50, 0.60, 0.00] },
   pulse: { Voice: PulseVoice, notesFor: mono, defaults: [0.40, 0.00, 0.50, 0.40, 0.00] },
+  rings: { Voice: RingsVoice, notesFor: mono, defaults: [0.30, 0.50, 0.60, 0.30, 0.50] },
 };
